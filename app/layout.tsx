@@ -6,7 +6,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { cn } from '@/lib/utils'
 import type { Metadata, Viewport } from 'next'
-import { Inter as FontSans } from 'next/font/google'
+import { Inter as FontSans, Playfair_Display, Poppins } from 'next/font/google'
 import './globals.css'
 
 const fontSans = FontSans({
@@ -14,12 +14,23 @@ const fontSans = FontSans({
   variable: '--font-sans'
 })
 
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['400', '600'],
+  variable: '--font-poppins'
+})
+
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-playfair'
+})
+
 const title = 'AtherAgent'
 const description =
   'A fully open-source AI-powered answer engine with a generative UI.'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://morphic.sh'),
+  metadataBase: new URL('https://atherlabs.com'),
   title,
   description,
   openGraph: {
@@ -50,7 +61,12 @@ export default function RootLayout({
     process.env.NEXT_PUBLIC_ENABLE_SAVE_CHAT_HISTORY === 'true'
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={cn('font-sans antialiased', fontSans.variable)}>
+      <body className={cn(
+        'font-sans antialiased',
+        fontSans.variable,
+        poppins.variable,
+        playfair.variable
+      )}>
         <SessionProvider>
           <ThemeProvider
             attribute="class"

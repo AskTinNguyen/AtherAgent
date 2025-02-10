@@ -19,7 +19,6 @@ import { ModelSelector } from './model-selector'
 import { SearchDepthToggle } from './search-depth-toggle'
 import { SearchModeToggle } from './search-mode-toggle'
 import { Button } from './ui/button'
-import { IconLogo } from './ui/icons'
 
 interface UploadResponse {
   url: string
@@ -105,7 +104,13 @@ export function ChatPanel({
 
   const handleNewChat = () => {
     setMessages([])
-    router.push('/')
+    setShowEmptyScreen(false)
+    setSearchMode(false)
+    setIsFullSize(false)
+    setIsMarkdownView(false)
+    setAttachments([])
+    setIsSourcePickerVisible(false)
+    router.replace('/')
   }
 
   const handleFileAccepted = async (files: File[]) => {
@@ -206,6 +211,19 @@ export function ChatPanel({
       isFirstRender.current = false
     }
   }, [query, append, messages.length])
+
+  // Reset input and state when query changes
+  useEffect(() => {
+    if (query) {
+      handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLTextAreaElement>)
+      setShowEmptyScreen(false)
+      setSearchMode(false)
+      setIsFullSize(false)
+      setIsMarkdownView(false)
+      setAttachments([])
+      setIsSourcePickerVisible(false)
+    }
+  }, [query, handleInputChange])
 
   // Update the format text handler
   const handleFormatText = () => {
@@ -323,11 +341,12 @@ export function ChatPanel({
           : 'fixed bottom-8 left-0 right-0 top-6 flex flex-col items-center justify-center'
       )}
     >
-      {messages.length === 0 && (
+      {/* revemoe THE ICONLOGO LOGO 👩‍🦳 */}
+      {/* {messages.length === 0 && (
         <div className="mb-8">
           <IconLogo className="size-12 text-muted-foreground" />
         </div>
-      )}
+      )} */}
       <form
         onSubmit={handleSubmit}
         className={cn(
@@ -348,7 +367,7 @@ export function ChatPanel({
               {isMarkdownView ? (
                 <div 
                   className={cn(
-                    "w-full min-h-12 bg-transparent px-4 py-3 text-sm prose prose-sm max-w-none dark:prose-invert",
+                    "w-full min-h-12 bg-transparent px-4 py-3 text-sm prose prose-sm max-w-none dark:prose-invert overflow-y-auto",
                     "prose-headings:mt-2 prose-headings:mb-1 prose-headings:text-foreground",
                     "prose-p:my-1 prose-p:leading-relaxed prose-p:text-muted-foreground",
                     "prose-pre:my-1 prose-pre:p-2 prose-pre:bg-muted prose-pre:text-foreground",
@@ -357,7 +376,7 @@ export function ChatPanel({
                     "prose-em:text-muted-foreground",
                     "prose-ul:my-1 prose-ol:my-1 prose-li:text-muted-foreground",
                     "prose-blockquote:text-muted-foreground prose-blockquote:border-l-primary",
-                    isFullSize ? "min-h-[120px] max-h-[820px] overflow-y-auto" : "min-h-12"
+                    isFullSize ? "min-h-[120px] max-h-[820px]" : "min-h-12"
                   )}
                   onClick={() => setIsMarkdownView(false)}
                 >

@@ -36,9 +36,18 @@ export function ChatMessages({
   })
   const manualToolCallId = 'manual-tool-call'
   const scrollTimeout = useRef<NodeJS.Timeout>()
-
-  // Add ref for the messages container
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Reset state when chatId changes
+  useEffect(() => {
+    setOpenStates({})
+    setStreamState({
+      isStreaming: false,
+      currentMessageId: null,
+      streamedContent: ''
+    })
+    setMessages([]) // Clear messages when chatId changes
+  }, [chatId, setMessages])
 
   // Scroll to bottom function with smooth behavior
   const scrollToBottom = () => {

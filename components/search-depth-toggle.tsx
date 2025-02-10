@@ -11,14 +11,20 @@ import {
 } from './ui/popover'
 
 interface SearchDepthToggleProps {
-  enabled?: boolean
+  enabled: boolean
+  currentDepth: number
+  maxDepth: number
+  onDepthChange: (depth: number) => void
 }
 
 export function SearchDepthToggle({
-  enabled = false
+  enabled,
+  currentDepth,
+  maxDepth,
+  onDepthChange
 }: SearchDepthToggleProps) {
   const { state, setDepth } = useDeepResearch()
-  const { currentDepth, maxDepth } = state
+  const { currentDepth: researchCurrentDepth, maxDepth: researchMaxDepth } = state
   const [isOpen, setIsOpen] = useState(false)
   const [localMaxDepth, setLocalMaxDepth] = useState(maxDepth)
 
@@ -75,8 +81,8 @@ export function SearchDepthToggle({
                   variant="outline" 
                   size="icon" 
                   className="size-8"
-                  onClick={() => handleMaxDepthChange(localMaxDepth - 1)}
-                  disabled={localMaxDepth <= currentDepth}
+                  onClick={() => onDepthChange(Math.max(1, currentDepth - 1))}
+                  disabled={currentDepth <= 1}
                 >
                   -
                 </Button>
@@ -89,8 +95,8 @@ export function SearchDepthToggle({
                   variant="outline" 
                   size="icon" 
                   className="size-8"
-                  onClick={() => handleMaxDepthChange(localMaxDepth + 1)}
-                  disabled={localMaxDepth >= 10}
+                  onClick={() => onDepthChange(Math.min(maxDepth, currentDepth + 1))}
+                  disabled={currentDepth >= maxDepth}
                 >
                   +
                 </Button>

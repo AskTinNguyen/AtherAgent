@@ -1,6 +1,15 @@
 import { getAuth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Helper function to get no-cache headers
+const getNoCacheHeaders = () => ({
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+  'Surrogate-Control': 'no-store'
+})
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuth()
@@ -9,12 +18,7 @@ export async function GET(request: NextRequest) {
       userId: auth.userId,
       isAuthenticated: auth.isAuthenticated
     }), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      }
+      headers: getNoCacheHeaders()
     })
   } catch (error) {
     console.error('Error getting session:', error)
@@ -23,12 +27,7 @@ export async function GET(request: NextRequest) {
       isAuthenticated: false
     }), {
       status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      }
+      headers: getNoCacheHeaders()
     })
   }
 } 

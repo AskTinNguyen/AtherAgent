@@ -1,7 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import {
   Sheet,
   SheetContent,
@@ -9,11 +8,10 @@ import {
   SheetTitle,
   SheetTrigger
 } from '@/components/ui/sheet'
-import { Button } from '@/components/ui/button'
-import { ChevronLeft, Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { History as HistoryIcon } from 'lucide-react'
-import { Suspense } from 'react'
+import { ChevronLeft, History as HistoryIcon, Menu } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Suspense, useTransition } from 'react'
 import { HistorySkeleton } from './history-skeleton'
 
 type HistoryProps = {
@@ -35,6 +33,21 @@ export function History({ location, children }: HistoryProps) {
 
   return (
     <Sheet onOpenChange={onOpenChange}>
+      <style jsx global>{`
+        @keyframes glow {
+          0%, 100% { 
+            opacity: 0.3;
+            filter: brightness(1);
+          }
+          50% { 
+            opacity: 1;
+            filter: brightness(1.5) drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
+          }
+        }
+        .glow-effect {
+          animation: glow 2s ease-in-out infinite;
+        }
+      `}</style>
       <SheetTrigger asChild>
         <Button
           variant="ghost"
@@ -43,7 +56,14 @@ export function History({ location, children }: HistoryProps) {
             'rounded-full text-foreground/30': location === 'sidebar'
           })}
         >
-          {location === 'header' ? <Menu /> : <ChevronLeft size={16} />}
+          {location === 'header' ? (
+            <Menu />
+          ) : (
+            <ChevronLeft 
+              size={32} 
+              className="glow-effect"
+            />
+          )}
         </Button>
       </SheetTrigger>
       <SheetContent className="w-64 rounded-tl-xl rounded-bl-xl">

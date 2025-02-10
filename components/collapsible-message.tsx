@@ -1,9 +1,9 @@
 import { cn } from '@/lib/utils'
 import { ChevronDown, UserCircle2 } from 'lucide-react'
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger
 } from './ui/collapsible'
 import { IconLogo } from './ui/icons'
 import { Separator } from './ui/separator'
@@ -17,6 +17,7 @@ interface CollapsibleMessageProps {
   onOpenChange?: (open: boolean) => void
   showBorder?: boolean
   showIcon?: boolean
+  className?: string
 }
 
 export function CollapsibleMessage({
@@ -27,12 +28,13 @@ export function CollapsibleMessage({
   header,
   onOpenChange,
   showBorder = true,
-  showIcon = true
+  showIcon = true,
+  className
 }: CollapsibleMessageProps) {
   const content = <div className="py-2 flex-1">{children}</div>
 
   return (
-    <div className="flex gap-3">
+    <div className={cn("flex gap-3", className)}>
       <div className="relative flex flex-col items-center">
         <div className={cn('mt-[10px] w-5', role === 'assistant' && 'mt-4')}>
           {showIcon &&

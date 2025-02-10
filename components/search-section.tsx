@@ -229,6 +229,7 @@ export function SearchSection({
       header={header}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
+      className="max-h-[60vh] overflow-y-auto"
     >
       {searchResults?.images && searchResults.images.length > 0 && (
         <Section>
