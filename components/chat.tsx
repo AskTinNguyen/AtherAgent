@@ -93,6 +93,7 @@ export function Chat({
           chatId={id}
           initialClearedState={researchState?.isCleared}
           onClearStateChange={handleClearResearch}
+          onSuggestionSelect={onQuerySelect}
         />
         <div className="flex-1 flex justify-center">
           <div className="w-full max-w-3xl pt-14 pb-60">

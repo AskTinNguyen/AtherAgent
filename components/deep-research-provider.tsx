@@ -3,6 +3,7 @@
 import { ResearchDepthConfig, ResearchSourceMetrics } from '@/lib/types/research'
 import { calculateSourceMetrics, optimizeDepthStrategy, shouldIncreaseDepth } from '@/lib/utils/research-depth'
 import { Children, cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useReducer, useState, type ReactNode } from 'react'
+import { type ResearchSuggestion } from './research-suggestions'
 
 // Types
 interface ActivityItem {
@@ -33,6 +34,7 @@ interface DeepResearchState {
   totalExpectedSteps: number
   depthConfig: ResearchDepthConfig
   sourceMetrics: ResearchSourceMetrics[]
+  suggestions: ResearchSuggestion[]
 }
 
 type DeepResearchAction =
@@ -45,6 +47,7 @@ type DeepResearchAction =
   | { type: 'CLEAR_STATE' }
   | { type: 'OPTIMIZE_DEPTH' }
   | { type: 'INIT_PROGRESS'; payload: { totalSteps: number } }
+  | { type: 'SET_SUGGESTIONS'; payload: ResearchSuggestion[] }
 
 interface DeepResearchContextType {
   state: DeepResearchState
@@ -56,6 +59,7 @@ interface DeepResearchContextType {
   initProgress: (maxDepth: number, totalSteps: number) => void
   updateProgress: (completed: number, total: number) => void
   clearState: () => void
+  setSuggestions: (suggestions: ResearchSuggestion[]) => void
 }
 
 // Initial state and reducer
@@ -74,7 +78,8 @@ const initialState: DeepResearchState = {
     adaptiveThreshold: 0.7,
     depthScores: {}
   },
-  sourceMetrics: []
+  sourceMetrics: [],
+  suggestions: []
 }
 
 function deepResearchReducer(state: DeepResearchState, action: DeepResearchAction): DeepResearchState {
@@ -182,6 +187,11 @@ function deepResearchReducer(state: DeepResearchState, action: DeepResearchActio
         completedSteps: 0,
         currentDepth: 0
       }
+    case 'SET_SUGGESTIONS':
+      return {
+        ...state,
+        suggestions: action.payload
+      }
     default:
       return state
   }
@@ -229,6 +239,10 @@ function DeepResearchProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'CLEAR_STATE' })
   }, [])
 
+  const setSuggestions = useCallback((suggestions: ResearchSuggestion[]) => {
+    dispatch({ type: 'SET_SUGGESTIONS', payload: suggestions })
+  }, [])
+
   return (
     <DeepResearchContext.Provider
       value={{
@@ -240,7 +254,8 @@ function DeepResearchProvider({ children }: { children: ReactNode }) {
         setDepth,
         initProgress,
         updateProgress,
-        clearState
+        clearState,
+        setSuggestions
       }}
     >
       {children}
@@ -451,10 +466,10 @@ function DeepResearchWrapper({
 
 // Exports
 export {
-  DeepResearchProvider,
-  DeepResearchWrapper,
-  useDeepResearch,
-  useDeepResearchProgress,
-  type ActivityItem, type DeepResearchState, type SourceItem
+    DeepResearchProvider,
+    DeepResearchWrapper,
+    useDeepResearch,
+    useDeepResearchProgress,
+    type ActivityItem, type DeepResearchState, type SourceItem
 }
 

@@ -37,6 +37,7 @@ export function SearchSection({
   const activityAddedRef = React.useRef<{[key: string]: boolean}>({})
   const sourcesProcessedRef = React.useRef<{[key: string]: boolean}>({})
   const [showRankedAnalysis, setShowRankedAnalysis] = React.useState(false)
+  const [previousResults, setPreviousResults] = React.useState<SearchResultItem[]>([])
 
   // Tool and search state
   const isToolLoading = tool.state === 'call'
@@ -199,6 +200,21 @@ export function SearchSection({
     processSearchResults()
   }, [processSearchResults])
 
+  // Update previous results when new results come in
+  React.useEffect(() => {
+    if (searchResults?.results && searchResults.results.length > 0) {
+      setPreviousResults(prevResults => {
+        // Only update if the results are different
+        const currentUrls = new Set(searchResults.results.map(r => r.url))
+        const prevUrls = new Set(prevResults.map(r => r.url))
+        const hasChanges = 
+          currentUrls.size !== prevUrls.size || 
+          ![...currentUrls].every(url => prevUrls.has(url))
+        return hasChanges ? prevResults : searchResults.results
+      })
+    }
+  }, [searchResults?.results])
+
   const header = (
     <ToolArgsSection
       tool="search"
@@ -226,10 +242,8 @@ export function SearchSection({
         <SearchSkeleton />
       ) : searchResults && searchResults.results ? (
         <>
-          <Section title="Sources">
-            <SearchResults results={searchResults.results} />
-          </Section>
-          <div className="flex items-center justify-between gap-2 mt-6 mb-4 px-1">
+          <div className="flex items-center justify-between gap-2 mb-4 px-1">
+            <h2 className="text-sm font-medium">Sources</h2>
             <Button
               variant="ghost"
               size="sm"
@@ -249,22 +263,32 @@ export function SearchSection({
               )}
             </Button>
           </div>
-          {showRankedAnalysis && (
+
+          {showRankedAnalysis ? (
             <RankedSearchResults
               results={searchResults.results.map(result => ({
                 ...result,
                 metrics: {
-                  relevanceScore: calculateRelevance({ title: result.title, content: result.content }, query),
+                  relevanceScore: calculateRelevance({ 
+                    title: result.title, 
+                    content: result.content 
+                  }, query),
                   depthLevel: currentDepth,
                   contentQuality: result.content ? 
                     Math.min((result.content.length / 1000) * 0.5 + 0.3, 1) : 0.3,
-                  timeRelevance: 0.7, // Default time relevance since we don't have publish dates
-                  sourceAuthority: 0.6 // Default authority score
+                  timeRelevance: 0.7,
+                  sourceAuthority: 0.6
                 },
                 timestamp: Date.now()
               }))}
               currentDepth={currentDepth}
               maxDepth={maxDepth}
+            />
+          ) : (
+            <SearchResults 
+              results={searchResults.results}
+              previousResults={previousResults}
+              showDiff={true}
             />
           )}
         </>

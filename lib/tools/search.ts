@@ -1,10 +1,10 @@
 import { searchSchema } from '@/lib/schema/search'
 import {
-  SearchResultImage,
-  SearchResultItem,
-  SearchResults,
-  SearXNGResponse,
-  SearXNGResult
+    SearchResultImage,
+    SearchResultItem,
+    SearchResults,
+    SearXNGResponse,
+    SearXNGResult
 } from '@/lib/types'
 import { sanitizeUrl } from '@/lib/utils'
 import { tool } from 'ai'

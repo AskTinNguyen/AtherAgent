@@ -1,12 +1,13 @@
 'use server'
 
-import { getRedisClient, RedisWrapper } from '@/lib/redis/config'
+import { getRedisClient } from '@/lib/redis/config'
 import { type Chat } from '@/lib/types'
+import { normalizeDate } from '@/lib/utils'
 import { JSONValue } from 'ai'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
-async function getRedis(): Promise<RedisWrapper> {
+async function getRedis() {
   return await getRedisClient()
 }
 
@@ -31,88 +32,116 @@ export async function getChats(userId?: string | null) {
     }
 
     const results = await Promise.all(
-      chats.map(async chatKey => {
-        const chat = await redis.hgetall(chatKey)
-        return chat
+      chats.map(async (chatKey: string) => {
+        try {
+          const chat = await redis.hgetall(chatKey)
+          return chat
+        } catch (error) {
+          console.error(`Error fetching chat ${chatKey}:`, error)
+          // Also remove invalid chat reference
+          await redis.zrem(getUserChatKey(userId), chatKey)
+          return null
+        }
       })
     )
 
     return results
-      .filter((result): result is Record<string, any> => {
-        if (result === null || Object.keys(result).length === 0) {
+      .filter((result: Record<string, any> | null): result is Record<string, any> => {
+        if (!result || 
+            Object.keys(result).length === 0 || 
+            !result.id || 
+            !result.title || 
+            !result.messages) {
+          console.warn('Filtered out invalid chat result:', result)
           return false
         }
         return true
       })
-      .map(chat => {
+      .map((chat: Record<string, any>) => {
         const plainChat = { ...chat }
         if (typeof plainChat.messages === 'string') {
           try {
             const parsedMessages = JSON.parse(plainChat.messages)
             plainChat.messages = parsedMessages.map((msg: any) => {
-              // Handle special chart message type
-              if (msg.type === 'chart' && msg.data) {
+              try {
+                // Handle special chart message type with better error handling
+                if (msg.type === 'chart') {
+                  return {
+                    ...msg,
+                    data: msg.data ? (
+                      typeof msg.data === 'string' ? 
+                        JSON.parse(msg.data) : 
+                        msg.data
+                    ) : null
+                  }
+                }
+
                 return {
                   ...msg,
-                  data: typeof msg.data === 'string' ? JSON.parse(msg.data) : msg.data
-                }
-              }
-
-              return {
-                ...msg,
-                // Ensure tool invocations are properly structured
-                ...(msg.toolInvocations && {
-                  toolInvocations: msg.toolInvocations.map((tool: any) => ({
-                    ...tool,
-                    args: typeof tool.args === 'string' ? JSON.parse(tool.args) : tool.args,
-                    result: tool.result && typeof tool.result === 'string' ? 
-                      JSON.parse(tool.result) : tool.result
-                  }))
-                }),
-                // Ensure annotations (including charts) are properly structured
-                ...(msg.annotations && {
-                  annotations: msg.annotations.map((annotation: any) => {
-                    if (typeof annotation === 'string') {
-                      try {
-                        return JSON.parse(annotation)
-                      } catch {
-                        return annotation
-                      }
-                    }
-                    // If it's a chart annotation, ensure data is properly parsed
-                    if (annotation?.type === 'chart' && typeof annotation.data === 'string') {
+                  // Enhanced tool invocations parsing
+                  ...(msg.toolInvocations && {
+                    toolInvocations: msg.toolInvocations.map((tool: any) => {
                       try {
                         return {
-                          ...annotation,
-                          data: JSON.parse(annotation.data)
+                          ...tool,
+                          args: typeof tool.args === 'string' ? JSON.parse(tool.args) : tool.args,
+                          result: tool.result && typeof tool.result === 'string' ? 
+                            JSON.parse(tool.result) : tool.result
                         }
-                      } catch {
-                        return annotation
+                      } catch (error) {
+                        console.error('Error parsing tool invocation:', error)
+                        return tool // Return original if parsing fails
                       }
-                    }
-                    return annotation
+                    })
+                  }),
+                  // Enhanced annotations parsing
+                  ...(msg.annotations && {
+                    annotations: msg.annotations.map((annotation: any) => {
+                      try {
+                        if (typeof annotation === 'string') {
+                          return JSON.parse(annotation)
+                        }
+                        // Enhanced chart annotation parsing
+                        if (annotation?.type === 'chart') {
+                          return {
+                            ...annotation,
+                            data: typeof annotation.data === 'string' ? 
+                              JSON.parse(annotation.data) : 
+                              annotation.data
+                          }
+                        }
+                        return annotation
+                      } catch (error) {
+                        console.error('Error parsing annotation:', error)
+                        return null // Skip invalid annotations
+                      }
+                    }).filter(Boolean) // Remove null annotations
+                  }),
+                  // Enhanced content parsing with chart extraction
+                  ...(msg.content && typeof msg.content === 'string' && {
+                    content: msg.content,
+                    annotations: [
+                      ...(msg.annotations || []),
+                      ...extractChartAnnotations(msg.content)
+                    ].filter(Boolean) // Remove null annotations
                   })
-                }),
-                // Handle chart data in content if present
-                ...(msg.content && typeof msg.content === 'string' && {
-                  content: msg.content,
-                  annotations: [
-                    ...(msg.annotations || []),
-                    ...extractChartAnnotations(msg.content)
-                  ]
-                })
+                }
+              } catch (error) {
+                console.error('Error processing message:', error)
+                return msg // Return original message if processing fails
               }
-            })
+            }).filter(Boolean) // Remove null messages
           } catch (error) {
+            console.error('Error parsing chat messages:', error)
             plainChat.messages = []
           }
         }
-        if (plainChat.createdAt && !(plainChat.createdAt instanceof Date)) {
-          plainChat.createdAt = new Date(plainChat.createdAt)
-        }
+        // Normalize the date when retrieving
+        plainChat.createdAt = new Date(normalizeDate(plainChat.createdAt))
         return plainChat as Chat
       })
   } catch (error) {
+    console.error('Error getting chats:', error)
     return []
   }
 }
@@ -195,23 +224,34 @@ export async function getChat(id: string, userId: string = 'anonymous') {
     chat.messages = []
   }
 
+  // Normalize the date when retrieving
+  chat.createdAt = new Date(normalizeDate(chat.createdAt))
+
   return chat
 }
 
-// Helper function to extract chart annotations from content
+// Enhanced chart annotation extraction
 function extractChartAnnotations(content: string): JSONValue[] {
   const annotations: JSONValue[] = []
-  const chartMatch = content.match(/<chart_data>([\s\S]*?)<\/chart_data>/)
-  if (chartMatch) {
-    try {
-      const chartData = JSON.parse(chartMatch[1].trim())
-      annotations.push({
-        type: 'chart',
-        data: chartData
-      })
-    } catch (error) {
-      console.error('Error parsing chart data from content:', error)
+  try {
+    const chartMatches = content.match(/<chart_data>([\s\S]*?)<\/chart_data>/g) || []
+    
+    for (const match of chartMatches) {
+      try {
+        const chartData = match.replace(/<chart_data>|<\/chart_data>/g, '').trim()
+        const parsedData = JSON.parse(chartData)
+        if (parsedData) {
+          annotations.push({
+            type: 'chart',
+            data: parsedData
+          })
+        }
+      } catch (error) {
+        console.error('Error parsing individual chart data:', error)
+      }
     }
+  } catch (error) {
+    console.error('Error extracting chart annotations:', error)
   }
   return annotations
 }
@@ -245,7 +285,8 @@ export async function saveChat(chat: Chat, userId: string = 'anonymous') {
 
     const chatToSave = {
       ...chat,
-      messages: JSON.stringify(chat.messages)
+      messages: JSON.stringify(chat.messages),
+      createdAt: normalizeDate(chat.createdAt)
     }
 
     pipeline.hmset(`chat:${chat.id}`, chatToSave)
@@ -255,6 +296,7 @@ export async function saveChat(chat: Chat, userId: string = 'anonymous') {
 
     return results
   } catch (error) {
+    console.error('Error saving chat:', error)
     throw error
   }
 }

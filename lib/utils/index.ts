@@ -1,12 +1,12 @@
 import { type Model } from '@/lib/types/models'
 import {
-  convertToCoreMessages,
-  CoreMessage,
-  CoreToolMessage,
-  generateId,
-  JSONValue,
-  Message,
-  ToolInvocation
+    convertToCoreMessages,
+    CoreMessage,
+    CoreToolMessage,
+    generateId,
+    JSONValue,
+    Message,
+    ToolInvocation
 } from 'ai'
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
@@ -265,4 +265,32 @@ export function convertToExtendedCoreMessages(
 
 export function formatNumber(num: number): string {
   return new Intl.NumberFormat().format(num)
+}
+
+/**
+ * Validates and normalizes a date value for chat storage
+ * Returns a valid ISO string date that is not in the future
+ */
+export function normalizeDate(date: Date | string | number | null | undefined): string {
+  if (!date) {
+    return new Date().toISOString();
+  }
+
+  try {
+    const parsedDate = new Date(date);
+    
+    // Check if the date is valid
+    if (isNaN(parsedDate.getTime())) {
+      return new Date().toISOString();
+    }
+
+    // If date is in the future, return current date
+    if (parsedDate > new Date()) {
+      return new Date().toISOString();
+    }
+
+    return parsedDate.toISOString();
+  } catch (error) {
+    return new Date().toISOString();
+  }
 }

@@ -1,15 +1,15 @@
 'use client'
 
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
 } from "@/components/ui/accordion"
 import { ResearchSourceMetrics } from '@/lib/types/research'
 import { cn } from '@/lib/utils'
 import { calculateCompositeScore, getMetricIcon, getScoreColor, getScoreLabel } from '@/lib/utils/result-ranking'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Star } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
@@ -43,7 +43,22 @@ interface ResultsByCategory {
 
 export function RankedSearchResults({ results, currentDepth, maxDepth }: RankedSearchResultsProps) {
   const [showMetrics, setShowMetrics] = useState(false)
+  const [starredResults, setStarredResults] = useState<Set<string>>(new Set())
   
+  const toggleStar = (url: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setStarredResults(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(url)) {
+        newSet.delete(url)
+      } else {
+        newSet.add(url)
+      }
+      return newSet
+    })
+  }
+
   const rankedResults = results.map(result => ({
     ...result,
     score: calculateCompositeScore(result.metrics, currentDepth, maxDepth)
@@ -70,21 +85,25 @@ export function RankedSearchResults({ results, currentDepth, maxDepth }: RankedS
 
   const ResultCard = ({ result, index }: { result: RankedResult; index: number }) => (
     <Card className={cn(
-      "transition-all duration-200 hover:shadow-md",
-      index === 0 && "ring-2 ring-primary/20" // Highlight best result
+      "transition-all duration-200 group hover:shadow-md",
+      index === 0 && "ring-2 ring-primary/20"
     )}>
       <CardContent className="p-4 space-y-4">
-        {/* Source Info */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
+            {/* Title */}
             <Link 
-              href={result.url} 
-              target="_blank" 
-              className="hover:underline"
+              href={result.url}
+              target="_blank"
+              className="flex-1"
             >
-              <h3 className="font-medium line-clamp-2">{result.title}</h3>
+              <h3 className="text-sm font-bold leading-tight line-clamp-2 hover:underline">
+                {result.title}
+              </h3>
             </Link>
-            <div className="flex items-center gap-2 mt-1">
+
+            {/* Source Info */}
+            <div className="flex items-center gap-2 mt-2">
               <Avatar className="h-4 w-4">
                 <AvatarImage
                   src={`https://www.google.com/s2/favicons?domain=${new URL(result.url).hostname}`}
@@ -94,32 +113,55 @@ export function RankedSearchResults({ results, currentDepth, maxDepth }: RankedS
                   {displayUrlName(result.url)[0]}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-sm text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {displayUrlName(result.url)}
               </span>
             </div>
+
+            {/* Content Preview */}
             {result.content && (
-              <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+              <p className="mt-2 text-sm text-muted-foreground line-clamp-3">
                 {result.content}
               </p>
             )}
           </div>
 
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger>
-                <div className={cn(
-                  "px-2 py-1 rounded-full text-sm font-medium",
-                  getScoreColor(result.score.total)
-                )}>
-                  {Math.round(result.score.total * 100)}%
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{getScoreLabel(result.score.total)} Match</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <div className="flex items-start gap-2 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-6 w-6 transition-opacity",
+                !starredResults.has(result.url) && "opacity-0 group-hover:opacity-100"
+              )}
+              onClick={(e) => toggleStar(result.url, e)}
+            >
+              <Star 
+                className={cn(
+                  "h-4 w-4",
+                  starredResults.has(result.url) 
+                    ? "fill-yellow-400 text-yellow-400" 
+                    : "text-muted-foreground"
+                )}
+              />
+            </Button>
+            {/* Score Badge */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <div className={cn(
+                    "px-2 py-1 rounded-full text-sm font-medium",
+                    getScoreColor(result.score.total)
+                  )}>
+                    {Math.round(result.score.total * 100)}%
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{getScoreLabel(result.score.total)} Match</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </div>
 
         {/* Metrics Row */}

@@ -1,8 +1,15 @@
+import { useDebounce } from '@/lib/hooks/use-debounce'
 import { JSONValue, Message } from 'ai'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { RenderMessage } from './render-message'
 import { ToolSection } from './tool-section'
 import { Spinner } from './ui/spinner'
+
+interface StreamState {
+  isStreaming: boolean
+  currentMessageId: string | null
+  streamedContent: string
+}
 
 interface ChatMessagesProps {
   messages: Message[]
@@ -22,20 +29,116 @@ export function ChatMessages({
   setMessages
 }: ChatMessagesProps) {
   const [openStates, setOpenStates] = useState<Record<string, boolean>>({})
+  const [streamState, setStreamState] = useState<StreamState>({
+    isStreaming: false,
+    currentMessageId: null,
+    streamedContent: ''
+  })
   const manualToolCallId = 'manual-tool-call'
+  const scrollTimeout = useRef<NodeJS.Timeout>()
 
   // Add ref for the messages container
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Scroll to bottom function
+  // Scroll to bottom function with smooth behavior
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
+    if (scrollTimeout.current) {
+      clearTimeout(scrollTimeout.current)
+    }
+
+    // Delay scroll to ensure content is rendered
+    scrollTimeout.current = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, 100)
   }
 
-  // Scroll to bottom on mount and when messages change
+  // Debounced scroll function for rapid updates
+  const debouncedScroll = useDebounce(scrollToBottom, 100)
+
+  // Process stream data updates
+  useEffect(() => {
+    if (!data) return
+
+    data.forEach(item => {
+      if (typeof item === 'object' && item !== null) {
+        // Handle text streaming
+        if ('type' in item && item.type === 'text' && 'value' in item) {
+          setStreamState(prev => ({
+            ...prev,
+            isStreaming: true,
+            streamedContent: item.value as string
+          }))
+        }
+        
+        // Handle message updates (final message)
+        if ('type' in item && item.type === 'message-update' && 'data' in item && typeof item.data === 'object' && item.data !== null && 'messages' in item.data) {
+          const messageData = item.data as unknown as { messages: Message[] }
+          if (Array.isArray(messageData.messages) && messageData.messages.length > 0) {
+            const lastMessage = messageData.messages[messageData.messages.length - 1]
+            setStreamState(prev => ({
+              ...prev,
+              isStreaming: false,
+              currentMessageId: lastMessage.id,
+              streamedContent: lastMessage.content
+            }))
+            setMessages(messageData.messages)
+          }
+        }
+
+        // Handle stream completion
+        if ('type' in item && item.type === 'done') {
+          setStreamState(prev => ({
+            ...prev,
+            isStreaming: false,
+            currentMessageId: null,
+            // Don't clear streamedContent here
+          }))
+        }
+      }
+    })
+  }, [data, setMessages])
+
+  // Update messages with streamed content
+  useEffect(() => {
+    if (streamState.streamedContent && streamState.isStreaming) {
+      setMessages(prev => {
+        const lastMessage = prev[prev.length - 1]
+        if (lastMessage?.role === 'assistant') {
+          return [
+            ...prev.slice(0, -1),
+            { ...lastMessage, content: streamState.streamedContent }
+          ]
+        }
+        return [
+          ...prev,
+          {
+            id: 'streaming',
+            role: 'assistant',
+            content: streamState.streamedContent
+          }
+        ]
+      })
+    }
+  }, [streamState.streamedContent, streamState.isStreaming, setMessages])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeout.current) {
+        clearTimeout(scrollTimeout.current)
+      }
+    }
+  }, [])
+
+  // Scroll on mount
   useEffect(() => {
     scrollToBottom()
   }, [])
+
+  // Scroll when messages, data, or loading state changes
+  useEffect(() => {
+    debouncedScroll()
+  }, [messages, data, isLoading, debouncedScroll])
 
   useEffect(() => {
     const lastMessage = messages[messages.length - 1]
@@ -76,7 +179,11 @@ export function ChatMessages({
     1 -
     [...messages].reverse().findIndex(msg => msg.role === 'user')
 
-  const showLoading = isLoading && messages[messages.length - 1].role === 'user'
+  // Show loading when:
+  // 1. Initial loading state is true and last message is from user
+  // 2. We're actively streaming content
+  const showLoading = (isLoading && messages[messages.length - 1]?.role === 'user') || 
+                     streamState.isStreaming
 
   const getIsOpen = (id: string) => {
     const baseId = id.endsWith('-related') ? id.slice(0, -8) : id
@@ -116,9 +223,17 @@ export function ChatMessages({
             onOpenChange={open => handleOpenChange(manualToolCallId, open)}
             messages={messages}
             setMessages={setMessages}
+            chatId={chatId ?? 'default'}
           />
         ) : (
-          <Spinner />
+          <div className="flex items-center gap-2">
+            <Spinner />
+            {streamState.isStreaming && (
+              <span className="text-sm text-muted-foreground">
+                Generating response...
+              </span>
+            )}
+          </div>
         ))}
       <div ref={messagesEndRef} /> {/* Add empty div as scroll anchor */}
     </div>

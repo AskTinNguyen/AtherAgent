@@ -35,7 +35,10 @@ An AI-powered search engine with a generative UI and advanced research capabilit
 - File attachments with drag & drop support for Image and PDF with previews
 - Markdown Prettify Format preview toggle
 - Full-size Chat toggle mode
-- Chat history functionality (Optional)
+- Chat history functionality with:
+  - Persistent storage using Redis
+  - Individual chat deletion with confirmation
+  - Hover-based delete controls
 - Share search results (Optional)
 - Redis support (Local/Upstash) with research state persistence
 - Source Quick Insert feature with keyboard shortcuts

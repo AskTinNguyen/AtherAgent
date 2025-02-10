@@ -164,16 +164,33 @@ export async function handleStreamFinish({
       }
 
       // Save chat with complete response and related questions
-      await saveChat({
-        ...savedChat,
-        messages: generatedMessages
-      }).catch(error => {
-        console.error('Failed to save chat:', error)
-        streamManager.streamError('Failed to save chat history')
-      })
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          await saveChat({
+            ...savedChat,
+            messages: generatedMessages
+          });
+          break; // If successful, break out of retry loop
+        } catch (error) {
+          retryCount++;
+          console.error(`Failed to save chat (attempt ${retryCount}/${maxRetries}):`, error);
+          
+          if (retryCount === maxRetries) {
+            streamManager.streamError('Failed to save chat history after multiple attempts');
+            throw error; // Re-throw after max retries
+          }
+          
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+        }
+      }
     } catch (error) {
-      console.error('Error saving chat:', error)
-      streamManager.streamError('Failed to save chat')
+      console.error('Error saving chat:', error);
+      streamManager.streamError('Failed to save chat');
+      throw error; // Re-throw to trigger error handling in the parent
     }
 
     // Send finish message with usage information

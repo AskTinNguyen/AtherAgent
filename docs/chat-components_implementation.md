@@ -115,6 +115,32 @@ Features:
 - Position tracking
 - Dismissible interface
 
+### HistoryItem (`components/history-item.tsx`) ✅
+
+Displays individual chat history items with deletion capability.
+
+```typescript
+interface HistoryItemProps {
+  chat: Chat                     // Chat data to display
+}
+```
+
+Features ✅:
+- Date formatting with relative time
+- Active state indication
+- Hover-based delete button
+- Confirmation dialog before deletion
+- Loading state during deletion
+- Redis storage cleanup
+- Automatic UI refresh after deletion
+
+Implementation Details:
+- Uses Shadcn UI AlertDialog for confirmation
+- Handles both chat data and reference deletion in Redis
+- Atomic operations using Redis pipeline
+- Error handling with user feedback
+- Proper cleanup of all related Redis keys
+
 ## Types
 
 ### Current Types ✅
@@ -245,6 +271,15 @@ function Chat() {
 - Dark mode support
 - Responsive layout
 - GFM support via remark-gfm
+
+### Chat History Management ✅
+- Individual chat deletion
+- Hover-based controls
+- Confirmation dialogs
+- Loading states
+- Redis storage cleanup
+- Automatic UI updates
+- Error handling
 
 ## Search Source Quick Insert Feature 🚀
 
