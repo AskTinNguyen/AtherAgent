@@ -7,14 +7,16 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function GET(req: NextRequest) {
   try {
     const userId = req.nextUrl.searchParams.get('userId')
-    if (!userId) {
+    const chatId = req.nextUrl.searchParams.get('chatId')
+
+    if (!userId || !chatId) {
       return NextResponse.json(
-        { error: 'Missing userId parameter' },
+        { error: 'Missing required parameters (userId, chatId)' },
         { status: 400 }
       )
     }
 
-    const suggestions = await getCachedResearchSuggestions(userId)
+    const suggestions = await getCachedResearchSuggestions(chatId, userId)
     return NextResponse.json(suggestions)
   } catch (error) {
     console.error('Error getting cached suggestions:', error)
@@ -27,16 +29,16 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, suggestions } = await req.json()
+    const { userId, chatId, suggestions } = await req.json()
     
-    if (!userId || !suggestions) {
+    if (!userId || !chatId || !suggestions) {
       return NextResponse.json(
-        { error: 'Missing required parameters' },
+        { error: 'Missing required parameters (userId, chatId, suggestions)' },
         { status: 400 }
       )
     }
 
-    await cacheResearchSuggestions(userId, suggestions)
+    await cacheResearchSuggestions(chatId, userId, suggestions)
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error caching suggestions:', error)

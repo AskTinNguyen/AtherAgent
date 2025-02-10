@@ -42,6 +42,7 @@ interface BookmarkedSuggestion extends Omit<ResearchSuggestion, 'metadata'> {
 interface ResearchSuggestionsProps {
   onSuggestionSelect?: (content: string) => void
   userId?: string
+  chatId: string
 }
 
 // Helper function to clean search query
@@ -135,7 +136,7 @@ function generateSuggestionContent(type: ResearchSuggestion['type'], context: {
 // Export the type for use in other files
 export type { ResearchSuggestion }
 
-export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous' }: ResearchSuggestionsProps) {
+export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', chatId }: ResearchSuggestionsProps) {
   const { state, setSuggestions } = useDeepResearch()
   const { activity, currentDepth, maxDepth, suggestions } = state
   const [isLoading, setIsLoading] = useState(false)
@@ -143,27 +144,46 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous' }
   const [error, setError] = useState<string | null>(null)
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, boolean>>({})
   const [bookmarkedSuggestions, setBookmarkedSuggestions] = useState<Record<string, BookmarkedSuggestion>>({})
+  const [hasAttemptedInitialLoad, setHasAttemptedInitialLoad] = useState(false)
 
   // Load cached suggestions on mount
   useEffect(() => {
     const loadCachedSuggestions = async () => {
-      // Skip loading from cache if we already have suggestions in context
-      if (suggestions.length > 0) return
-
+      if (!chatId || hasAttemptedInitialLoad) return
+      
+      setIsLoading(true)
       try {
-        const response = await fetch(`/api/research/suggestions/cache?userId=${userId}`)
-        if (!response.ok) return
+        const response = await fetch(`/api/research/suggestions/cache?userId=${userId}&chatId=${chatId}`)
+        if (!response.ok) {
+          // If no cache exists, generate new suggestions
+          await generateSuggestions(0, true)
+          return
+        }
         
         const cachedSuggestions = await response.json()
-        if (cachedSuggestions) {
+        if (cachedSuggestions && cachedSuggestions.length > 0) {
           setSuggestions(cachedSuggestions)
+        } else {
+          // If cache is empty, generate new suggestions
+          await generateSuggestions(0, true)
         }
       } catch (error) {
         console.error('Failed to load cached suggestions:', error)
+        setError('Failed to load suggestions. Please try refreshing.')
+      } finally {
+        setIsLoading(false)
+        setHasAttemptedInitialLoad(true)
       }
     }
     loadCachedSuggestions()
-  }, [userId, setSuggestions, suggestions.length])
+  }, [chatId, userId, setSuggestions, hasAttemptedInitialLoad])
+
+  // Monitor activity changes to trigger suggestion updates
+  useEffect(() => {
+    if (activity.length > 0 && !isLoading && !isStreaming) {
+      generateSuggestions(0, true)
+    }
+  }, [activity.length])
 
   // Function to generate suggestions based on current research state
   const generateSuggestions = useCallback(async (retryCount = 0, forceRefresh = false) => {
@@ -359,12 +379,13 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous' }
 
       setSuggestions(sortedSuggestions)
 
-      // Cache the new suggestions
+      // Cache the new suggestions with chatId
       await fetch('/api/research/suggestions/cache', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
+          chatId,
           suggestions: sortedSuggestions
         })
       })
@@ -384,7 +405,7 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous' }
       setIsLoading(false)
       setIsStreaming(false)
     }
-  }, [activity, currentDepth, maxDepth, isLoading, isStreaming, suggestions.length, userId, setSuggestions])
+  }, [activity, currentDepth, maxDepth, isLoading, isStreaming, suggestions.length, userId, chatId, setSuggestions])
 
   const handleRetry = useCallback(() => {
     generateSuggestions(0, true)
@@ -432,18 +453,10 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous' }
             metadata: {
               type: 'research_suggestion',
               data: {
-                sourceContext: suggestion.metadata.sourceContext || '',
-                tags: [],
-                depthLevel: suggestion.metadata.depthLevel || 0,
-                relevanceScore: suggestion.metadata.relevanceScore || 0,
+                sourceContext: suggestion.context?.rationale || '',
+                tags: suggestion.metadata.relatedTopics || [],
                 relatedTopics: suggestion.metadata.relatedTopics || [],
-                previousQueries: suggestion.metadata.previousQueries || [],
-                sourceQuality: {
-                  relevance: 0,
-                  authority: 0,
-                  freshness: 0,
-                  coverage: 0
-                }
+                previousQueries: suggestion.metadata.previousQueries || []
               }
             }
           })
@@ -485,11 +498,11 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous' }
           <Button
             variant="outline"
             size="sm"
-            onClick={handleRefresh}
+            onClick={() => generateSuggestions(0, true)}
             disabled={isLoading || isStreaming}
             className="ml-2"
           >
-            {isLoading ? 'Refreshing...' : 'Refresh Suggestions'}
+            {isLoading ? 'Generating...' : 'Generate Suggestions'}
           </Button>
         </div>
       </div>
@@ -511,134 +524,140 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous' }
         </Alert>
       )}
 
-      <div className="space-y-3">
-        {suggestions.map((suggestion, index) => (
-          <motion.div
-            key={`${suggestion.type}-${index}`}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-          >
-            <Card 
-              className="p-3 hover:bg-accent/50 transition-colors cursor-pointer group"
-              onClick={() => onSuggestionSelect?.(suggestion.content)}
+      {suggestions.length === 0 && !isLoading && !error ? (
+        <div className="text-center text-muted-foreground py-4">
+          No suggestions available. Click &quot;Generate Suggestions&quot; to start.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {suggestions.map((suggestion, index) => (
+            <motion.div
+              key={`${suggestion.type}-${index}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
             >
-              <div className="flex flex-col gap-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <p className="text-sm">{suggestion.content}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-xs text-muted-foreground capitalize px-2 py-0.5 bg-accent rounded-full">
-                        {suggestion.type}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {Math.round(suggestion.confidence * 100)}% confidence
-                      </span>
-                      {suggestion.metadata.category && (
+              <Card 
+                className="p-3 hover:bg-accent/50 transition-colors cursor-pointer group"
+                onClick={() => onSuggestionSelect?.(suggestion.content)}
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm">{suggestion.content}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-muted-foreground capitalize px-2 py-0.5 bg-accent rounded-full">
+                          {suggestion.type}
+                        </span>
                         <span className="text-xs text-muted-foreground">
-                          {suggestion.metadata.category}
+                          {Math.round(suggestion.confidence * 100)}% confidence
+                        </span>
+                        {suggestion.metadata.category && (
+                          <span className="text-xs text-muted-foreground">
+                            {suggestion.metadata.category}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-6 w-6 transition-opacity",
+                          !bookmarkedSuggestions[suggestion.content] && "opacity-0 group-hover:opacity-100"
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleBookmark(suggestion)
+                        }}
+                      >
+                        <Star 
+                          className={cn(
+                            "h-4 w-4",
+                            bookmarkedSuggestions[suggestion.content]
+                              ? "fill-yellow-400 text-yellow-400" 
+                              : "text-muted-foreground"
+                          )}
+                        />
+                      </Button>
+
+                      {!feedbackGiven[suggestion.content] ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleFeedback(suggestion.content, true)
+                            }}
+                          >
+                            <ThumbsUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleFeedback(suggestion.content, false)
+                            }}
+                          >
+                            <ThumbsDown className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Thanks for feedback
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        "h-6 w-6 transition-opacity",
-                        !bookmarkedSuggestions[suggestion.content] && "opacity-0 group-hover:opacity-100"
+                  {/* Additional Context Section */}
+                  {suggestion.context && (
+                    <div className="mt-2 text-xs text-muted-foreground border-t pt-2">
+                      {suggestion.context.rationale && (
+                        <p className="mb-1">{suggestion.context.rationale}</p>
                       )}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleBookmark(suggestion)
-                      }}
-                    >
-                      <Star 
-                        className={cn(
-                          "h-4 w-4",
-                          bookmarkedSuggestions[suggestion.content]
-                            ? "fill-yellow-400 text-yellow-400" 
-                            : "text-muted-foreground"
-                        )}
-                      />
-                    </Button>
+                      {suggestion.context.nextSteps && suggestion.context.nextSteps.length > 0 && (
+                        <div className="mt-1">
+                          <p className="font-medium mb-1">Next Steps:</p>
+                          <ul className="list-disc list-inside space-y-0.5">
+                            {suggestion.context.nextSteps.map((step, idx) => (
+                              <li key={idx}>{step}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-                    {!feedbackGiven[suggestion.content] ? (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                  {/* Related Topics */}
+                  {suggestion.metadata.relatedTopics && suggestion.metadata.relatedTopics.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {suggestion.metadata.relatedTopics.map((topic, idx) => (
+                        <span
+                          key={idx}
+                          className="text-xs bg-accent/50 px-2 py-0.5 rounded-full"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleFeedback(suggestion.content, true)
+                            onSuggestionSelect?.(`Explore ${topic}`)
                           }}
                         >
-                          <ThumbsUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleFeedback(suggestion.content, false)
-                          }}
-                        >
-                          <ThumbsDown className="h-4 w-4" />
-                        </Button>
-                      </>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">
-                        Thanks for feedback
-                      </span>
-                    )}
-                  </div>
+                          {topic}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-
-                {/* Additional Context Section */}
-                {suggestion.context && (
-                  <div className="mt-2 text-xs text-muted-foreground border-t pt-2">
-                    {suggestion.context.rationale && (
-                      <p className="mb-1">{suggestion.context.rationale}</p>
-                    )}
-                    {suggestion.context.nextSteps && suggestion.context.nextSteps.length > 0 && (
-                      <div className="mt-1">
-                        <p className="font-medium mb-1">Next Steps:</p>
-                        <ul className="list-disc list-inside space-y-0.5">
-                          {suggestion.context.nextSteps.map((step, idx) => (
-                            <li key={idx}>{step}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Related Topics */}
-                {suggestion.metadata.relatedTopics && suggestion.metadata.relatedTopics.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {suggestion.metadata.relatedTopics.map((topic, idx) => (
-                      <span
-                        key={idx}
-                        className="text-xs bg-accent/50 px-2 py-0.5 rounded-full"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onSuggestionSelect?.(`Explore ${topic}`)
-                        }}
-                      >
-                        {topic}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      )}
     </div>
   )
 } 

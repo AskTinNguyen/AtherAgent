@@ -5,9 +5,8 @@ import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
+  CardTitle
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -19,7 +18,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { BookmarkType, EnhancedBookmark } from '@/lib/redis/types/bookmarks'
+import {
+  BaseMetadata,
+  BookmarkType,
+  ChatMetadata,
+  EnhancedBookmark,
+  ResearchMetadata,
+  SearchMetadata
+} from '@/lib/redis/types/bookmarks'
 import {
   FolderOpen,
   Search,
@@ -28,6 +34,7 @@ import {
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 interface BookmarkManagerProps {
   className?: string
@@ -35,11 +42,11 @@ interface BookmarkManagerProps {
 
 export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Element {
   const { data: session } = useSession()
-  const [userId, setUserId] = useState<string>('anonymous')
+  const userId = session?.user?.email || 'anonymous'
   const pollingInterval = useRef<NodeJS.Timeout>()
 
   const [bookmarks, setBookmarks] = useState<EnhancedBookmark[]>([])
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdate, setLastUpdate] = useState<number>(Date.now())
 
@@ -59,33 +66,31 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
   const [categories, setCategories] = useState<Set<string>>(new Set())
   const [tags, setTags] = useState<Set<string>>(new Set())
 
-  // Get userId from cookie
+  // Load bookmarks on mount
   useEffect(() => {
-    const getUserId = async () => {
+    const loadBookmarks = async () => {
+      if (!userId) return
+
       try {
-        const response = await fetch('/api/auth/session', {
-          cache: 'no-store'
-        })
+        const response = await fetch(`/api/bookmarks?userId=${userId}`)
+        if (!response.ok) throw new Error('Failed to load bookmarks')
+        
         const data = await response.json()
-        setUserId(data.userId || 'anonymous')
+        setBookmarks(data)
       } catch (error) {
-        console.error('Error getting user ID:', error)
-        setUserId('anonymous')
+        console.error('Error loading bookmarks:', error)
+        setError('Failed to load bookmarks')
+      } finally {
+        setIsLoading(false)
       }
     }
-    getUserId()
-  }, [session])
 
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(1)
-    setBookmarks([]) // Clear existing bookmarks when filters change
-    setLastUpdate(Date.now()) // Force refresh when filters change
-  }, [selectedCategory, selectedTag, sortBy, selectedType])
+    loadBookmarks()
+  }, [userId])
 
   const fetchBookmarks = useCallback(async (isPolling = false) => {
     try {
-      if (!isPolling) setLoading(true)
+      if (!isPolling) setIsLoading(true)
       const offset = (page - 1) * ITEMS_PER_PAGE
       const queryParams = new URLSearchParams({
         userId,
@@ -132,7 +137,7 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch bookmarks')
     } finally {
-      if (!isPolling) setLoading(false)
+      if (!isPolling) setIsLoading(false)
     }
   }, [userId, page, selectedCategory, selectedTag, sortBy, selectedType, lastUpdate])
 
@@ -161,81 +166,100 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
   }, [fetchBookmarks])
 
   const deleteBookmark = async (bookmarkId: string) => {
+    if (!userId) return
+
     try {
       const response = await fetch(`/api/bookmarks?userId=${userId}&bookmarkId=${bookmarkId}`, {
-        method: 'DELETE',
-        cache: 'no-store'
+        method: 'DELETE'
       })
-      
+
       if (!response.ok) throw new Error('Failed to delete bookmark')
-      
-      // Remove from local state immediately
+
       setBookmarks(prev => prev.filter(b => b.id !== bookmarkId))
-      
-      // Force refresh to ensure sync
-      refreshBookmarks()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete bookmark')
+      toast.success('Bookmark deleted')
+    } catch (error) {
+      console.error('Error deleting bookmark:', error)
+      toast.error('Failed to delete bookmark')
     }
   }
 
   const filteredBookmarks = bookmarks.filter(bookmark => {
     const matchesSearch = searchTerm === '' || 
       bookmark.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      bookmark.metadata.data.sourceContext.toLowerCase().includes(searchTerm.toLowerCase())
+      (bookmark.metadata.data as BaseMetadata).sourceContext.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesSearch
   })
 
   // Type-specific metadata rendering
   const renderMetadata = (bookmark: EnhancedBookmark) => {
     const metadata = bookmark.metadata
+    const { sourceContext } = metadata.data as BaseMetadata
 
     switch (metadata.type) {
-      case 'research_suggestion':
+      case 'research_suggestion': {
+        const data = metadata.data as ResearchMetadata
         return (
           <div className="space-y-2">
-            <div className="flex gap-4 text-sm text-muted-foreground">
-              <span>Depth: {metadata.data.depthLevel}</span>
-              <span>Relevance: {Math.round(metadata.data.relevanceScore * 100)}%</span>
-            </div>
-            {metadata.data.sourceQuality && (
-              <div className="flex gap-4 text-xs text-muted-foreground">
-                <span>Authority: {Math.round(metadata.data.sourceQuality.authority * 100)}%</span>
-                <span>Freshness: {Math.round(metadata.data.sourceQuality.freshness * 100)}%</span>
-                <span>Coverage: {Math.round(metadata.data.sourceQuality.coverage * 100)}%</span>
-              </div>
-            )}
-            {metadata.data.relatedTopics && metadata.data.relatedTopics.length > 0 && (
+            {data.relatedTopics && data.relatedTopics.length > 0 && (
               <div className="flex flex-wrap gap-1">
-                {metadata.data.relatedTopics.map((topic, idx) => (
+                {data.relatedTopics.map((topic: string, idx: number) => (
                   <Badge key={idx} variant="outline" className="text-xs">
                     {topic}
                   </Badge>
                 ))}
               </div>
             )}
-          </div>
-        )
-
-      case 'search_result':
-        return (
-          <div className="flex gap-4 text-sm text-muted-foreground">
-            <span>Search Score: {Math.round(metadata.data.searchScore * 100)}%</span>
-            <span>Rank: #{metadata.data.resultRank}</span>
-            <span>Query: {metadata.data.queryContext}</span>
-          </div>
-        )
-
-      case 'chat_message':
-        return (
-          <div className="flex gap-4 text-sm text-muted-foreground">
-            <span>Conversation: {metadata.data.conversationId}</span>
-            <span>Time: {new Date(metadata.data.timestamp).toLocaleTimeString()}</span>
-            {metadata.data.messageContext && (
-              <span className="text-xs">Context: {metadata.data.messageContext}</span>
+            {sourceContext && (
+              <p className="text-sm text-muted-foreground">
+                {sourceContext}
+              </p>
             )}
           </div>
         )
+      }
+
+      case 'search_result': {
+        const data = metadata.data as SearchMetadata
+        return (
+          <div className="space-y-2">
+            <div className="flex gap-4 text-sm text-muted-foreground">
+              <span>Search Score: {Math.round(data.searchScore * 100)}%</span>
+              <span>Rank: #{data.resultRank}</span>
+            </div>
+            {data.sourceQuality && (
+              <div className="flex gap-4 text-xs text-muted-foreground">
+                {data.sourceQuality.authority !== undefined && (
+                  <span>Authority: {Math.round(data.sourceQuality.authority * 100)}%</span>
+                )}
+                {data.sourceQuality.freshness !== undefined && (
+                  <span>Freshness: {Math.round(data.sourceQuality.freshness * 100)}%</span>
+                )}
+                {data.sourceQuality.coverage !== undefined && (
+                  <span>Coverage: {Math.round(data.sourceQuality.coverage * 100)}%</span>
+                )}
+              </div>
+            )}
+            {data.queryContext && (
+              <p className="text-sm text-muted-foreground">
+                Query: {data.queryContext}
+              </p>
+            )}
+          </div>
+        )
+      }
+
+      case 'chat_message': {
+        const data = metadata.data as ChatMetadata
+        return (
+          <div className="flex gap-4 text-sm text-muted-foreground">
+            <span>Conversation: {data.conversationId}</span>
+            <span>Time: {new Date(data.timestamp).toLocaleTimeString()}</span>
+            {data.messageContext && (
+              <span className="text-xs">Context: {data.messageContext}</span>
+            )}
+          </div>
+        )
+      }
 
       default:
         return null
@@ -250,11 +274,8 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
           <div>
             <div className="flex items-center gap-2">
               <CardTitle className="text-lg">{bookmark.content}</CardTitle>
-              <Badge>{bookmark.metadata.type}</Badge>
+              <Badge>{bookmark.metadata.type.replace('_', ' ')}</Badge>
             </div>
-            <CardDescription className="mt-1">
-              {bookmark.metadata.data.sourceContext}
-            </CardDescription>
           </div>
           <Button
             variant="ghost"
@@ -268,26 +289,31 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">
-              <FolderOpen className="h-3 w-3 mr-1" />
-              {bookmark.organization.category}
-            </Badge>
-            {bookmark.organization.tags.map(tag => (
-              <Badge key={tag} variant="outline">
-                <Tag className="h-3 w-3 mr-1" />
-                {tag}
+          {/* Only show organization info if it's meaningful */}
+          {bookmark.organization.category !== 'uncategorized' && bookmark.organization.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary">
+                <FolderOpen className="h-3 w-3 mr-1" />
+                {bookmark.organization.category}
               </Badge>
-            ))}
-          </div>
+              {bookmark.organization.tags.map(tag => (
+                <Badge key={tag} variant="outline">
+                  <Tag className="h-3 w-3 mr-1" />
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
           
           {renderMetadata(bookmark)}
           
-          <div className="flex gap-4 text-xs text-muted-foreground mt-2">
-            <span>Created: {new Date(bookmark.analytics.createdAt).toLocaleDateString()}</span>
-            <span>Last Accessed: {new Date(bookmark.analytics.lastAccessed).toLocaleDateString()}</span>
-            <span>Used: {bookmark.analytics.useCount} times</span>
-          </div>
+          {/* Only show analytics if they're meaningful */}
+          {bookmark.analytics.useCount > 0 && (
+            <div className="flex gap-4 text-xs text-muted-foreground mt-2">
+              <span>Last Used: {new Date(bookmark.analytics.lastAccessed).toLocaleDateString()}</span>
+              <span>Used: {bookmark.analytics.useCount} times</span>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -373,7 +399,7 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
       )}
 
       <ScrollArea className="h-[600px] pr-4">
-        {loading && page === 1 ? (
+        {isLoading && page === 1 ? (
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
               <Card key={i}>
@@ -399,9 +425,9 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
                 variant="outline"
                 className="w-full mt-4"
                 onClick={() => setPage(p => p + 1)}
-                disabled={loading}
+                disabled={isLoading}
               >
-                {loading ? 'Loading...' : 'Load More'}
+                {isLoading ? 'Loading...' : 'Load More'}
               </Button>
             )}
           </>

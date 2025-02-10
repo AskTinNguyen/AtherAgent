@@ -5,17 +5,33 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { compareSearchResults } from '@/lib/diff'
 import { DiffResult } from '@/lib/diff/types'
-import { SearchResult } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Star } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
+
+export interface SearchResult {
+  url: string
+  title?: string
+  content: string
+  score?: number
+  rank?: number
+  query?: string
+  quality?: {
+    relevance: number
+    authority: number
+    freshness: number
+    coverage: number
+  }
+}
 
 export interface SearchResultsProps {
   results: SearchResult[]
   previousResults?: SearchResult[]
   showDiff?: boolean
   className?: string
+  userId?: string
 }
 
 // Ensure search parameters are properly initialized
@@ -30,7 +46,8 @@ export function SearchResults({
   results,
   previousResults,
   showDiff = false,
-  className
+  className,
+  userId = 'anonymous'
 }: SearchResultsProps) {
   const [showAllResults, setShowAllResults] = useState(false)
   const [diffResult, setDiffResult] = useState<DiffResult | null>(null)
@@ -48,16 +65,58 @@ export function SearchResults({
     setShowAllResults(true)
   }
 
-  const toggleStar = (url: string) => {
-    setStarredResults(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(url)) {
-        newSet.delete(url)
+  const handleBookmark = async (result: SearchResult) => {
+    try {
+      if (starredResults.has(result.url)) {
+        // Remove bookmark
+        const response = await fetch(`/api/bookmarks?userId=${userId}&bookmarkId=${result.url}`, {
+          method: 'DELETE'
+        })
+        
+        if (!response.ok) throw new Error('Failed to remove bookmark')
+        
+        setStarredResults(prev => {
+          const next = new Set(prev)
+          next.delete(result.url)
+          return next
+        })
+        toast.success('Result removed from bookmarks')
       } else {
-        newSet.add(url)
+        // Add bookmark
+        const response = await fetch('/api/bookmarks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            type: 'search_result',
+            content: result.title || result.content,
+            metadata: {
+              type: 'search_result',
+              data: {
+                sourceContext: result.content,
+                queryContext: result.query || '',
+                searchScore: result.score || 0,
+                resultRank: result.rank || 0,
+                sourceQuality: result.quality ? {
+                  relevance: result.quality.relevance || 0,
+                  authority: result.quality.authority || 0,
+                  freshness: result.quality.freshness || 0,
+                  coverage: result.quality.coverage || 0
+                } : undefined
+              }
+            }
+          })
+        })
+        
+        if (!response.ok) throw new Error('Failed to add bookmark')
+        
+        setStarredResults(prev => new Set(prev).add(result.url))
+        toast.success('Result added to bookmarks')
       }
-      return newSet
-    })
+    } catch (error) {
+      console.error('Failed to toggle bookmark:', error)
+      toast.error('Failed to update bookmark')
+    }
   }
 
   const displayedResults = showAllResults ? results : results.slice(0, 3)
@@ -183,14 +242,14 @@ export function SearchResults({
                             !starredResults.has(result.url) && "opacity-0 group-hover:opacity-100"
                           )}
                           onClick={(e) => {
-                            e.preventDefault()
-                            toggleStar(result.url)
+                            e.stopPropagation()
+                            handleBookmark(result)
                           }}
                         >
                           <Star 
                             className={cn(
                               "h-4 w-4",
-                              starredResults.has(result.url) 
+                              starredResults.has(result.url)
                                 ? "fill-yellow-400 text-yellow-400" 
                                 : "text-muted-foreground"
                             )}

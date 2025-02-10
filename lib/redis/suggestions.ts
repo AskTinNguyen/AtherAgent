@@ -2,16 +2,17 @@ import { ResearchSuggestion } from '@/components/research-suggestions'
 import { getRedisClient } from './config'
 
 const REDIS_KEYS = {
-  userSuggestions: (userId: string) => `user:${userId}:suggestions`,
+  chatSuggestions: (chatId: string, userId: string) => `chat:${chatId}:user:${userId}:suggestions`,
   suggestionTTL: 60 * 60 * 24 // 24 hours
 }
 
 export async function cacheResearchSuggestions(
+  chatId: string,
   userId: string,
   suggestions: ResearchSuggestion[]
 ): Promise<void> {
   const redis = await getRedisClient()
-  const key = REDIS_KEYS.userSuggestions(userId)
+  const key = REDIS_KEYS.chatSuggestions(chatId, userId)
   
   // Store suggestions as JSON string
   await redis.hmset(key, {
@@ -21,10 +22,11 @@ export async function cacheResearchSuggestions(
 }
 
 export async function getCachedResearchSuggestions(
+  chatId: string,
   userId: string
 ): Promise<ResearchSuggestion[] | null> {
   const redis = await getRedisClient()
-  const key = REDIS_KEYS.userSuggestions(userId)
+  const key = REDIS_KEYS.chatSuggestions(chatId, userId)
   
   const data = await redis.hgetall<{
     suggestions: string
@@ -45,9 +47,10 @@ export async function getCachedResearchSuggestions(
 }
 
 export async function clearCachedResearchSuggestions(
+  chatId: string,
   userId: string
 ): Promise<void> {
   const redis = await getRedisClient()
-  const key = REDIS_KEYS.userSuggestions(userId)
+  const key = REDIS_KEYS.chatSuggestions(chatId, userId)
   await redis.del(key)
 } 

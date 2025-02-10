@@ -31,6 +31,12 @@ export interface SearchMetadata extends BaseMetadata {
   queryContext: string
   searchScore: number
   resultRank: number
+  sourceQuality: {
+    relevance: number
+    authority: number
+    freshness: number
+    coverage: number
+  }
 }
 
 // Chat Message Types
