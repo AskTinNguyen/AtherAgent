@@ -1,0 +1,24 @@
+---
+description: Next.JS Coding Framework
+globs: *.tsx
+---
+Next.js
+- Use functional components and TypeScript interfaces.
+- Use function, not const, for components.
+- Use Shadcn UI, Radix, and Tailwind CSS for components and styling.
+- Implement responsive design with Tailwind CSS.
+- Use mobile-first approach for responsive design.
+- Place static content and interfaces at file end.
+- Use content variables for static content outside render functions.
+- Minimize 'use client', 'useEffect', and 'setState'. Favor React Server Components (RSC).
+- Use Zod for form validation.
+- Wrap client components in Suspense with fallback.
+- Use dynamic loading for non-critical components.
+- Optimize images: WebP format, size data, lazy loading.
+- Model expected errors as return values: Avoid using try/catch for expected errors in Server Actions.
+- Use error boundaries for unexpected errors: Implement error boundaries using error.tsx and global-error.tsx files.
+- Use useActionState with react-hook-form for form validation.
+- Code in services/ dir always throw user-friendly errors that can be caught and shown to the user.
+- Use next-safe-action for all server actions.
+- Implement type-safe server actions with proper validation.
+- Handle errors gracefully and return appropriate responses.

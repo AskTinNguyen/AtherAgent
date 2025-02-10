@@ -1,0 +1,16 @@
+---
+description: For referring and using Reference Codes
+globs: REF-*.*
+---
+Working with REFERENCE Code Files (Never Integrate Directly)
+These codes are always named with "REF-*" to make them distinct
+Purpose: To guide the review and understanding of reference code files without incorporating them directly into our project.  This prevents accidental dependency and ensures your project maintains its integrity and independence.
+Rule 1: Read-Only Access: Reference code files should be opened in read-only mode.  Avoid making any modifications.
+Rule 2: Extraction of Information: Focus solely on extracting the following:
+	•	Method Signatures: Note the names, parameters (types and purpose), and return types of all methods.
+	•	Interface Definitions:  Document the interfaces implemented by the reference code, including all methods and properties.
+	•	Data Structures:  Identify the classes, structs, or other data structures used and their member variables (types and purpose).
+	•	Algorithmic Approaches:  Observe the high-level logic and algorithms employed but avoid detailed line-by-line study.
+Rule 3: No Code Integration:  Absolutely no copying or pasting of code from the reference files into your project’s source code.
+Rule 4:  Documentation is Key:  Thoroughly document your observations in a separate document. This record will be crucial for designing equivalent functionality in your own codebase.
+Rule 5:  Abstraction: Aim to understand the purpose of the code, not its specific implementation details.  Focus on the functionality it provides, not how it achieves it.

@@ -1,0 +1,13 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "cSpell.words": ["openai", "Tavily"],
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "always"
+  },
+  "cursor.aipreview.enabled": true,
+  "cursor.cmdk.useThemedDiffBackground": false,
+  "cursor.composer.cmdPFilePicker2": true,
+  "cursor.composer.renderPillsInsteadOfBlocks": true,
+  "editor.accessibilityPageSize": 12
+}
