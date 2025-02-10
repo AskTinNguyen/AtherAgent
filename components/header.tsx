@@ -10,7 +10,7 @@ export function Header() {
       <div className="flex items-center">
         <a href="/">
           <IconLogo className={cn('w-5 h-5')} />
-          <span className="sr-only">Morphic</span>
+          <span className="sr-only">AtherAgent</span>
         </a>
       </div>
       <div className="flex items-center justify-end space-x-2">

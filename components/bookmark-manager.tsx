@@ -3,31 +3,31 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BookmarkType, EnhancedBookmark } from '@/lib/redis/types/bookmarks'
 import {
-    FolderOpen,
-    Search,
-    Tag,
-    Trash2
+  FolderOpen,
+  Search,
+  Tag,
+  Trash2
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface BookmarkManagerProps {
   className?: string
@@ -35,17 +35,20 @@ interface BookmarkManagerProps {
 
 export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Element {
   const { data: session } = useSession()
-  const userId = session?.user?.email || 'anonymous'
+  const [userId, setUserId] = useState<string>('anonymous')
+  const pollingInterval = useRef<NodeJS.Timeout>()
 
   const [bookmarks, setBookmarks] = useState<EnhancedBookmark[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [lastUpdate, setLastUpdate] = useState<number>(Date.now())
 
   // Filtering and sorting state
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedTag, setSelectedTag] = useState<string>('all')
   const [sortBy, setSortBy] = useState<'created' | 'accessed' | 'effectiveness'>('created')
+  const [selectedType, setSelectedType] = useState<'all' | BookmarkType>('all')
 
   // Pagination
   const [page, setPage] = useState(1)
@@ -56,16 +59,33 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
   const [categories, setCategories] = useState<Set<string>>(new Set())
   const [tags, setTags] = useState<Set<string>>(new Set())
 
-  // Add type filter state
-  const [selectedType, setSelectedType] = useState<'all' | BookmarkType>('all')
-
+  // Get userId from cookie
   useEffect(() => {
-    fetchBookmarks()
-  }, [userId, selectedCategory, selectedTag, sortBy, page, selectedType])
+    const getUserId = async () => {
+      try {
+        const response = await fetch('/api/auth/session', {
+          cache: 'no-store'
+        })
+        const data = await response.json()
+        setUserId(data.userId || 'anonymous')
+      } catch (error) {
+        console.error('Error getting user ID:', error)
+        setUserId('anonymous')
+      }
+    }
+    getUserId()
+  }, [session])
 
-  const fetchBookmarks = async () => {
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1)
+    setBookmarks([]) // Clear existing bookmarks when filters change
+    setLastUpdate(Date.now()) // Force refresh when filters change
+  }, [selectedCategory, selectedTag, sortBy, selectedType])
+
+  const fetchBookmarks = useCallback(async (isPolling = false) => {
     try {
-      setLoading(true)
+      if (!isPolling) setLoading(true)
       const offset = (page - 1) * ITEMS_PER_PAGE
       const queryParams = new URLSearchParams({
         userId,
@@ -74,16 +94,26 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
         sortBy,
         ...(selectedCategory !== 'all' && { category: selectedCategory }),
         ...(selectedTag !== 'all' && { tag: selectedTag }),
-        ...(selectedType !== 'all' && { type: selectedType })
+        ...(selectedType !== 'all' && { type: selectedType }),
+        timestamp: lastUpdate.toString()
       })
 
-      const response = await fetch(`/api/bookmarks?${queryParams}`)
+      const response = await fetch(`/api/bookmarks?${queryParams}`, {
+        cache: 'no-store'
+      })
+      
       if (!response.ok) throw new Error('Failed to fetch bookmarks')
       
       const data = await response.json()
       
-      // Update bookmarks
-      setBookmarks(prev => page === 1 ? data : [...prev, ...data])
+      // Update bookmarks with pagination
+      setBookmarks(prev => {
+        // If it's the first page or filters changed, replace all bookmarks
+        if (page === 1) return data
+        // Otherwise append new bookmarks
+        return [...prev, ...data]
+      })
+      
       setHasMore(data.length === ITEMS_PER_PAGE)
 
       // Update categories and tags
@@ -102,20 +132,48 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch bookmarks')
     } finally {
-      setLoading(false)
+      if (!isPolling) setLoading(false)
     }
-  }
+  }, [userId, page, selectedCategory, selectedTag, sortBy, selectedType, lastUpdate])
+
+  // Set up polling for updates
+  useEffect(() => {
+    // Initial fetch
+    fetchBookmarks()
+
+    // Set up polling every 5 seconds
+    pollingInterval.current = setInterval(() => {
+      fetchBookmarks(true)
+    }, 5000)
+
+    return () => {
+      if (pollingInterval.current) {
+        clearInterval(pollingInterval.current)
+      }
+    }
+  }, [fetchBookmarks])
+
+  // Force refresh function
+  const refreshBookmarks = useCallback(() => {
+    setLastUpdate(Date.now())
+    setPage(1)
+    fetchBookmarks()
+  }, [fetchBookmarks])
 
   const deleteBookmark = async (bookmarkId: string) => {
     try {
       const response = await fetch(`/api/bookmarks?userId=${userId}&bookmarkId=${bookmarkId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        cache: 'no-store'
       })
       
       if (!response.ok) throw new Error('Failed to delete bookmark')
       
-      // Remove from local state
+      // Remove from local state immediately
       setBookmarks(prev => prev.filter(b => b.id !== bookmarkId))
+      
+      // Force refresh to ensure sync
+      refreshBookmarks()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete bookmark')
     }

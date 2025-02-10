@@ -38,19 +38,24 @@ export function SearchDepthToggle({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          size="icon"
           className={cn(
-            "shrink-0 rounded-full group relative",
-            enabled && "bg-primary/10"
+            "relative h-8 w-[80px] justify-start rounded-full bg-background",
+            "hover:bg-accent hover:text-accent-foreground",
+            enabled && "bg-primary/10 text-primary hover:bg-primary/20",
+            !enabled && "opacity-50 cursor-not-allowed"
           )}
           disabled={!enabled}
         >
-          <Layers className="size-4 group-hover:text-primary transition-colors" />
-          <div className="absolute -top-1 -right-1 flex items-center gap-1">
-            <span className="size-4 rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-              {currentDepth}
-            </span>
-            <span className="text-[10px] text-muted-foreground">/{localMaxDepth}</span>
+          <div className="flex items-center gap-1.5 px-2">
+            <Layers className="size-4 shrink-0" />
+            <div className="flex items-center gap-0.5 text-xs font-medium">
+              <span className={cn(
+                "text-foreground",
+                enabled && "text-primary"
+              )}>{currentDepth}</span>
+              <span className="text-muted-foreground">/</span>
+              <span className="text-muted-foreground">{localMaxDepth}</span>
+            </div>
           </div>
         </Button>
       </PopoverTrigger>

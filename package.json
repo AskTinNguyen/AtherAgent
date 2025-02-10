@@ -38,9 +38,11 @@
     "@radix-ui/react-tooltip": "^1.0.7",
     "@types/d3-array": "^3.2.1",
     "@types/react-beautiful-dnd": "^13.1.8",
+    "@types/three": "^0.173.0",
     "@upstash/redis": "^1.34.0",
     "@vercel/kv": "^3.0.0",
     "ai": "^4.1.28",
+    "cannon-es": "^0.20.0",
     "chart.js": "^4.4.7",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
@@ -78,6 +80,7 @@
     "swr": "^2.3.2",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "three": "^0.173.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
