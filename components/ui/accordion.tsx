@@ -32,7 +32,19 @@ const AccordionTrigger = React.forwardRef<
       )}
       {...props}
     >
-      {children}
+      <div className="flex items-center gap-2">
+        {React.Children.map(children, child => {
+          if (React.isValidElement(child) && child.type === 'button') {
+            // Convert button to span while preserving its className and onClick
+            return React.cloneElement(child, {
+              ...child.props,
+              as: 'span',
+              role: 'presentation',
+            })
+          }
+          return child
+        })}
+      </div>
       <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
     </AccordionPrimitive.Trigger>
   </AccordionPrimitive.Header>
