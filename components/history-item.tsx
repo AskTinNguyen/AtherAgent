@@ -116,7 +116,7 @@ const HistoryItem: React.FC<HistoryItemProps> = ({ chat }) => {
     >
       <Link
         href={chatPath}
-        className="flex-1"
+        className="flex-1 min-w-0 overflow-hidden"
       >
         <div className="text-xs font-medium truncate select-none">
           {chat.title}
@@ -132,7 +132,7 @@ const HistoryItem: React.FC<HistoryItemProps> = ({ chat }) => {
             variant="ghost"
             size="icon"
             className={cn(
-              "h-6 w-6 p-0 opacity-0 transition-opacity",
+              "h-6 w-6 p-0 opacity-0 transition-opacity shrink-0 z-10 relative",
               showDelete && "opacity-100",
               isDeleting && "pointer-events-none"
             )}
