@@ -66,45 +66,40 @@ export function ChatMessages({
 
   // Process stream data updates
   useEffect(() => {
-    if (!data) return
+    let mounted = true
 
-    data.forEach(item => {
-      if (typeof item === 'object' && item !== null) {
-        // Handle text streaming
-        if ('type' in item && item.type === 'text' && 'value' in item) {
-          setStreamState(prev => ({
-            ...prev,
-            isStreaming: true,
-            streamedContent: item.value as string
-          }))
-        }
-        
-        // Handle message updates (final message)
-        if ('type' in item && item.type === 'message-update' && 'data' in item && typeof item.data === 'object' && item.data !== null && 'messages' in item.data) {
-          const messageData = item.data as unknown as { messages: Message[] }
-          if (Array.isArray(messageData.messages) && messageData.messages.length > 0) {
-            const lastMessage = messageData.messages[messageData.messages.length - 1]
+    const processStreamData = async () => {
+      if (!data) return
+
+      for (const item of data) {
+        if (!mounted) break
+
+        if (typeof item === 'object' && item !== null) {
+          if ('type' in item && item.type === 'text' && 'value' in item) {
             setStreamState(prev => ({
               ...prev,
-              isStreaming: false,
-              currentMessageId: lastMessage.id,
-              streamedContent: lastMessage.content
+              isStreaming: true,
+              streamedContent: item.value as string
             }))
-            setMessages(messageData.messages)
+          }
+
+          // Always process message updates, even if we think we're done
+          if ('type' in item && item.type === 'message-update' && 'data' in item) {
+            const messageData = item.data as unknown as { messages: Message[] }
+            if (Array.isArray(messageData.messages)) {
+              setMessages(messageData.messages)
+            }
           }
         }
-
-        // Handle stream completion
-        if ('type' in item && item.type === 'done') {
-          setStreamState(prev => ({
-            ...prev,
-            isStreaming: false,
-            currentMessageId: null,
-            // Don't clear streamedContent here
-          }))
-        }
       }
-    })
+    }
+
+    processStreamData()
+
+    // Cleanup function
+    return () => {
+      mounted = false
+    }
   }, [data, setMessages])
 
   // Update messages with streamed content
