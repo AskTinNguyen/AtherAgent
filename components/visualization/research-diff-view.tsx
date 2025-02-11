@@ -9,6 +9,14 @@ import { ResearchContent } from './research-content'
 import { ResearchHeader } from './research-header'
 import { ResearchTimeline } from './research-timeline'
 
+export interface HighlightData {
+  id: string
+  content: string
+  source: string
+  confidence: number
+  type: 'new' | 'refined' | 'validated'
+}
+
 interface ResearchDiffViewProps {
   visualization: VisualizationData
   onHighlightSelect?: (highlight: HighlightData) => void

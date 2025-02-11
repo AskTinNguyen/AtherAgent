@@ -1,43 +1,112 @@
 'use client'
 
-import { useDepth } from '@/lib/contexts/research-provider'
+import { useResearchContext } from '@/lib/contexts/research-activity-context'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
+import { ChevronRight, Database, GitBranch, Search } from 'lucide-react'
 
 interface ResearchHeaderProps {
-  activeMode: 'side-by-side' | 'overlay' | 'timeline'
-  onModeChange: (mode: 'side-by-side' | 'overlay' | 'timeline') => void
+  className?: string
 }
 
-export function ResearchHeader({ activeMode, onModeChange }: ResearchHeaderProps) {
-  const { state: depthState } = useDepth()
+export function ResearchHeader({ className }: ResearchHeaderProps) {
+  const { state, activity } = useResearchContext()
+  const currentActivity = activity[activity.length - 1]
+
+  const glowVariants = {
+    initial: { opacity: 0.5 },
+    pulse: {
+      opacity: [0.5, 1, 0.5],
+      transition: {
+        duration: 2,
+        repeat: Infinity,
+        ease: "easeInOut"
+      }
+    }
+  }
 
   return (
-    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Research Progress</h2>
-        <p className="text-gray-600 dark:text-gray-300 mt-1">
-          Depth Level {depthState.currentDepth} of {depthState.maxDepth}
-        </p>
-      </div>
-      <div className="flex gap-3">
-        {['side-by-side', 'overlay', 'timeline'].map((mode) => (
-          <motion.button
-            key={mode}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className={cn(
-              "px-4 py-2 rounded-lg font-medium transition-colors",
-              activeMode === mode 
-                ? 'bg-blue-600 text-white shadow-md' 
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            )}
-            onClick={() => onModeChange(mode as any)}
+    <motion.div
+      className={cn(
+        'relative overflow-hidden',
+        className
+      )}
+    >
+      {/* Top Border Glow */}
+      <motion.div
+        variants={glowVariants}
+        initial="initial"
+        animate="pulse"
+        className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-cyan-500/0 via-cyan-500 to-cyan-500/0"
+      />
+
+      <div className="flex items-center justify-between p-4">
+        {/* Left Section - Research Status */}
+        <div className="flex items-center space-x-4">
+          <motion.div
+            animate={{
+              scale: [1, 1.1, 1],
+              transition: { duration: 2, repeat: Infinity }
+            }}
+            className="p-2 rounded-full bg-cyan-500/10"
           >
-            {mode.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-          </motion.button>
-        ))}
+            <Search className="w-6 h-6 text-cyan-400" />
+          </motion.div>
+          <div>
+            <h2 className="text-lg font-semibold text-white">
+              Research Command Center
+            </h2>
+            <div className="flex items-center text-sm text-gray-400">
+              <Database className="w-4 h-4 mr-1" />
+              <span>{state.sources.length} Sources</span>
+              <ChevronRight className="w-4 h-4 mx-1" />
+              <GitBranch className="w-4 h-4 mr-1" />
+              <span>Depth {state.currentDepth}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Section - Current Activity */}
+        <div className="flex items-center space-x-6">
+          <div className="text-right">
+            <div className="text-sm text-gray-400">Current Operation</div>
+            <div className="font-mono text-cyan-400">
+              {currentActivity?.operation || 'Initializing...'}
+            </div>
+          </div>
+          <motion.div
+            animate={{
+              borderColor: ['rgba(6, 182, 212, 0.2)', 'rgba(6, 182, 212, 0.8)', 'rgba(6, 182, 212, 0.2)']
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+            className="h-12 w-12 rounded-full border-2 border-cyan-500/20 flex items-center justify-center"
+          >
+            <motion.div
+              animate={{
+                scale: [1, 1.2, 1]
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="h-8 w-8 rounded-full bg-cyan-500/20"
+            />
+          </motion.div>
+        </div>
       </div>
-    </div>
+
+      {/* Bottom Border Glow */}
+      <motion.div
+        variants={glowVariants}
+        initial="initial"
+        animate="pulse"
+        className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-cyan-500/0 via-cyan-500 to-cyan-500/0"
+      />
+    </motion.div>
   )
 } 

@@ -1,6 +1,5 @@
 'use client'
 
-import { ResearchDiffView } from '@/components/research-diff-view'
 import { SearchHeader } from '@/components/search/search-header'
 import { SearchResultsGrid } from '@/components/search/search-results-grid'
 import { useActivity, useDepth, useSources } from '@/lib/contexts/research-provider'
@@ -8,16 +7,17 @@ import { ResearchDiffSystem, type VisualizationData } from '@/lib/utils/research
 import { extractSearchSources } from '@/lib/utils/search'
 import { type SearchResultItem, type SearchSource, type SearchResults as TypeSearchResults } from '@/types/search'
 import { type Message } from 'ai'
+import { BarChart, Grid2X2, Image as ImageIcon } from 'lucide-react'
 import * as React from 'react'
 import { CollapsibleMessage } from './collapsible-message'
 import { RankedSearchResults } from './ranked-search-results'
 import { SearchResultsImageSection } from './search-results-image'
 import {
   RankedResultsSkeleton,
-  ResearchDiffSkeleton,
   SearchResultsGridSkeleton,
   SearchResultsImageSkeleton
 } from './skeletons'
+import { Button } from './ui/button'
 
 interface ToolInvocation {
   state: string
@@ -174,38 +174,33 @@ export function SearchSection({
       onOpenChange={onOpenChange}
     >
       <div className="space-y-6">
-        {/* Research Diff View */}
-        {showDiff && (
-          isLoading ? (
-            <ResearchDiffSkeleton />
-          ) : searchResults?.results && (
-            <ResearchDiffView
-              visualization={{
-                diffHighlights: {
-                  newFindings: [],
-                  refinements: [],
-                  validations: []
-                },
-                evolutionMetrics: {
-                  depthProgress: 0,
-                  qualityImprovement: 0,
-                  sourceReliability: 0
-                },
-                interactionState: {
-                  selectedHighlight: null,
-                  expandedSections: [],
-                  comparisonMode: 'side-by-side',
-                  visualMode: 'compact'
-                },
-                visualEnhancements: {
-                  depthLevels: [],
-                  insightClusters: [],
-                  timelineData: []
-                }
-              }}
-            />
-          )
-        )}
+        {/* View Mode Controls */}
+        <div className="flex gap-2 justify-end">
+          <Button
+            variant={viewMode === 'grid' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('grid')}
+          >
+            <Grid2X2 className="w-4 h-4 mr-2" />
+            Grid
+          </Button>
+          <Button
+            variant={viewMode === 'ranked' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('ranked')}
+          >
+            <BarChart className="w-4 h-4 mr-2" />
+            Ranked
+          </Button>
+          <Button
+            variant={viewMode === 'image' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('image')}
+          >
+            <ImageIcon className="w-4 h-4 mr-2" />
+            Images
+          </Button>
+        </div>
 
         {/* Search Results */}
         {isLoading ? (

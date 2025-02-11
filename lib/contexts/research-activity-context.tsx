@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useReducer, type ReactNode } from 'react'
+import { createContext, ReactNode, useContext, useReducer, useState } from 'react'
 
 // Types
 interface ActivityItem {
@@ -33,11 +33,53 @@ interface ActivityContextType {
   initProgress: (totalSteps: number) => void
 }
 
+interface ResearchState {
+  currentDepth: number
+  maxDepth: number
+  sources: string[]
+  isActive: boolean
+}
+
+interface ResearchMetrics {
+  sourcesAnalyzed: number
+  qualityScore: number
+  coverageScore: number
+  relevanceScore: number
+}
+
+interface ResearchContextType {
+  state: ResearchState
+  activity: ActivityItem[]
+  metrics: ResearchMetrics
+  dispatch: (action: ResearchAction) => void
+}
+
+type ResearchAction =
+  | { type: 'SET_DEPTH'; payload: number }
+  | { type: 'ADD_SOURCE'; payload: string }
+  | { type: 'SET_ACTIVE'; payload: boolean }
+  | { type: 'ADD_ACTIVITY'; payload: ActivityItem }
+  | { type: 'UPDATE_METRICS'; payload: Partial<ResearchMetrics> }
+
 // Initial state
 const initialState: ActivityState = {
   activities: [],
   completedSteps: 0,
   totalExpectedSteps: 0
+}
+
+const initialResearchState: ResearchState = {
+  currentDepth: 1,
+  maxDepth: 7,
+  sources: [],
+  isActive: false
+}
+
+const initialMetrics: ResearchMetrics = {
+  sourcesAnalyzed: 0,
+  qualityScore: 0,
+  coverageScore: 0,
+  relevanceScore: 0
 }
 
 // Reducer
@@ -74,8 +116,22 @@ function activityReducer(state: ActivityState, action: ActivityAction): Activity
   }
 }
 
+function researchReducer(state: ResearchState, action: ResearchAction): ResearchState {
+  switch (action.type) {
+    case 'SET_DEPTH':
+      return { ...state, currentDepth: action.payload }
+    case 'ADD_SOURCE':
+      return { ...state, sources: [...state.sources, action.payload] }
+    case 'SET_ACTIVE':
+      return { ...state, isActive: action.payload }
+    default:
+      return state
+  }
+}
+
 // Context
 const ActivityContext = createContext<ActivityContextType | null>(null)
+const ResearchContext = createContext<ResearchContextType | null>(null)
 
 // Provider
 export function ActivityProvider({ children }: { children: ReactNode }) {
@@ -117,11 +173,45 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   )
 }
 
+export function ResearchActivityProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(researchReducer, initialResearchState)
+  const [activity, setActivity] = useState<ActivityItem[]>([])
+  const [metrics, setMetrics] = useState<ResearchMetrics>(initialMetrics)
+
+  const contextValue: ResearchContextType = {
+    state,
+    activity,
+    metrics,
+    dispatch: (action: ResearchAction) => {
+      dispatch(action)
+      if (action.type === 'ADD_ACTIVITY') {
+        setActivity((prev: ActivityItem[]) => [...prev, action.payload])
+      } else if (action.type === 'UPDATE_METRICS') {
+        setMetrics((prev: ResearchMetrics) => ({ ...prev, ...action.payload }))
+      }
+    }
+  }
+
+  return (
+    <ResearchContext.Provider value={contextValue}>
+      {children}
+    </ResearchContext.Provider>
+  )
+}
+
 // Hook
 export function useActivity() {
   const context = useContext(ActivityContext)
   if (!context) {
     throw new Error('useActivity must be used within an ActivityProvider')
+  }
+  return context
+}
+
+export function useResearchContext() {
+  const context = useContext(ResearchContext)
+  if (!context) {
+    throw new Error('useResearchContext must be used within a ResearchActivityProvider')
   }
   return context
 } 
