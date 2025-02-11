@@ -85,9 +85,27 @@ export function Chat({
     }
   }
 
+  const handleDepthChange = async (chatId: string, currentDepth: number, maxDepth: number) => {
+    try {
+      await fetch(`/api/chats/${chatId}/research/depth`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentDepth, maxDepth })
+      })
+      await mutateResearch()
+    } catch (error) {
+      console.error('Failed to update research depth:', error)
+    }
+  }
+
   return (
     <div className="flex min-h-screen">
-      <DeepResearchWrapper chatId={id} initialClearedState={researchState?.isCleared} onClearStateChange={handleClearResearch}>
+      <DeepResearchWrapper 
+        chatId={id} 
+        initialClearedState={researchState?.isCleared} 
+        onClearStateChange={handleClearResearch}
+        onDepthChange={handleDepthChange}
+      >
         <DeepResearchVisualization
           location="sidebar"
           chatId={id}

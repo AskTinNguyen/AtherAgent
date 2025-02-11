@@ -1,10 +1,10 @@
 import { ResearchDepthConfig, ResearchDepthRules, ResearchSourceMetrics } from '../types/research'
 
 const DEFAULT_DEPTH_RULES: ResearchDepthRules = {
-  minRelevanceForNextDepth: 0.7,
-  maxSourcesPerDepth: 5,
+  minRelevanceForNextDepth: 0.6,
+  maxSourcesPerDepth: 3,
   depthTimeoutMs: 30000,
-  qualityThreshold: 0.6
+  qualityThreshold: 0.5
 }
 
 export function calculateSourceMetrics(
@@ -106,16 +106,35 @@ export function shouldIncreaseDepth(
   
   // Calculate average metrics for current depth
   const currentDepthMetrics = metrics.filter(m => m.depthLevel === config.currentDepth)
-  if (currentDepthMetrics.length < rules.maxSourcesPerDepth) return false
   
+  // More lenient requirement for initial depths
+  const requiredSources = Math.max(2, Math.min(
+    rules.maxSourcesPerDepth,
+    Math.floor(config.currentDepth * 1.5)
+  ))
+  
+  if (currentDepthMetrics.length < requiredSources) return false
+  
+  // Calculate average metrics
   const avgRelevance = currentDepthMetrics.reduce((sum, m) => sum + m.relevanceScore, 0) / currentDepthMetrics.length
   const avgQuality = currentDepthMetrics.reduce((sum, m) => sum + m.contentQuality, 0) / currentDepthMetrics.length
   
-  // Adaptive threshold based on depth
-  const depthFactor = 1 - (config.currentDepth / config.maxDepth) * 0.3
+  // More lenient thresholds for early depths
+  const depthFactor = Math.max(0.4, 1 - (config.currentDepth / config.maxDepth) * 0.5)
   const effectiveThreshold = rules.minRelevanceForNextDepth * depthFactor
+  const effectiveQualityThreshold = rules.qualityThreshold * depthFactor
   
-  return avgRelevance >= effectiveThreshold && avgQuality >= rules.qualityThreshold
+  // Progressive requirements based on depth
+  if (config.currentDepth <= 2) {
+    // For early depths, require either good relevance OR good quality
+    return avgRelevance >= effectiveThreshold || avgQuality >= effectiveQualityThreshold
+  } else if (config.currentDepth <= 4) {
+    // For middle depths, require decent scores in both
+    return avgRelevance >= effectiveThreshold * 0.8 && avgQuality >= effectiveQualityThreshold * 0.8
+  } else {
+    // For deeper levels, maintain stricter requirements
+    return avgRelevance >= effectiveThreshold && avgQuality >= effectiveQualityThreshold
+  }
 }
 
 export function optimizeDepthStrategy(
@@ -130,17 +149,24 @@ export function optimizeDepthStrategy(
     const depthMetrics = metrics.filter(m => m.depthLevel === depth)
     if (depthMetrics.length > 0) {
       const avgScore = depthMetrics.reduce((sum, m) => sum + m.relevanceScore, 0) / depthMetrics.length
-      newConfig.depthScores[depth] = avgScore
+      newConfig.depthScores[depth] = Math.max(avgScore, config.depthScores[depth] || 0)
     }
   })
   
-  // Adjust adaptive threshold based on success rates
-  const avgSuccess = Object.values(newConfig.depthScores).reduce((a, b) => a + b, 0) / 
-                    Object.values(newConfig.depthScores).length
-  newConfig.adaptiveThreshold = Math.max(0.5, Math.min(0.9, avgSuccess))
+  // Calculate adaptive threshold based on recent performance
+  const recentDepths = Object.keys(newConfig.depthScores)
+    .map(Number)
+    .sort((a, b) => b - a)
+    .slice(0, 3)
   
-  // Adjust minimum relevance score based on depth performance
-  newConfig.minRelevanceScore = Math.max(0.4, Math.min(0.8, avgSuccess - 0.1))
+  const recentScores = recentDepths.map(d => newConfig.depthScores[d] || 0)
+  const avgRecentScore = recentScores.length > 0
+    ? recentScores.reduce((a, b) => a + b, 0) / recentScores.length
+    : 0.5
+  
+  // Adjust thresholds based on depth and performance
+  newConfig.adaptiveThreshold = Math.max(0.4, Math.min(0.8, avgRecentScore))
+  newConfig.minRelevanceScore = Math.max(0.3, Math.min(0.7, avgRecentScore - 0.1))
   
   return newConfig
 } 

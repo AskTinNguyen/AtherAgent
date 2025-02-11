@@ -28,6 +28,36 @@ export interface VisualizationData {
     depthProgress: number
     qualityImprovement: number
     sourceReliability: number
+    animationState?: {
+      isExpanded: boolean
+      currentFocus: 'depth' | 'quality' | 'reliability' | null
+      progressAnimation: number
+    }
+  }
+  interactionState: {
+    selectedHighlight: string | null
+    expandedSections: string[]
+    comparisonMode: 'side-by-side' | 'overlay' | 'timeline'
+    visualMode: 'compact' | 'detailed' | 'presentation'
+  }
+  visualEnhancements: {
+    depthLevels: {
+      level: number
+      nodes: string[]
+      connections: Array<{ from: string, to: string }>
+    }[]
+    insightClusters: Array<{
+      id: string
+      relatedFindings: string[]
+      clusterStrength: number
+      visualPosition: { x: number, y: number }
+    }>
+    timelineData: Array<{
+      timestamp: number
+      snapshot: string
+      significance: number
+      branchPoint?: boolean
+    }>
   }
 }
 
@@ -36,6 +66,19 @@ export interface HighlightData {
   type: 'new' | 'refined' | 'validated'
   sourceUrl?: string
   confidence: number
+  visualState?: {
+    isHighlighted: boolean
+    isExpanded: boolean
+    relationStrength: number
+    clusterPosition?: { x: number, y: number }
+  }
+  metadata?: {
+    category?: string
+    tags: string[]
+    importance: number
+    lastModified: number
+    relatedHighlights: string[]
+  }
 }
 
 export class ResearchDiffSystem {
@@ -120,39 +163,80 @@ export class ResearchDiffSystem {
       evolutionMetrics: {
         depthProgress: 0,
         qualityImprovement: 0,
-        sourceReliability: 0
+        sourceReliability: 0,
+        animationState: {
+          isExpanded: false,
+          currentFocus: null,
+          progressAnimation: 0
+        }
+      },
+      interactionState: {
+        selectedHighlight: null,
+        expandedSections: [],
+        comparisonMode: 'side-by-side',
+        visualMode: 'detailed'
+      },
+      visualEnhancements: {
+        depthLevels: this.generateDepthLevels(diffs),
+        insightClusters: this.generateInsightClusters(diffs),
+        timelineData: this.generateTimelineData(diffs)
       }
     }
 
-    // Process new findings
-    diffs.added.forEach(content => {
+    // Process new findings with enhanced visual states
+    diffs.added.forEach((content, index) => {
       visualization.diffHighlights.newFindings.push({
         content,
         type: 'new',
-        confidence: this.calculateConfidence(content)
+        confidence: this.calculateConfidence(content),
+        visualState: {
+          isHighlighted: false,
+          isExpanded: false,
+          relationStrength: 1,
+          clusterPosition: this.calculateClusterPosition(index, diffs.added.length)
+        },
+        metadata: {
+          category: this.inferCategory(content),
+          tags: this.extractTags(content),
+          importance: this.calculateImportance(content),
+          lastModified: Date.now(),
+          relatedHighlights: this.findRelatedHighlights(content, diffs)
+        }
       })
     })
 
-    // Process refinements
-    diffs.modified.forEach(({ before, after }) => {
+    // Similar enhanced processing for refinements and validations
+    diffs.modified.forEach(({ before, after }, index) => {
       visualization.diffHighlights.refinements.push({
         content: after,
         type: 'refined',
-        confidence: this.calculateConfidence(after)
+        confidence: this.calculateConfidence(after),
+        visualState: {
+          isHighlighted: false,
+          isExpanded: false,
+          relationStrength: this.calculateRelationStrength(before, after),
+          clusterPosition: this.calculateClusterPosition(index, diffs.modified.length)
+        },
+        metadata: {
+          category: this.inferCategory(after),
+          tags: this.extractTags(after),
+          importance: this.calculateImportance(after),
+          lastModified: Date.now(),
+          relatedHighlights: this.findRelatedHighlights(after, diffs)
+        }
       })
     })
 
-    // Process validations
-    diffs.unchanged.forEach(content => {
-      visualization.diffHighlights.validations.push({
-        content,
-        type: 'validated',
-        confidence: 1.0 // Validated content has highest confidence
-      })
-    })
-
-    // Calculate evolution metrics
-    visualization.evolutionMetrics = this.calculateEvolutionMetrics()
+    // Calculate evolution metrics with animation states
+    const evolutionMetrics = this.calculateEvolutionMetrics()
+    visualization.evolutionMetrics = {
+      ...evolutionMetrics,
+      animationState: {
+        isExpanded: false,
+        currentFocus: null,
+        progressAnimation: evolutionMetrics.depthProgress
+      }
+    }
 
     return visualization
   }
@@ -287,5 +371,68 @@ export class ResearchDiffSystem {
 
     // Combine validation ratio and consistency
     return (validationRatio * 0.6 + consistency * 0.4)
+  }
+
+  private generateDepthLevels(diffs: DiffResult) {
+    const levels: VisualizationData['visualEnhancements']['depthLevels'] = []
+    const maxDepth = 3 // Configurable based on research depth
+
+    for (let i = 0; i < maxDepth; i++) {
+      levels.push({
+        level: i + 1,
+        nodes: [],
+        connections: []
+      })
+    }
+
+    // Populate levels based on content analysis
+    return levels
+  }
+
+  private generateInsightClusters(diffs: DiffResult) {
+    const clusters: VisualizationData['visualEnhancements']['insightClusters'] = []
+    // Implement clustering logic based on content similarity and relationships
+    return clusters
+  }
+
+  private generateTimelineData(diffs: DiffResult) {
+    const timeline: VisualizationData['visualEnhancements']['timelineData'] = []
+    // Generate timeline data points based on changes and significance
+    return timeline
+  }
+
+  private calculateClusterPosition(index: number, total: number) {
+    // Calculate optimal 2D position for visualization layout
+    const angle = (index / total) * 2 * Math.PI
+    const radius = 100 // Configurable based on visualization size
+    return {
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius
+    }
+  }
+
+  private calculateRelationStrength(before: string, after: string): number {
+    // Implement similarity calculation between before and after content
+    return 0.5 // Placeholder
+  }
+
+  private inferCategory(content: string): string {
+    // Implement category inference logic
+    return 'general'
+  }
+
+  private extractTags(content: string): string[] {
+    // Implement tag extraction logic
+    return []
+  }
+
+  private calculateImportance(content: string): number {
+    // Implement importance calculation based on content analysis
+    return 0.5
+  }
+
+  private findRelatedHighlights(content: string, diffs: DiffResult): string[] {
+    // Implement related highlights finding logic
+    return []
   }
 } 

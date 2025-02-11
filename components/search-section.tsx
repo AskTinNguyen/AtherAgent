@@ -1,19 +1,23 @@
 'use client'
 
 import { ResearchDiffView } from '@/components/research-diff-view'
-import { useDeepResearchProgress } from '@/lib/hooks/use-deep-research'
+import { SearchHeader } from '@/components/search/search-header'
+import { SearchResultsGrid } from '@/components/search/search-results-grid'
+import { useActivity, useDepth, useSources } from '@/lib/contexts/research-provider'
 import { ResearchDiffSystem, type VisualizationData } from '@/lib/utils/research-diff'
 import { extractSearchSources } from '@/lib/utils/search'
 import { type SearchResultItem, type SearchSource, type SearchResults as TypeSearchResults } from '@/types/search'
 import { type Message } from 'ai'
-import { motion } from 'framer-motion'
-import { Eye, EyeOff } from 'lucide-react'
 import * as React from 'react'
 import { CollapsibleMessage } from './collapsible-message'
-import { useDeepResearch } from './deep-research-provider'
-import { SearchSkeleton } from './default-skeleton'
 import { RankedSearchResults } from './ranked-search-results'
-import { Button } from './ui/button'
+import { SearchResultsImageSection } from './search-results-image'
+import {
+  RankedResultsSkeleton,
+  ResearchDiffSkeleton,
+  SearchResultsGridSkeleton,
+  SearchResultsImageSkeleton
+} from './skeletons'
 
 interface ToolInvocation {
   state: string
@@ -46,35 +50,62 @@ export function SearchSection({
   setMessages,
   chatId
 }: SearchSectionProps) {
-  const { state, addActivity, addSource, setDepth } = useDeepResearch()
-  const { currentDepth } = state
-  const { shouldContinueResearch, nextDepth, maxDepth } = useDeepResearchProgress(currentDepth, 7, chatId)
-  const activityAddedRef = React.useRef<{[key: string]: boolean}>({})
-  const sourcesProcessedRef = React.useRef<{[key: string]: boolean}>({})
+  const isLoading = tool.state === 'call'
+  const searchResults = tool.state === 'result' ? tool.result : undefined
+  const query = tool.args?.query
+  const includeDomains = tool.args?.includeDomains
+
+  const { state: sourcesState, addSource } = useSources()
+  const { state: activityState, addActivity } = useActivity()
+  const { state: depthState, optimizeDepth } = useDepth()
+
+  const [viewMode, setViewMode] = React.useState<'grid' | 'ranked' | 'image'>('grid')
+  const [showDiff, setShowDiff] = React.useState(true)
   const [showRankedAnalysis, setShowRankedAnalysis] = React.useState(false)
   const [previousResults, setPreviousResults] = React.useState<SearchResultItem[]>([])
   const diffSystemRef = React.useRef<ResearchDiffSystem>(new ResearchDiffSystem())
   const [diffVisualization, setDiffVisualization] = React.useState<VisualizationData | null>(null)
 
-  // Tool and search state
-  const isToolLoading = tool.state === 'call'
-  const searchResults: TypeSearchResults | undefined = 
-    tool.state === 'result' ? tool.result : undefined
-  const query = tool.args?.query as string | undefined
-  const includeDomains = tool.args?.includeDomains as string[] | undefined
-  const includeDomainsString = includeDomains
-    ? ` [${includeDomains.join(', ')}]`
-    : ''
+  const includeDomainsString = React.useMemo(() => 
+    includeDomains ? ` [${includeDomains.join(', ')}]` : '', 
+    [includeDomains]
+  )
+
+  // Memoized helper functions
+  const extractAndProcessSources = React.useCallback((searchResults: TypeSearchResults | undefined, messages: ExtendedMessage[], toolCallId: string | undefined) => {
+    if (!searchResults?.results || searchResults.results.length === 0) return null
+    
+    const sources = extractSearchSources(searchResults.results)
+    const message = messages.find(m => m.id === toolCallId)
+    
+    return { sources, message }
+  }, [])
+
+  // Local state
+  const { currentDepth, maxDepth } = depthState
+  const sourcesProcessedRef = React.useRef<{[key: string]: boolean}>({})
+
+  // Memoized values
+  const isToolLoading = React.useMemo(() => tool.state === 'call', [tool.state])
+
+  // Memoized callbacks
+  const handleToggleRankedAnalysis = React.useCallback(() => {
+    setShowRankedAnalysis(prev => !prev)
+  }, [])
+
+  const handleOpenChange = React.useCallback((open: boolean) => {
+    onOpenChange(open)
+  }, [onOpenChange])
 
   // Process search results and update sources
   React.useEffect(() => {
-    if (!searchResults?.results || searchResults.results.length === 0) return
+    if (!searchResults) return
 
-    // Extract and process sources
-    const sources = extractSearchSources(searchResults.results)
+    const result = extractAndProcessSources(searchResults, messages, tool.toolCallId)
+    if (!result) return
     
-    // Update message with sources
-    const message = messages.find(m => m.id === tool.toolCallId)
+    const { sources, message } = result
+    
     if (message && !sourcesProcessedRef.current[message.id]) {
       sourcesProcessedRef.current[message.id] = true
 
@@ -90,6 +121,21 @@ export function SearchSection({
       })
 
       setMessages(updatedMessages)
+
+      // Add sources to context
+      sources.forEach(source => {
+        const searchResult = searchResults.results.find(r => r.url === source.url)
+        if (searchResult) {
+          addSource({
+            url: source.url,
+            title: source.title,
+            relevance: searchResult.relevance || 0,
+            content: source.content,
+            query: query,
+            publishedDate: source.publishedDate
+          })
+        }
+      })
     }
 
     // Track changes and update visualization
@@ -110,109 +156,87 @@ export function SearchSection({
         depth: currentDepth
       })
     }
-  }, [searchResults, messages, tool.toolCallId, addActivity, currentDepth, setMessages])
 
-  const header = (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">
-          Search Results{includeDomainsString}
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setShowRankedAnalysis(!showRankedAnalysis)}
-        >
-          {showRankedAnalysis ? (
-            <EyeOff className="h-4 w-4" />
-          ) : (
-            <Eye className="h-4 w-4" />
-          )}
-        </Button>
-      </div>
-    </div>
-  )
+    // Optimize depth based on new metrics
+    optimizeDepth(sourcesState.sourceMetrics)
+  }, [searchResults, messages, tool.toolCallId, query, addSource, currentDepth, addActivity, optimizeDepth, sourcesState.sourceMetrics, previousResults, extractAndProcessSources])
 
   return (
-    <div className="space-y-4">
-      <CollapsibleMessage
-        role="assistant"
-        isOpen={isOpen}
-        onOpenChange={onOpenChange}
-        header={header}
-        className="overflow-hidden"
-      >
-        {isToolLoading ? (
-          <SearchSkeleton />
-        ) : searchResults ? (
-          <div className="space-y-6">
-            {showRankedAnalysis ? (
-              <RankedSearchResults
+    <CollapsibleMessage
+      role="assistant"
+      isCollapsible={true}
+      header={<SearchHeader 
+        showRankedAnalysis={showRankedAnalysis}
+        onToggleRankedAnalysis={() => setShowRankedAnalysis(!showRankedAnalysis)}
+        includeDomainsString={includeDomainsString}
+      />}
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+    >
+      <div className="space-y-6">
+        {/* Research Diff View */}
+        {showDiff && (
+          isLoading ? (
+            <ResearchDiffSkeleton />
+          ) : searchResults?.results && (
+            <ResearchDiffView
+              visualization={{
+                diffHighlights: {
+                  newFindings: [],
+                  refinements: [],
+                  validations: []
+                },
+                evolutionMetrics: {
+                  depthProgress: 0,
+                  qualityImprovement: 0,
+                  sourceReliability: 0
+                },
+                interactionState: {
+                  selectedHighlight: null,
+                  expandedSections: [],
+                  comparisonMode: 'side-by-side',
+                  visualMode: 'compact'
+                },
+                visualEnhancements: {
+                  depthLevels: [],
+                  insightClusters: [],
+                  timelineData: []
+                }
+              }}
+            />
+          )
+        )}
+
+        {/* Search Results */}
+        {isLoading ? (
+          viewMode === 'grid' ? (
+            <SearchResultsGridSkeleton />
+          ) : viewMode === 'ranked' ? (
+            <RankedResultsSkeleton />
+          ) : (
+            <SearchResultsImageSkeleton />
+          )
+        ) : searchResults?.results ? (
+          <>
+            {viewMode === 'grid' && (
+              <SearchResultsGrid results={searchResults.results} />
+            )}
+            {viewMode === 'ranked' && (
+              <RankedSearchResults 
                 results={searchResults.results}
                 query={query}
-              />
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {searchResults.results.map((result, index) => (
-                  <motion.div
-                    key={result.url + index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <a
-                      href={result.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block h-full"
-                    >
-                      <div className="h-full p-4 rounded-lg border hover:border-blue-500 transition-all duration-200 hover:shadow-md bg-card">
-                        <div className="flex items-center gap-2 mb-3">
-                          {result.favicon && (
-                            <img
-                              src={result.favicon}
-                              alt=""
-                              className="w-4 h-4 rounded-sm"
-                              onError={(e) => {
-                                const img = e.target as HTMLImageElement
-                                img.style.display = 'none'
-                              }}
-                            />
-                          )}
-                          <h3 className="font-medium line-clamp-2 leading-tight">
-                            {result.title}
-                          </h3>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-sm text-muted-foreground line-clamp-3">
-                            {result.content}
-                          </p>
-                          {result.publishedDate && (
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(result.publishedDate).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </a>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-
-            {/* Research Progress */}
-            {diffVisualization && (
-              <ResearchDiffView
-                diffResult={diffSystemRef.current.compareResults(previousResults, searchResults.results)}
-                visualization={diffVisualization}
-                className="mt-6 border-t pt-6"
+                showMetrics={true}
               />
             )}
-          </div>
+            {viewMode === 'image' && searchResults.images && (
+              <SearchResultsImageSection 
+                images={searchResults.images}
+                query={query}
+              />
+            )}
+          </>
         ) : null}
-      </CollapsibleMessage>
-    </div>
+      </div>
+    </CollapsibleMessage>
   )
 }

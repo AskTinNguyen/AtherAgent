@@ -1,23 +1,20 @@
 'use client'
 
+import { ErrorBoundary } from '@/components/shared/error-boundary'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { useSources } from '@/lib/contexts/research-provider'
 import { compareSearchResults } from '@/lib/diff'
 import { DiffResult } from '@/lib/diff/types'
+import { SearchResult as BaseSearchResult } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Star } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-export interface SearchResult {
-  url: string
-  title?: string
-  content: string
-  score?: number
-  rank?: number
-  query?: string
+export interface SearchResult extends BaseSearchResult {
   quality?: {
     relevance: number
     authority: number
@@ -42,13 +39,14 @@ const DEFAULT_SEARCH_PARAMS = {
   search_depth: 'advanced' as const
 }
 
-export function SearchResults({ 
+function SearchResultsContent({ 
   results,
   previousResults,
   showDiff = false,
   className,
   userId = 'anonymous'
 }: SearchResultsProps) {
+  const { state: sourcesState, addSource } = useSources()
   const [showAllResults, setShowAllResults] = useState(false)
   const [diffResult, setDiffResult] = useState<DiffResult | null>(null)
   const [starredResults, setStarredResults] = useState<Set<string>>(new Set())
@@ -60,6 +58,22 @@ export function SearchResults({
       setDiffResult(diff)
     }
   }, [results, previousResults, showDiff])
+
+  // Add results to sources context
+  useEffect(() => {
+    results.forEach(result => {
+      if (!sourcesState.sources.some(s => s.url === result.url)) {
+        addSource({
+          url: result.url,
+          title: result.title || '',
+          relevance: result.relevance,
+          content: result.content,
+          query: result.metadata?.query,
+          publishedDate: result.timestamp ? new Date(result.timestamp).toISOString() : undefined
+        })
+      }
+    })
+  }, [results, sourcesState.sources, addSource])
 
   const handleViewMore = () => {
     setShowAllResults(true)
@@ -94,9 +108,9 @@ export function SearchResults({
               type: 'search_result',
               data: {
                 sourceContext: result.content,
-                queryContext: result.query || '',
-                searchScore: result.score || 0,
-                resultRank: result.rank || 0,
+                queryContext: result.metadata?.query || '',
+                searchScore: result.relevance,
+                resultRank: result.depth,
                 sourceQuality: result.quality ? {
                   relevance: result.quality.relevance || 0,
                   authority: result.quality.authority || 0,
@@ -271,16 +285,23 @@ export function SearchResults({
                             src={`https://www.google.com/s2/favicons?domain=${
                               new URL(result.url).hostname
                             }`}
-                            alt={new URL(result.url).hostname}
+                            alt={displayUrlName(result.url)}
                           />
                           <AvatarFallback>
-                            {new URL(result.url).hostname[0]}
+                            {displayUrlName(result.url)[0]}
                           </AvatarFallback>
                         </Avatar>
                         <div className="text-xs opacity-60">
                           {displayUrlName(result.url)}
                         </div>
                       </div>
+                      {result.quality && (
+                        <div className="flex items-center gap-2">
+                          <div className="text-xs text-muted-foreground">
+                            Relevance: {Math.round(result.quality.relevance * 100)}%
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -301,5 +322,13 @@ export function SearchResults({
         )}
       </div>
     </div>
+  )
+}
+
+export function SearchResults(props: SearchResultsProps) {
+  return (
+    <ErrorBoundary>
+      <SearchResultsContent {...props} />
+    </ErrorBoundary>
   )
 }

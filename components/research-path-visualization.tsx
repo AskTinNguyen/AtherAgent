@@ -2,8 +2,11 @@
 
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
-import { Layers } from 'lucide-react'
+import { Brain, Layers, Lightbulb, RefreshCw } from 'lucide-react'
+import { useMemo } from 'react'
 import { useDeepResearch } from './deep-research-provider'
+import { Badge } from './ui/badge'
+import { Card } from './ui/card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
 
 interface ResearchPathNode {
@@ -12,49 +15,77 @@ interface ResearchPathNode {
   message: string
   timestamp: string
   status: 'pending' | 'complete' | 'error'
+  metrics?: {
+    relevance: number
+    quality: number
+    timeRelevance: number
+  }
+  memory?: {
+    context: string
+    sourceUrls: string[]
+  }
   children?: ResearchPathNode[]
 }
 
 export function ResearchPathVisualization() {
   const { state } = useDeepResearch()
-  const { activity, currentDepth, maxDepth } = state
+  const { activity, currentDepth, maxDepth, researchMemory } = state
 
-  // Build tree structure from activity
-  const buildResearchTree = (activities: typeof activity): ResearchPathNode[] => {
+  // Build research tree with metrics and memory
+  const researchTree = useMemo(() => {
     const tree: ResearchPathNode[] = []
-    const depthMap = new Map<number, ResearchPathNode[]>()
+    let currentNode: ResearchPathNode | null = null
 
-    activities.forEach(item => {
+    activity.forEach((item) => {
       const node: ResearchPathNode = {
-        depth: item.depth || 0,
+        depth: item.depth || 1,
         type: item.type,
         message: item.message,
         timestamp: item.timestamp,
         status: item.status,
-        children: []
-      }
-
-      if (!depthMap.has(node.depth)) {
-        depthMap.set(node.depth, [])
-      }
-      depthMap.get(node.depth)?.push(node)
-
-      if (node.depth === 0) {
-        tree.push(node)
-      } else {
-        const parentNodes = depthMap.get(node.depth - 1) || []
-        const parent = parentNodes[parentNodes.length - 1]
-        if (parent) {
-          parent.children = parent.children || []
-          parent.children.push(node)
+        metrics: {
+          relevance: 0,
+          quality: 0,
+          timeRelevance: 0
         }
+      }
+
+      // Add metrics if available
+      const depthMetrics = state.sourceMetrics.filter(m => m.depthLevel === node.depth)
+      if (depthMetrics.length > 0) {
+        const avgMetrics = depthMetrics.reduce((acc, curr) => ({
+          relevance: acc.relevance + curr.relevanceScore,
+          quality: acc.quality + curr.contentQuality,
+          timeRelevance: acc.timeRelevance + curr.timeRelevance
+        }), { relevance: 0, quality: 0, timeRelevance: 0 })
+
+        node.metrics = {
+          relevance: avgMetrics.relevance / depthMetrics.length,
+          quality: avgMetrics.quality / depthMetrics.length,
+          timeRelevance: avgMetrics.timeRelevance / depthMetrics.length
+        }
+      }
+
+      // Add memory context if available
+      const depthMemory = researchMemory.find(m => m.depth === node.depth)
+      if (depthMemory) {
+        node.memory = {
+          context: depthMemory.context,
+          sourceUrls: depthMemory.sourceUrls
+        }
+      }
+
+      if (!currentNode || currentNode.depth !== node.depth) {
+        tree.push(node)
+        currentNode = node
+      } else {
+        if (!currentNode.children) currentNode.children = []
+        currentNode.children.push(node)
       }
     })
 
     return tree
-  }
-
-  const researchTree = buildResearchTree(activity)
+  }, [activity, state.sourceMetrics, researchMemory])
 
   const renderNode = (node: ResearchPathNode, index: number) => {
     return (
@@ -64,45 +95,96 @@ export function ResearchPathVisualization() {
         animate={{ opacity: 1, x: 0 }}
         className="relative"
       >
-        <div className="flex items-start gap-2 mb-4">
-          <div className="flex items-center gap-1 mt-1">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <div className="flex items-center">
-                    <Layers className="h-4 w-4 text-primary" />
-                    <span className="text-xs font-medium text-primary ml-1">
-                      {node.depth}
-                    </span>
+        <Card className="mb-4">
+          <div className="p-4">
+            <div className="flex items-start gap-4">
+              {/* Depth and Type Indicator */}
+              <div className="flex flex-col items-center gap-2">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <div className="flex items-center">
+                        <Layers className="h-4 w-4 text-primary" />
+                        <span className="text-xs font-medium text-primary ml-1">
+                          {node.depth}
+                        </span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Research Depth {node.depth}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                {getActivityIcon(node.type)}
+              </div>
+
+              {/* Content */}
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <div
+                    className={cn(
+                      'size-2 rounded-full',
+                      node.status === 'pending' && 'bg-yellow-500',
+                      node.status === 'complete' && 'bg-green-500',
+                      node.status === 'error' && 'bg-red-500'
+                    )}
+                  />
+                  <span className="text-xs font-medium capitalize">{node.type}</span>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {new Date(node.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+
+                <p className="text-sm break-words whitespace-pre-wrap mb-3">
+                  {node.message}
+                </p>
+
+                {/* Metrics Display */}
+                {node.metrics && (
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <MetricBadge
+                      label="Relevance"
+                      value={node.metrics.relevance}
+                      variant="default"
+                    />
+                    <MetricBadge
+                      label="Quality"
+                      value={node.metrics.quality}
+                      variant="secondary"
+                    />
+                    <MetricBadge
+                      label="Time Relevance"
+                      value={node.metrics.timeRelevance}
+                      variant="outline"
+                    />
                   </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Research Depth {node.depth}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          
-          <div className="flex-1 bg-accent/50 rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <div
-                className={cn(
-                  'size-2 rounded-full',
-                  node.status === 'pending' && 'bg-yellow-500',
-                  node.status === 'complete' && 'bg-green-500',
-                  node.status === 'error' && 'bg-red-500'
                 )}
-              />
-              <span className="text-xs font-medium capitalize">{node.type}</span>
+
+                {/* Memory Context */}
+                {node.memory && (
+                  <div className="mt-3 p-3 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground mb-2">
+                      {node.memory.context}
+                    </p>
+                    <div className="flex gap-2">
+                      {node.memory.sourceUrls.map((url, idx) => (
+                        <a
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:underline"
+                        >
+                          Source {idx + 1}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            <p className="text-sm break-words whitespace-pre-wrap">
-              {node.message}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {new Date(node.timestamp).toLocaleTimeString()}
-            </p>
           </div>
-        </div>
+        </Card>
 
         {node.children && node.children.length > 0 && (
           <div className="ml-8 pl-4 border-l border-dashed border-accent">
@@ -141,4 +223,26 @@ export function ResearchPathVisualization() {
       </div>
     </div>
   )
+}
+
+function MetricBadge({ label, value, variant }: { label: string; value: number; variant: 'default' | 'secondary' | 'outline' }) {
+  return (
+    <Badge variant={variant} className="flex items-center gap-1">
+      <span className="text-xs">{label}</span>
+      <span className="text-xs font-medium">{Math.round(value * 100)}%</span>
+    </Badge>
+  )
+}
+
+function getActivityIcon(type: ResearchPathNode['type']) {
+  switch (type) {
+    case 'analyze':
+    case 'reasoning':
+      return <Brain className="h-4 w-4 text-blue-500" />
+    case 'synthesis':
+    case 'thought':
+      return <Lightbulb className="h-4 w-4 text-yellow-500" />
+    default:
+      return <RefreshCw className="h-4 w-4 text-green-500" />
+  }
 } 

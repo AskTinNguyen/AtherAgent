@@ -39,6 +39,8 @@ export interface ResearchSourceMetrics {
   contentQuality: number
   timeRelevance: number
   sourceAuthority: number
+  crossValidation?: number
+  coverage?: number
 }
 
 export interface ResearchDepthRules {

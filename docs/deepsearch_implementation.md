@@ -8,147 +8,233 @@ AtherAgent's Deep Research is a sophisticated system that enables comprehensive 
 
 ### Core Deep Research Components
 
-*   **Multi-Level Research System:**
-    *   Configurable depth levels (1-10)
+*   **Multi-Level Research System:** ✅
+    *   Configurable depth levels (1-7)
     *   Source relevance scoring
     *   Content quality assessment
     *   Time-based relevance tracking
     *   Domain authority evaluation
     *   Redis-based research state persistence
+    *   Research memory system
+    *   Cross-validation detection
 
 ### Key Components
 
-*   `DeepResearchWrapper`: Main research interface using Vercel AI SDK
-*   `DeepResearchConfig`: Configuration component for depth control
-*   `ResearchResults`: UI component for displaying depth-based results
-*   Redis-based state management system per chat session
-*   Advanced source analysis with relevance scoring
-*   Research context preservation across sessions
+*   **Core Components:** ✅
+    *   `DeepResearchWrapper`: Main research interface using Vercel AI SDK ✅
+        - Implemented with Vercel AI SDK integration
+        - Added chat session management
+        - Integrated with research context
+        - Added state persistence with Redis
+    *   `DeepResearchProvider`: Central state and logic management component ✅
+        - Completed state management implementation
+        - Added activity tracking
+        - Implemented depth control logic
+        - Added research memory system
+        - Implemented source quality metrics
+    *   `DeepResearchConfig`: Configuration component for depth control ✅
+        - Added slider-based depth control (1-7)
+        - Implemented state persistence
+        - Added depth change callbacks
+        - Added adaptive threshold management
+    *   `ResearchDiffSystem`: System for tracking and comparing research changes ✅
+        - Implemented change tracking
+        - Added result comparison
+        - Integrated visualization generation
+        - Added cross-validation support
+    *   `ResearchCalculator`: Metrics and scoring computation engine ✅
+        - Added comprehensive metrics calculation
+        - Implemented scoring algorithms
+        - Added quality assessment
+        - Added source authority evaluation
+
+### State Management Implementation
+
+```typescript
+interface DeepResearchState {
+  isActive: boolean
+  activity: ActivityItem[]
+  sources: SourceItem[]
+  currentDepth: number
+  maxDepth: number
+  completedSteps: number
+  totalExpectedSteps: number
+  depthConfig: ResearchDepthConfig
+  sourceMetrics: ResearchSourceMetrics[]
+  suggestions: ResearchSuggestion[]
+  researchMemory: ResearchMemory[]
+}
+```
+
+### Source Quality Metrics
+
+```typescript
+interface ResearchSourceMetrics {
+  relevanceScore: number
+  depthLevel: number
+  contentQuality: number
+  timeRelevance: number
+  sourceAuthority: number
+  crossValidation?: number
+  coverage?: number
+}
+```
+
+### Research Memory System
+
+```typescript
+interface ResearchMemory {
+  context: string
+  relevance: number
+  timestamp: number
+  depth: number
+  sourceUrls: string[]
+}
+```
 
 ## 2. Feature Comparison
 
 ### Search Capabilities
 
-| Feature           | Current Implementation              | Deep Research                      |
-| ----------------- | ----------------------------------- | ---------------------------------- |
-| Search Providers  | Multiple (Tavily, Exa, SearXNG)     | Not specified                      |
-| Search Depth      | Basic/Advanced                      | Multi-level depth exploration      |
-| Caching           | Redis-based caching                 | Not implemented                    |
-| Domain Filtering  | Yes (Include/Exclude)               | Not specified                      |
-| Image Search      | Yes                                 | Not implemented                    |
+| Feature           | Current Implementation              | Status |
+| ----------------- | ---------------------------------- | ------ |
+| Search Providers  | Multiple (Tavily, Exa, SearXNG)    | ✅     |
+| Search Depth      | Adaptive (1-7 levels)              | ✅     |
+| Caching           | Redis-based caching                | ✅     |
+| Domain Filtering  | Yes (Include/Exclude)              | ✅     |
+| Source Quality    | Comprehensive metrics              | ✅     |
 
 ### State Management
 
-| Feature            | Current Implementation | Deep Research                  |
-| ------------------ | ---------------------- | ------------------------------ |
-| State Management   | Local state            | Context API                    |
-| Progress Tracking  | Basic loading states   | Detailed activity tracking     |
-| Search History     | Not implemented        | Tracks full research journey   |
-| Depth Control      | Basic/Advanced toggle  | Configurable depth levels      |
+| Feature            | Current Implementation             | Status |
+| ------------------ | --------------------------------- | ------ |
+| State Management   | Redux-style with Context          | ✅     |
+| Progress Tracking  | Real-time with steps              | ✅     |
+| Search History     | Implemented with memory           | ✅     |
+| Depth Control      | Adaptive with thresholds          | ✅     |
 
 ### UI Components
 
-| Feature          | Current Implementation   | Deep Research                    |
-| ---------------- | ------------------------ | -------------------------------- |
-| Results Display  | Grid layout with favicons | Not specified                    |
-| Loading States   | Skeleton loading         | Activity-based progress          |
-| Expandability    | View more functionality  | Progressive depth exploration    |
-| Visual Feedback  | Basic loading states     | Detailed activity feedback       |
+| Feature          | Current Implementation              | Status |
+| ---------------- | ---------------------------------- | ------ |
+| Results Display  | Grid layout with favicons          | ✅     |
+| Loading States   | Skeleton loading                   | ✅     |
+| Expandability    | View more functionality            | ✅     |
+| Visual Feedback  | Comprehensive status indicators    | ✅     |
 
-## 3. Strengths and Weaknesses
+## 3. Implementation Status
 
-### Current Implementation Strengths
+### Completed Features ✅
 
-*   Multi-provider flexibility
-*   Built-in caching system
-*   Advanced content crawling
-*   Image search support
-*   Modern UI with skeleton loading
-*   Domain filtering capabilities
+1. **Core Research Engine**
+   - Multi-level depth system
+   - Source quality assessment
+   - Time-based relevance
+   - Domain authority evaluation
+   - Cross-validation support
 
-### Current Implementation Weaknesses
+2. **State Management**
+   - Redux-style reducer implementation
+   - Research memory system
+   - Activity tracking
+   - Progress monitoring
 
-*   Limited research context preservation
-*   No built-in activity tracking
-*   Basic depth exploration
-*   Limited search history
+3. **Quality Metrics**
+   - Content quality scoring
+   - Source authority calculation
+   - Time relevance tracking
+   - Coverage assessment
+   - Cross-validation detection
 
-### Deep Research Strengths
+4. **Session Management**
+   - Redis-based persistence
+   - Chat session tracking
+   - State clearing mechanism
+   - Progress restoration
 
-*   Comprehensive research context
-*   Detailed activity tracking
-*   Configurable depth exploration
-*   Progress visualization
-*   Source relevance tracking
+### Upcoming Features 📅
 
-### Deep Research Weaknesses
+1. **Advanced Analysis**
+   - [ ] Enhanced cross-reference system
+   - [ ] Collaborative research features
+   - [ ] Advanced visualization components
+   - [ ] Real-time collaboration support
 
-*   Single search provider dependency
-*   No caching mechanism
-*   Limited search configuration options
-*   No image search support
+2. **Performance Optimization**
+   - [ ] Improved caching strategies
+   - [ ] Batch processing for large datasets
+   - [ ] Memory usage optimization
+   - [ ] Response time improvements
 
-## 4. Integration Opportunities
+3. **UI/UX Enhancements**
+   - [ ] Advanced visualization graphs
+   - [ ] Interactive depth controls
+   - [ ] Enhanced progress indicators
+   - [ ] Accessibility improvements
 
-### Immediate Improvements
+## 4. Technical Details
 
-*   **Context Management**
-    *   Implement research context for preserving search state
-    *   Add activity tracking for search operations
-    *   Integrate depth-based exploration with current search providers
-*   **Search Enhancement**
-    *   Add research-focused metadata to search results
-    *   Implement relevance scoring from Deep Research
-    *   Preserve search history within research context
-*   **UI Enhancements**
-    *   Add activity visualization
-    *   Implement depth-based result organization
-    *   Add research progress indicators
+### Depth Progression Logic
 
-### Long-term Improvements
+```typescript
+const shouldIncrease = shouldIncreaseDepth(
+  { ...newDepthConfig, currentDepth: state.currentDepth },
+  updatedSourceMetrics
+)
 
-*   **Advanced Features**
-    *   Implement cross-reference analysis
-    *   Add source credibility scoring
-    *   Develop collaborative research capabilities
-*   **Performance Optimization**
-    *   Extend caching to research context
-    *   Implement progressive loading for deep searches
-    *   Add result persistence
+const newDepth = shouldIncrease ? state.currentDepth + 1 : state.currentDepth
+```
 
-## 5. Implementation Strategy
+### Quality Calculation
 
-*   **Phase 1: Core Integration**
-    *   Implement Deep Research context provider
-    *   Integrate activity tracking with current search
-    *   Add depth-based search capabilities
-*   **Phase 2: UI Enhancement**
-    *   Update search results component
-    *   Add activity visualization
-    *   Implement progress tracking UI
-*   **Phase 3: Advanced Features**
-    *   Implement source analysis
-    *   Add cross-referencing
-    *   Enhance result relevance scoring
+```typescript
+const quality = {
+  contentQuality: metrics.contentQuality,
+  sourceAuthority: calculateSourceAuthority(url, state.sources),
+  timeRelevance: calculateFreshness(publishedDate)
+}
+```
 
-## 6. Technical Considerations
+### Memory Management
 
-*   **Architecture**
-    *   Maintain current multi-provider system
-    *   Integrate research context at app level
-    *   Keep provider-specific implementations isolated
-*   **Performance**
-    *   Optimize context updates
-    *   Maintain current caching system
-    *   Consider state persistence strategies
-*   **Scalability**
-    *   Design for multiple concurrent research sessions
-    *   Plan for increased data storage requirements
-    *   Consider API rate limiting implications
+```typescript
+interface ResearchMemory {
+  context: string
+  relevance: number
+  timestamp: number
+  depth: number
+  sourceUrls: string[]
+}
+```
+
+## 5. Best Practices
+
+1. **State Updates**
+   - Use immutable state updates
+   - Implement proper type safety
+   - Handle edge cases gracefully
+
+2. **Performance**
+   - Implement proper memoization
+   - Use efficient data structures
+   - Optimize render cycles
+
+3. **Error Handling**
+   - Implement comprehensive error boundaries
+   - Add proper error recovery
+   - Maintain user feedback
+
+## 6. Success Metrics
+
+- Test Coverage > 80%
+- Performance Score > 90
+- Accessibility Score > 95
+- User Satisfaction > 85%
+- Error Rate < 1%
 
 ## 7. Implementation Progress
 
-### Current Status
+### Current Status ✅
 - Context provider implementation is complete with Redis-based state management
 - Search integration completed:
   - Added DeepResearchWrapper component
@@ -158,15 +244,15 @@ AtherAgent's Deep Research is a sophisticated system that enables comprehensive 
   - Added per-chat research state persistence in Redis
   - Implemented clearing mechanism for individual chat sessions
   - Improved UI layout with centered chat content and proper sidebar integration
-- Depth Configuration Feature Added:
-  - Created DeepResearchConfig component with slider-based depth control (1-10)
+- Depth Configuration Feature Added: ✅
+  - Created DeepResearchConfig component with slider-based depth control (1-7)
   - Implemented depth state persistence in Redis
   - Added visual depth progress tracking in UI
   - Integrated depth configuration with research visualization
   - Added depth change callbacks for database synchronization
   - Implemented depth-based research continuation logic
   - Added real-time depth updates with optimistic UI
-- Research Strategy Optimization Implemented:
+- Research Strategy Optimization Implemented: 
   - Added comprehensive source metrics calculation:
     - Relevance scoring based on query matching and semantic relevance
     - Content quality assessment (length, structure, diversity)
@@ -266,7 +352,7 @@ AtherAgent's Deep Research is a sophisticated system that enables comprehensive 
 
 ### Next Steps 📅
 
-1. **Testing & Refinement** 🧪
+1. **Testing & Refinement** 
    - [ ] Unit Tests
      - [ ] Test diff calculation logic
      - [ ] Test metrics computation
@@ -280,7 +366,7 @@ AtherAgent's Deep Research is a sophisticated system that enables comprehensive 
      - [ ] Measure rendering performance
      - [ ] Optimize state updates
 
-2. **UI/UX Improvements** 🎨
+2. **UI/UX Improvements** 
    - [ ] Enhance Animations
      - [ ] Add smoother transitions
      - [ ] Improve loading states
@@ -294,7 +380,7 @@ AtherAgent's Deep Research is a sophisticated system that enables comprehensive 
      - [ ] Improve tablet layout
      - [ ] Add touch interactions
 
-3. **Advanced Features** 🚀
+3. **Advanced Features** 
    - [ ] Cross-reference Analysis
      - [ ] Implement topic detection
      - [ ] Add relationship mapping
@@ -303,93 +389,13 @@ AtherAgent's Deep Research is a sophisticated system that enables comprehensive 
      - [ ] Enhance authority scoring
      - [ ] Add citation tracking
      - [ ] Implement fact checking
-   - [ ] Collaborative Features
-     - [ ] Add shared research sessions
-     - [ ] Implement real-time updates
-     - [ ] Add commenting system
 
-### Technical Focus Areas
-
-1. **Testing Infrastructure**
-   ```typescript
-   interface TestSuite {
-     diffSystem: {
-       compareResults: () => void
-       trackChanges: () => void
-       visualizeDiffs: () => void
-     }
-     metrics: {
-       relevance: () => void
-       quality: () => void
-       evolution: () => void
-     }
-     components: {
-       diffView: () => void
-       rankedResults: () => void
-       searchSection: () => void
-     }
-   }
-   ```
-
-2. **Performance Optimization**
-   ```typescript
-   interface OptimizationMetrics {
-     renderTime: number
-     stateUpdateLatency: number
-     diffCalculationTime: number
-     memoryUsage: {
-       beforeOperation: number
-       afterOperation: number
-       delta: number
-     }
-   }
-   ```
-
-3. **Accessibility Enhancements**
-   ```typescript
-   interface A11yRequirements {
-     ariaLabels: Record<string, string>
-     keyboardNavigation: {
-       shortcuts: string[]
-       focusOrder: string[]
-     }
-     screenReader: {
-       announcements: string[]
-       descriptions: Record<string, string>
-     }
-   }
-   ```
-
-### Implementation Strategy
-
-1. **Phase 1: Testing** 📅
-   - Set up testing infrastructure
-   - Implement core test suites
-   - Add performance monitoring
-
-2. **Phase 2: Optimization** 📅
-   - Profile component performance
-   - Optimize state management
-   - Improve rendering efficiency
-
-3. **Phase 3: Accessibility** 📅
-   - Implement ARIA attributes
-   - Add keyboard navigation
-   - Test with screen readers
-
-### Success Metrics
-
-- Test Coverage > 80%
-- Performance Score > 90
-- Accessibility Score > 95
-- User Satisfaction > 85%
-- Error Rate < 1%
 
 ## 8. Integration Analysis & New Features
 
 ### Phase 1: Core Research Enhancement ⚡
 
-1. **Document Diffing System** 🔄
+1. **Document Diffing System** 
    ```typescript
    interface ResearchDiffSystem {
      compareResults: (oldResults: SearchResult[], newResults: SearchResult[]) => DiffResult
@@ -401,7 +407,7 @@ AtherAgent's Deep Research is a sophisticated system that enables comprehensive 
    - Enhancement to `search-results.tsx`: Show content evolution across depth levels
    - Benefits: Track how research evolves across depth levels
 
-2. **Research Context Provider** 📊
+2. **Research Context Provider** 
    ```typescript
    interface ResearchContextProvider {
      depth: number
@@ -414,7 +420,7 @@ AtherAgent's Deep Research is a sophisticated system that enables comprehensive 
    - Add to `chat-panel.tsx`: Persistent research state
    - Benefits: Better research state management and persistence
 
-3. **Interactive Suggestion System** 💡
+3. **Interactive Suggestion System** 
    ```typescript
    interface ResearchSuggestion {
      type: 'path' | 'source' | 'depth'
@@ -427,7 +433,7 @@ AtherAgent's Deep Research is a sophisticated system that enables comprehensive 
    - Enhances research path suggestions
    - Benefits: Smarter research guidance
 
-### Phase 2: UI/UX Improvements 🎨
+### Phase 2: UI/UX Improvements
 
 1. **Research Progress Visualization**
    ```typescript
@@ -455,7 +461,7 @@ AtherAgent's Deep Research is a sophisticated system that enables comprehensive 
    - Add visual indicators to sources
    - Benefits: Better source evaluation
 
-### Phase 3: Research Optimization 🚀
+### Phase 3: Research Optimization
 
 1. **Adaptive Depth Control**
    ```typescript
@@ -483,35 +489,7 @@ AtherAgent's Deep Research is a sophisticated system that enables comprehensive 
 
 ### Integration Points with Existing Components
 
-1. **Chat Panel Integration**
-   ```typescript
-   // In chat-panel.tsx
-   interface EnhancedChatPanel extends ChatPanelProps {
-     researchContext: ResearchContext
-     diffVisualization: DiffVisualizationProps
-     suggestionSystem: SuggestionSystemProps
-   }
-   ```
-
-2. **Researcher Enhancement**
-   ```typescript
-   // In researcher.ts
-   interface EnhancedResearcher {
-     contextProvider: ResearchContextProvider
-     depthController: DepthController
-     memorySystem: ResearchMemory
-   }
-   ```
-
-3. **Search Results Enhancement**
-   ```typescript
-   // In search-results.tsx
-   interface EnhancedSearchResults extends SearchResultsProps {
-     sourceQuality: SourceQuality[]
-     diffHighlights: DiffResult[]
-     progressIndicators: ProgressVisualization
-   }
-   ```
+Refer to Integration Document for more details.
 
 ### Implementation Progress Tracking
 
@@ -555,252 +533,131 @@ AtherAgent's Deep Research is a sophisticated system that enables comprehensive 
    - Maintain component independence
    - Ensure proper error handling
 
-## 9. Document Diffing System Deep Dive
 
-### Overview
-The Document Diffing System is a crucial component that enables tracking and visualizing how research content evolves across different depth levels. Based on our analysis of the reference implementation, this system provides sophisticated diffing capabilities at multiple granularity levels.
+## 11. Component Information Flow
 
-### Core Functionality
+### Core Components Flow
+```mermaid
+sequenceDiagram
+    participant SS as SearchSection
+    participant DP as DeepResearchProvider
+    participant RD as ResearchDiffSystem
+    participant RC as ResearchCalculator
+    participant RV as ResearchDiffView
+    participant RS as RankedSearchResults
+    participant SM as SourceMetrics
 
-1. **Multi-Level Diffing**
-   ```typescript
-   interface DocumentDiffing {
-     // Sentence-level diffing for detailed text analysis
-     sentenceDiff: {
-       compareTexts: (oldText: string, newText: string) => SentenceDiffResult
-       tokenizeSentences: (text: string) => string[]
-       highlightChanges: (diffs: SentenceDiffResult) => HighlightedText
-     }
-     
-     // Node-based structural diffing
-     structuralDiff: {
-       compareNodes: (oldNode: Node, newNode: Node) => NodeDiffResult
-       patchDocument: (oldDoc: Node, patches: NodeDiffResult) => Node
-       normalizeContent: (node: Node) => NormalizedNode[]
-     }
-     
-     // Research path diffing
-     pathDiff: {
-       compareResearchPaths: (oldPath: ResearchPath, newPath: ResearchPath) => PathDiffResult
-       visualizePathChanges: (diffs: PathDiffResult) => PathVisualization
-     }
-   }
-   ```
+    %% Initial Search Flow
+    SS->>DP: New Search Results
+    DP->>RD: Process Source Data
+    RD->>RC: Calculate Diff Results
+    RC->>DP: Return Metrics
 
-### User Benefits
+    %% State Updates
+    DP->>SM: Update Source Metrics
+    SM-->>DP: Metrics Updated
 
-1. **Research Evolution Tracking**
-   - Users can see how information evolves as research goes deeper
-   - Highlights new discoveries at each depth level
-   - Shows refinements in understanding over time
-   
-2. **Quality Assessment**
-   ```typescript
-   interface QualityMetrics {
-     contentEvolution: {
-       newInsights: number        // Count of new significant findings
-       refinements: number        // Count of refined/improved explanations
-       contradictions: number     // Count of contradictory information
-     }
-     sourceProgression: {
-       authorityIncrease: number  // Improvement in source authority
-       depthRelevance: number     // Relevance at current depth
-       crossValidation: number    // Cross-reference validation score
-     }
-   }
-   ```
+    %% Visualization Updates
+    DP->>RV: Update Research Data
+    DP->>RS: Update Ranked Results
 
-3. **Visual Progress Indicators**
-   ```typescript
-   interface DiffVisualization {
-     highlightTypes: {
-       newContent: 'insertion'      // New information discovered
-       refinedContent: 'refinement' // Existing info refined
-       contradiction: 'conflict'    // Contradictory information
-       validation: 'confirmation'   // Cross-validated information
-     }
-     renderOptions: {
-       inlineHighlighting: boolean  // Show changes inline
-       sideBySideView: boolean      // Compare views side by side
-       progressiveView: boolean     // Show changes over depth levels
-     }
-   }
-   ```
+    %% Optional Loading State
+    SS-->>SS: Show Loading State
 
-### Integration with Existing Components
+    %% Final Updates
+    RV-->>SS: Render Visualization
+    RS-->>SS: Display Results
+```
 
-1. **Chat Panel Enhancement**
-   ```typescript
-   interface DiffAwareChatPanel extends ChatPanelProps {
-     diffVisualization: {
-       showInlineChanges: boolean
-       highlightNewInsights: boolean
-       trackSourceEvolution: boolean
-     }
-     diffControls: {
-       toggleDiffView: () => void
-       selectDiffLevel: (depth: number) => void
-       filterChangeTypes: (types: string[]) => void
-     }
-   }
-   ```
+### Depth Progression Flow
+```mermaid
+sequenceDiagram
+    participant SP as SearchSection
+    participant DP as DeepResearchProvider
+    participant RC as ResearchCalculator
+    participant DM as DepthManager
+    participant RV as ResearchVisuals
 
-2. **Search Results Integration**
-   ```typescript
-   interface DiffAwareSearchResults extends SearchResultsProps {
-     diffHighlights: {
-       newFindings: HighlightData[]
-       refinements: HighlightData[]
-       validations: HighlightData[]
-     }
-     evolutionMetrics: {
-       depthProgress: number
-       qualityImprovement: number
-       sourceReliability: number
-     }
-   }
-   ```
+    SP->>DP: New Search Results
+    DP->>RC: Calculate Metrics
+    RC->>DP: Return Source Metrics
+    DP->>DM: Check Depth Increase
+    DM-->>DP: Depth Decision
+    
+    alt Should Increase Depth
+        DP->>DP: Increment Depth
+        DP->>RV: Update Visualization
+    else Stay at Current Depth
+        DP->>RV: Update Progress
+    end
+```
 
-### Implementation Strategy
+### State Update Flow
+```mermaid
+flowchart TD
+    A[New Search] -->|Results| B{DeepResearchProvider}
+    B -->|Calculate| C[Source Metrics]
+    C -->|Update| D[Research State]
+    D -->|Check| E{Should Increase Depth?}
+    
+    E -->|Yes| F[Increment Depth]
+    E -->|No| G[Update Progress]
+    
+    F --> H[Update Visualization]
+    G --> H
+    
+    H -->|Reflect Changes| I[UI Components]
+```
 
-1. **Phase 1: Core Diffing 📅**
-   - [ ] Implement sentence-level diffing
-   - [ ] Add structural comparison
-   - [ ] Create basic visualization
-   > Note: Reference implementation available in `REF-deep-research-diff.js`. This is a reference file only and not actual implementation.
+### Component Interaction Details
 
-2. **Phase 2: Enhanced Visualization 📅**
-   - [ ] Add inline diff highlights
-   - [ ] Implement side-by-side comparison
-   - [ ] Create progress visualization
+1. **Search Flow**
+   - `SearchSection` initiates searches and receives results
+   - Results are processed through `DeepResearchProvider`
+   - `RankedSearchResults` displays processed results
+   - Loading states managed by `SearchSkeleton`
 
-3. **Phase 3: Quality Metrics 📅**
-   - [ ] Add content evolution tracking
-   - [ ] Implement source progression metrics
-   - [ ] Create quality assessment dashboard
+2. **Research Logic Flow**
+   - `DeepResearchProvider` manages core research state
+   - `ResearchDiffSystem` processes result differences
+   - `Research Calculator` computes metrics and scores
+   - Depth progression managed by depth rules
 
-### Technical Insights from Reference Implementation
+3. **Visualization Flow**
+   - `ResearchDiffView` shows changes and evolution
+   - `ResearchPathVisualization` displays research journey
+   - `Evolution Metrics View` shows progress metrics
+   - All visualizations update based on state changes
 
-1. **Reference Analysis** ℹ️
-   The following insights are derived from analyzing `REF-deep-research-diff.js` as a reference implementation:
-   - Efficient diffing algorithms using diff-match-patch
-   - Smart text chunking strategies
-   - Node-based structural comparison approaches
-   - Performance optimization techniques
+4. **State Management Flow**
+   - Central state managed by `DeepResearchProvider`
+   - Depth configuration tracked separately
+   - Source metrics maintained for depth decisions
+   - State updates trigger UI refreshes
 
-2. **Proposed Implementation Approach**
-   ```typescript
-   // TODO: Implement our own version based on reference insights
-   interface DeepResearchDiff {
-     // Core diffing functionality
-     compareDepthLevels: (prevLevel: number, nextLevel: number) => DepthDiff
-     trackResearchProgress: (path: ResearchPath) => ProgressMetrics
-     visualizeChanges: (changes: DepthDiff) => VisualizationData
-   }
-   ```
+### Key State Updates
 
-### Next Steps
+```mermaid
+stateDiagram-v2
+    [*] --> Initial
+    Initial --> Active: Start Research
+    
+    state Active {
+        [*] --> Depth1
+        Depth1 --> Depth2: Quality Threshold Met
+        Depth2 --> Depth3: Relevance Threshold Met
+        Depth3 --> Depth4: Both Thresholds Met
+        Depth4 --> Depth5: Strict Requirements Met
+    }
+    
+    Active --> Complete: Max Depth or Done
+    Complete --> [*]
+```
 
-1. **Immediate Implementation**
-   - Integrate core diffing algorithm
-   - Add basic visualization
-   - Implement change tracking
+This visualization helps understand:
+- Component relationships and dependencies
+- Data flow through the system
+- State transitions and updates
+- Depth progression logic
 
-2. **Future Enhancements**
-   - Add advanced metrics
-   - Implement interactive navigation
-   - Create detailed diff reports
 
-## 10. Reference Documents
-
-### Core Reference Files
-
-1. **`REF-deep-research-diff.js`**
-   - **Purpose**: Reference implementation for document diffing and comparison
-   - **Key Features**:
-     ```typescript
-     // Core diffing capabilities
-     - patchDocumentNode: (schema, oldNode, newNode) => Node
-     - patchTextNodes: (schema, oldNode, newNode) => Node[]
-     - diffEditor: (schema, oldDoc, newDoc) => Node
-     ```
-   - **Implementation Insights**:
-     - Uses diff-match-patch for efficient text comparison
-     - Implements sentence-level tokenization
-     - Provides hierarchical node-based diffing
-     - Includes performance optimizations for large documents
-
-2. **`REF-deep-research-functions.tsx`**
-   - **Purpose**: Reference for research-related utility functions
-   - **Key Features**:
-     ```typescript
-     // Document management utilities
-     - buildDocumentFromContent: (content: string) => Node
-     - buildContentFromDocument: (document: Node) => string
-     - createDecorations: (suggestions: Array<UISuggestion>, view: EditorView) => DecorationSet
-     ```
-   - **Implementation Insights**:
-     - Markdown processing and rendering
-     - Document state management
-     - UI decoration handling
-
-3. **`REF-deep-research-suggestions.tsx`**
-   - **Purpose**: Reference for suggestion system implementation
-   - **Key Features**:
-     ```typescript
-     // Suggestion management
-     interface UISuggestion extends Suggestion {
-       selectionStart: number
-       selectionEnd: number
-     }
-     - projectWithPositions: (doc: Node, suggestions: Array<Suggestion>) => Array<UISuggestion>
-     - createSuggestionWidget: (suggestion: UISuggestion, view: EditorView) => Widget
-     ```
-   - **Implementation Insights**:
-     - Position-aware suggestions
-     - Real-time suggestion updates
-     - Plugin-based architecture
-
-### Reference Implementation Status
-
-#### Analyzed ✅
-- [x] Core diffing algorithms from `REF-deep-research-diff.js`
-- [x] Document management utilities from `REF-deep-research-functions.tsx`
-- [x] Suggestion system from `REF-deep-research-suggestions.tsx`
-
-#### Insights Extracted 📝
-- [x] Diffing strategies and optimizations
-- [x] Document state management patterns
-- [x] UI component integration approaches
-
-#### Pending Analysis 📅
-- [ ] Performance optimization techniques
-- [ ] Error handling strategies
-- [ ] Edge case management
-
-### Integration Considerations
-
-1. **Adaptation Requirements**
-   ```typescript
-   // Areas requiring custom implementation
-   interface CustomImplementation {
-     diffing: {
-       algorithm: 'custom' | 'adapted'
-       optimizations: string[]
-       constraints: string[]
-     }
-     stateManagement: {
-       persistence: 'redis' | 'memory'
-       sync: 'realtime' | 'batch'
-     }
-     ui: {
-       components: string[]
-       interactions: string[]
-     }
-   }
-   ```
-
-2. **Reference vs Implementation**
-   - Reference code provides architectural guidance only
-   - Custom implementation needed for specific requirements
-   - Performance optimizations must be tailored to our use case

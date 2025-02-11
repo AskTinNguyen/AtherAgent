@@ -1,5 +1,6 @@
 'use client'
 
+import { ResearchProvider } from '@/lib/contexts/research-provider'
 import { ResearchDepthConfig, ResearchSourceMetrics } from '@/lib/types/research'
 import { calculateSourceMetrics, optimizeDepthStrategy, shouldIncreaseDepth } from '@/lib/utils/research-depth'
 import { Children, cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useReducer, useState, type ReactNode } from 'react'
@@ -22,6 +23,19 @@ interface SourceItem {
   query?: string
   publishedDate?: string
   timestamp: number
+  quality: {
+    contentQuality: number
+    sourceAuthority: number
+    timeRelevance: number
+  }
+}
+
+interface ResearchMemory {
+  context: string
+  relevance: number
+  timestamp: number
+  depth: number
+  sourceUrls: string[]
 }
 
 interface DeepResearchState {
@@ -35,6 +49,7 @@ interface DeepResearchState {
   depthConfig: ResearchDepthConfig
   sourceMetrics: ResearchSourceMetrics[]
   suggestions: ResearchSuggestion[]
+  researchMemory: ResearchMemory[]
 }
 
 type DeepResearchAction =
@@ -48,6 +63,8 @@ type DeepResearchAction =
   | { type: 'OPTIMIZE_DEPTH' }
   | { type: 'INIT_PROGRESS'; payload: { totalSteps: number } }
   | { type: 'SET_SUGGESTIONS'; payload: ResearchSuggestion[] }
+  | { type: 'ADD_MEMORY'; payload: ResearchMemory }
+  | { type: 'UPDATE_MEMORY'; payload: { index: number; memory: ResearchMemory } }
 
 interface DeepResearchContextType {
   state: DeepResearchState
@@ -60,6 +77,8 @@ interface DeepResearchContextType {
   updateProgress: (completed: number, total: number) => void
   clearState: () => void
   setSuggestions: (suggestions: ResearchSuggestion[]) => void
+  addMemory: (memory: ResearchMemory) => void
+  updateMemory: (index: number, memory: ResearchMemory) => void
 }
 
 // Initial state and reducer
@@ -67,7 +86,7 @@ const initialState: DeepResearchState = {
   isActive: false,
   activity: [],
   sources: [],
-  currentDepth: 0,
+  currentDepth: 1,
   maxDepth: 7,
   completedSteps: 0,
   totalExpectedSteps: 0,
@@ -76,10 +95,13 @@ const initialState: DeepResearchState = {
     maxDepth: 7,
     minRelevanceScore: 0.6,
     adaptiveThreshold: 0.7,
-    depthScores: {}
+    depthScores: {
+      1: 0
+    }
   },
   sourceMetrics: [],
-  suggestions: []
+  suggestions: [],
+  researchMemory: []
 }
 
 function deepResearchReducer(state: DeepResearchState, action: DeepResearchAction): DeepResearchState {
@@ -109,28 +131,65 @@ function deepResearchReducer(state: DeepResearchState, action: DeepResearchActio
           : state.activity
       }
     case 'ADD_SOURCE': {
-      const { url, title, relevance } = action.payload
+      const { url, title, relevance, content, query, publishedDate } = action.payload
       const existingSource = state.sources.find(s => s.url === url)
       if (existingSource) return state
 
       const metrics = calculateSourceMetrics(
-        action.payload.content || '',
-        action.payload.query || '',
+        content || '',
+        query || '',
         url,
-        action.payload.publishedDate
+        publishedDate
       )
       
-      const newSourceMetrics = [...state.sourceMetrics, { ...metrics, depthLevel: state.depthConfig.currentDepth }]
-      const newDepthConfig = optimizeDepthStrategy(state.depthConfig, newSourceMetrics)
+      const quality = {
+        contentQuality: metrics.contentQuality,
+        sourceAuthority: calculateSourceAuthority(url, state.sources),
+        timeRelevance: calculateFreshness(publishedDate)
+      }
+      
+      const newSourceMetrics: ResearchSourceMetrics = {
+        relevanceScore: metrics.relevanceScore,
+        depthLevel: state.currentDepth,
+        contentQuality: quality.contentQuality,
+        timeRelevance: quality.timeRelevance,
+        sourceAuthority: quality.sourceAuthority,
+        crossValidation: calculateSourceAuthority(url, state.sources),
+        coverage: metrics.contentQuality * quality.timeRelevance
+      }
+      
+      const updatedSourceMetrics = [...state.sourceMetrics, newSourceMetrics]
+      
+      const newDepthConfig = optimizeDepthStrategy({
+        ...state.depthConfig,
+        currentDepth: state.currentDepth
+      }, updatedSourceMetrics)
+      
+      const shouldIncrease = shouldIncreaseDepth(
+        { ...newDepthConfig, currentDepth: state.currentDepth },
+        updatedSourceMetrics
+      )
+      
+      const newDepth = shouldIncrease ? state.currentDepth + 1 : state.currentDepth
+      
+      const newDepthScores = {
+        ...newDepthConfig.depthScores,
+        [state.currentDepth]: metrics.relevanceScore
+      }
       
       return {
         ...state,
         sources: [
           ...state.sources,
-          { url, title, relevance, timestamp: Date.now() }
+          { url, title, relevance, content, query, publishedDate, timestamp: Date.now(), quality }
         ],
-        sourceMetrics: newSourceMetrics,
-        depthConfig: newDepthConfig
+        sourceMetrics: updatedSourceMetrics,
+        currentDepth: newDepth,
+        depthConfig: {
+          ...newDepthConfig,
+          currentDepth: newDepth,
+          depthScores: newDepthScores
+        }
       }
     }
     case 'SET_DEPTH': {
@@ -146,13 +205,18 @@ function deepResearchReducer(state: DeepResearchState, action: DeepResearchActio
         }
       }
     }
-    case 'ADD_ACTIVITY':
+    case 'ADD_ACTIVITY': {
+      const newActivity = {
+        ...action.payload,
+        depth: state.currentDepth
+      }
       return {
         ...state,
-        activity: [...state.activity, action.payload],
+        activity: [...state.activity, newActivity],
         completedSteps: action.payload.completedSteps ?? state.completedSteps,
         totalExpectedSteps: action.payload.totalSteps ?? state.totalExpectedSteps
       }
+    }
     case 'UPDATE_PROGRESS':
       return {
         ...state,
@@ -185,12 +249,29 @@ function deepResearchReducer(state: DeepResearchState, action: DeepResearchActio
         maxDepth: 7,
         totalExpectedSteps: action.payload.totalSteps,
         completedSteps: 0,
-        currentDepth: 0
+        currentDepth: 1,
+        depthConfig: {
+          ...state.depthConfig,
+          currentDepth: 1,
+          depthScores: { 1: 0 }
+        }
       }
     case 'SET_SUGGESTIONS':
       return {
         ...state,
         suggestions: action.payload
+      }
+    case 'ADD_MEMORY':
+      return {
+        ...state,
+        researchMemory: [...state.researchMemory, action.payload]
+      }
+    case 'UPDATE_MEMORY':
+      return {
+        ...state,
+        researchMemory: state.researchMemory.map((memory, index) =>
+          index === action.payload.index ? action.payload.memory : memory
+        )
       }
     default:
       return state
@@ -243,6 +324,14 @@ function DeepResearchProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_SUGGESTIONS', payload: suggestions })
   }, [])
 
+  const addMemory = useCallback((memory: ResearchMemory) => {
+    dispatch({ type: 'ADD_MEMORY', payload: memory })
+  }, [])
+
+  const updateMemory = useCallback((index: number, memory: ResearchMemory) => {
+    dispatch({ type: 'UPDATE_MEMORY', payload: { index, memory } })
+  }, [])
+
   return (
     <DeepResearchContext.Provider
       value={{
@@ -255,7 +344,9 @@ function DeepResearchProvider({ children }: { children: ReactNode }) {
         initProgress,
         updateProgress,
         clearState,
-        setSuggestions
+        setSuggestions,
+        addMemory,
+        updateMemory
       }}
     >
       {children}
@@ -443,33 +534,65 @@ interface DeepResearchWrapperProps {
   chatId: string
   onClearStateChange?: (chatId: string, isCleared: boolean) => Promise<void>
   initialClearedState?: boolean
+  onDepthChange?: (chatId: string, currentDepth: number, maxDepth: number) => Promise<void>
 }
 
 function DeepResearchWrapper({ 
   children, 
   chatId, 
   onClearStateChange,
-  initialClearedState 
+  initialClearedState,
+  onDepthChange
 }: DeepResearchWrapperProps) {
   return (
     <DeepResearchProvider>
-      <DeepResearchStateManager 
+      <ResearchProvider
         chatId={chatId}
         onClearStateChange={onClearStateChange}
         initialClearedState={initialClearedState}
+        onDepthChange={onDepthChange}
       >
-        {children}
-      </DeepResearchStateManager>
+        <DeepResearchStateManager 
+          chatId={chatId}
+          onClearStateChange={onClearStateChange}
+          initialClearedState={initialClearedState}
+          onDepthChange={onDepthChange}
+        >
+          {children}
+        </DeepResearchStateManager>
+      </ResearchProvider>
     </DeepResearchProvider>
   )
 }
 
 // Exports
 export {
-    DeepResearchProvider,
-    DeepResearchWrapper,
-    useDeepResearch,
-    useDeepResearchProgress,
-    type ActivityItem, type DeepResearchState, type SourceItem
+  DeepResearchProvider,
+  DeepResearchWrapper,
+  useDeepResearch,
+  useDeepResearchProgress,
+  type ActivityItem,
+  type DeepResearchState, type ResearchMemory, type SourceItem
+}
+
+// Utility functions for source quality calculation
+function calculateFreshness(publishedDate?: string): number {
+  if (!publishedDate) return 0
+  const date = new Date(publishedDate)
+  const now = new Date()
+  const ageInDays = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)
+  return Math.max(0, 1 - ageInDays / 365) // Score decreases with age, minimum 0
+}
+
+function calculateSourceAuthority(url: string, sources: SourceItem[]): number {
+  const domain = new URL(url).hostname
+  const relatedSources = sources.filter(source => {
+    try {
+      return new URL(source.url).hostname === domain
+    } catch {
+      return false
+    }
+  })
+  return Math.min(1, relatedSources.length / 3) // Score increases with more related sources, max 1
 }
 
