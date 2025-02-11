@@ -7,6 +7,7 @@ export interface RedisWrapper {
   pipeline(): PipelineWrapper
   hmset(key: string, value: Record<string, any>): Promise<'OK' | number>
   zadd(key: string, score: number, member: string): Promise<number>
+  zscore(key: string, member: string): Promise<number | null>
   del(key: string): Promise<number>
   zrem(key: string, member: string): Promise<number>
   close(): Promise<void>
@@ -97,6 +98,10 @@ export class LocalRedisWrapper implements RedisWrapper {
     return result ? 1 : 0
   }
 
+  async zscore(key: string, member: string): Promise<number | null> {
+    return this.client.zScore(key, member)
+  }
+
   async del(key: string): Promise<number> {
     return this.client.del(key)
   }
@@ -176,6 +181,10 @@ export class UpstashRedisWrapper implements RedisWrapper {
   async zadd(key: string, score: number, member: string): Promise<number> {
     const result = await this.client.zadd(key, { score, member })
     return result || 0
+  }
+
+  async zscore(key: string, member: string): Promise<number | null> {
+    return this.client.zscore(key, member)
   }
 
   async del(key: string): Promise<number> {
