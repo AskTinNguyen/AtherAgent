@@ -24,48 +24,26 @@ export function DeepResearchVisualization({
   onSuggestionSelect
 }: DeepResearchVisualizationProps) {
   const { state, clearState, setActive, initProgress } = useDeepResearch()
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true) // Start collapsed
 
   // Add initialization effect
   useEffect(() => {
-    // Initialize with active state and default progress
-    setActive(true)
+    // Initialize with inactive state and default progress
+    setActive(false)
     initProgress(7, 0)
     
     console.log('DeepResearch: Initialized state')
   }, [setActive, initProgress])
 
-  // Debug logging
+  // Show panel when there's research activity
   useEffect(() => {
-    console.log('DeepResearch State Updated:', {
-      isActive: state.isActive,
-      currentDepth: state.currentDepth,
-      activity: state.activity.length,
-      sources: state.sources.length
-    })
-  }, [state])
+    if (state.activity.length > 0 && isCollapsed) {
+      setIsCollapsed(false)
+    }
+  }, [state.activity.length, isCollapsed])
 
-  // Add debug logging
-  console.log('DeepResearch State:', {
-    activity: state.activity,
-    currentDepth: state.currentDepth,
-    maxDepth: state.maxDepth,
-    researchMemory: state.researchMemory,
-    sourceMetrics: state.sourceMetrics,
-    isActive: state.isActive,
-    sources: state.sources
-  })
-
-  // Add debug logging for the condition check
-  console.log('DeepResearch Visibility Check:', {
-    initialClearedState,
-    isActive: state.isActive,
-    activityLength: state.activity.length,
-    sourcesLength: state.sources.length
-  })
-
-  if (initialClearedState) {
-    console.log('DeepResearch: Rendering null due to cleared state')
+  // Hide if no activity or cleared
+  if (initialClearedState || (!state.isActive && state.activity.length === 0)) {
     return null
   }
 
@@ -87,21 +65,23 @@ export function DeepResearchVisualization({
         }
       `}</style>
 
-      {/* Chevron Button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className="fixed left-2 top-[calc(50vh-2rem)] rounded-full text-foreground/30 z-50"
-      >
-        <ChevronLeft 
-          size={32} 
-          className={cn(
-            "glow-effect",
-            isCollapsed && "rotate-180"
-          )}
-        />
-      </Button>
+      {/* Chevron Button - Only show if there's activity */}
+      {state.activity.length > 0 && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="fixed left-2 top-[calc(50vh-2rem)] rounded-full text-foreground/30 z-50"
+        >
+          <ChevronLeft 
+            size={32} 
+            className={cn(
+              "glow-effect",
+              isCollapsed && "rotate-180"
+            )}
+          />
+        </Button>
+      )}
 
       {/* Panel Container */}
       <div className={cn(

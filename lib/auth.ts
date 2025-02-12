@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 
 export async function getAuth() {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const sessionCookie = cookieStore.get('session')
     const userId = sessionCookie?.value || 'anonymous'
 

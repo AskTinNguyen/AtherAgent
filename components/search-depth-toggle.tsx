@@ -24,19 +24,35 @@ export function SearchDepthToggle({
   onDepthChange
 }: SearchDepthToggleProps) {
   const { state, setDepth } = useDeepResearch()
-  const { currentDepth: researchCurrentDepth, maxDepth: researchMaxDepth } = state
   const [isOpen, setIsOpen] = useState(false)
+  const [localCurrentDepth, setLocalCurrentDepth] = useState(currentDepth)
   const [localMaxDepth, setLocalMaxDepth] = useState(maxDepth)
 
   // Update local state when props change
   useEffect(() => {
+    setLocalCurrentDepth(currentDepth)
     setLocalMaxDepth(maxDepth)
-  }, [maxDepth])
+  }, [currentDepth, maxDepth])
 
-  const handleMaxDepthChange = (value: number) => {
-    const newMaxDepth = Math.max(Math.max(1, value), currentDepth)
-    setLocalMaxDepth(newMaxDepth)
-    setDepth(currentDepth, newMaxDepth)
+  // Handle depth changes
+  const handleDepthChange = (newDepth: number) => {
+    const validDepth = Math.max(1, Math.min(newDepth, localMaxDepth))
+    setLocalCurrentDepth(validDepth)
+    onDepthChange(validDepth)
+    setDepth(validDepth, localMaxDepth)
+  }
+
+  // Handle increment/decrement
+  const handleIncrement = () => {
+    if (localCurrentDepth < localMaxDepth) {
+      handleDepthChange(localCurrentDepth + 1)
+    }
+  }
+
+  const handleDecrement = () => {
+    if (localCurrentDepth > 1) {
+      handleDepthChange(localCurrentDepth - 1)
+    }
   }
 
   return (
@@ -58,7 +74,7 @@ export function SearchDepthToggle({
               <span className={cn(
                 "text-foreground",
                 enabled && "text-primary"
-              )}>{currentDepth}</span>
+              )}>{localCurrentDepth}</span>
               <span className="text-muted-foreground">/</span>
               <span className="text-muted-foreground">{localMaxDepth}</span>
             </div>
@@ -81,13 +97,13 @@ export function SearchDepthToggle({
                   variant="outline" 
                   size="icon" 
                   className="size-8"
-                  onClick={() => onDepthChange(Math.max(1, currentDepth - 1))}
-                  disabled={currentDepth <= 1}
+                  onClick={handleDecrement}
+                  disabled={!enabled || localCurrentDepth <= 1}
                 >
                   -
                 </Button>
                 <div className="flex items-center gap-1">
-                  <span className="text-sm font-medium text-primary">{currentDepth}</span>
+                  <span className="text-sm font-medium text-primary">{localCurrentDepth}</span>
                   <span className="text-sm text-muted-foreground">/</span>
                   <span className="w-4 text-center font-medium">{localMaxDepth}</span>
                 </div>
@@ -95,8 +111,8 @@ export function SearchDepthToggle({
                   variant="outline" 
                   size="icon" 
                   className="size-8"
-                  onClick={() => onDepthChange(Math.min(maxDepth, currentDepth + 1))}
-                  disabled={currentDepth >= maxDepth}
+                  onClick={handleIncrement}
+                  disabled={!enabled || localCurrentDepth >= localMaxDepth}
                 >
                   +
                 </Button>
@@ -106,7 +122,7 @@ export function SearchDepthToggle({
               <div className="h-2 w-full rounded-full bg-secondary">
                 <div 
                   className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${(currentDepth / localMaxDepth) * 100}%` }}
+                  style={{ width: `${(localCurrentDepth / localMaxDepth) * 100}%` }}
                 />
               </div>
               <p className="text-xs text-muted-foreground">

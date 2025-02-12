@@ -134,7 +134,7 @@ function SearchResultCardContent({ result, index }: SearchResultCardProps) {
   return (
     <motion.div
       {...animationVariants}
-      className="relative"
+      className="relative overflow-hidden"
     >
       <Button
         size="icon"
