@@ -1,56 +1,39 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import { AlertCircle } from 'lucide-react'
-import * as React from 'react'
+import { Component, type ReactNode } from 'react'
 
-interface ErrorBoundaryProps {
-  children: React.ReactNode
-  fallback?: React.ReactNode
+interface Props {
+  children: ReactNode
 }
 
-interface ErrorBoundaryState {
+interface State {
   hasError: boolean
   error?: Error
 }
 
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
+export class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
     super(props)
     this.state = { hasError: false }
   }
 
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+  static getDerivedStateFromError(error: Error) {
     return { hasError: true, error }
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo)
+  componentDidCatch(error: Error) {
+    console.error('ErrorBoundary caught an error:', error)
   }
 
   render() {
     if (this.state.hasError) {
-      if (this.props.fallback) {
-        return this.props.fallback
-      }
-
+      console.error('Rendering error state:', this.state.error)
       return (
-        <div className="p-4 rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/50">
-          <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-            <AlertCircle className="h-4 w-4" />
-            <h3 className="text-sm font-medium">Something went wrong</h3>
-          </div>
-          <p className="mt-2 text-sm text-red-600/90 dark:text-red-400/90">
-            {this.state.error?.message || 'An unexpected error occurred'}
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mt-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-            onClick={() => this.setState({ hasError: false, error: undefined })}
-          >
-            Try again
-          </Button>
+        <div className="p-4 border border-red-200 rounded-lg bg-red-50">
+          <h2 className="text-red-800 font-medium">Something went wrong</h2>
+          <pre className="text-sm text-red-600 mt-2">
+            {this.state.error?.message}
+          </pre>
         </div>
       )
     }

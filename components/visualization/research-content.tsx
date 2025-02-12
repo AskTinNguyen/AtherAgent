@@ -1,27 +1,32 @@
 'use client'
 
-import type { HighlightData } from '@/lib/utils/research-diff'
-import { ResearchFindings } from './research-findings'
+import { type ResearchActivity, type ResearchSource } from '../deep-research-provider'
+import { ActivityItem } from './activity-item'
+import { SourceItem } from './source-item'
 
 interface ResearchContentProps {
-  newFindings: HighlightData[]
-  refinements: HighlightData[]
-  onHighlightSelect?: (highlight: HighlightData) => void
+  activity: ResearchActivity[]
+  sources: ResearchSource[]
 }
 
-export function ResearchContent({ newFindings, refinements, onHighlightSelect }: ResearchContentProps) {
+export function ResearchContent({ activity, sources }: ResearchContentProps) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <ResearchFindings 
-        findings={newFindings}
-        type="new"
-        onHighlightSelect={onHighlightSelect}
-      />
-      <ResearchFindings 
-        findings={refinements}
-        type="refined"
-        onHighlightSelect={onHighlightSelect}
-      />
+    <div className="space-y-4 p-4">
+      {/* Activity Section */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium mb-2">Research Activity</h3>
+        {activity.map((item, index) => (
+          <ActivityItem key={index} activity={item} />
+        ))}
+      </div>
+
+      {/* Sources Section */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium mb-2">Sources</h3>
+        {sources.map((source, index) => (
+          <SourceItem key={index} source={source} />
+        ))}
+      </div>
     </div>
   )
 } 

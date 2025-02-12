@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode } from 'react'
-import { ActivityProvider } from './research-activity-context'
+import { ResearchActivityProvider } from './research-activity-context'
 import { DepthProvider } from './research-depth-context'
 import { SourcesProvider } from './research-sources-context'
 
@@ -21,18 +21,18 @@ export function ResearchProvider({
   onDepthChange
 }: ResearchProviderProps) {
   return (
-    <ActivityProvider>
+    <ResearchActivityProvider>
       <SourcesProvider>
         <DepthProvider>
           {children}
         </DepthProvider>
       </SourcesProvider>
-    </ActivityProvider>
+    </ResearchActivityProvider>
   )
 }
 
 // Re-export hooks for convenience
-export { useActivity } from './research-activity-context'
+export { useActivity, useResearchContext } from './research-activity-context'
 export { useDepth } from './research-depth-context'
 export { useSources } from './research-sources-context'
 

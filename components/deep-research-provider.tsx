@@ -7,41 +7,52 @@ import { Children, cloneElement, createContext, isValidElement, useCallback, use
 import { type ResearchSuggestion } from './research-suggestions'
 
 // Types
-interface ActivityItem {
-  type: 'search' | 'extract' | 'analyze' | 'reasoning' | 'synthesis' | 'thought'
-  status: 'pending' | 'complete' | 'error'
-  message: string
-  timestamp: string
-  depth?: number
+export interface ResearchState {
+  isActive: boolean
+  activity: ResearchActivity[]
+  sources: ResearchSource[]
+  currentDepth: number
+  maxDepth: number
+  completedSteps: number
+  totalExpectedSteps: number
+  depthConfig: ResearchDepthConfig
+  sourceMetrics: ResearchSourceMetrics[]
+  suggestions: ResearchSuggestion[]
+  researchMemory: ResearchMemory[]
 }
 
-interface SourceItem {
+export interface ResearchActivity {
+  timestamp: number
+  message: string
+  type: 'search' | 'extract' | 'analyze' | 'reasoning' | 'synthesis' | 'thought'
+  depth?: number
+  status?: 'pending' | 'complete' | 'error'
+}
+
+export interface ResearchSource {
   url: string
   title: string
   relevance: number
   content?: string
   query?: string
   publishedDate?: string
-  timestamp: number
-  quality: {
+  quality?: {
     contentQuality: number
     sourceAuthority: number
     timeRelevance: number
   }
 }
 
-interface ResearchMemory {
-  context: string
-  relevance: number
-  timestamp: number
+export interface ResearchMemory {
   depth: number
+  context: string
   sourceUrls: string[]
 }
 
-interface DeepResearchState {
+export interface DeepResearchState {
   isActive: boolean
-  activity: ActivityItem[]
-  sources: SourceItem[]
+  activity: ResearchActivity[]
+  sources: ResearchSource[]
   currentDepth: number
   maxDepth: number
   completedSteps: number
@@ -55,9 +66,9 @@ interface DeepResearchState {
 type DeepResearchAction =
   | { type: 'TOGGLE_ACTIVE' }
   | { type: 'SET_ACTIVE'; payload: boolean }
-  | { type: 'ADD_SOURCE'; payload: SourceItem }
+  | { type: 'ADD_SOURCE'; payload: ResearchSource }
   | { type: 'SET_DEPTH'; payload: { current: number; max: number } }
-  | { type: 'ADD_ACTIVITY'; payload: ActivityItem & { completedSteps?: number; totalSteps?: number } }
+  | { type: 'ADD_ACTIVITY'; payload: ResearchActivity & { completedSteps?: number; totalSteps?: number } }
   | { type: 'UPDATE_PROGRESS'; payload: { completed: number; total: number } }
   | { type: 'CLEAR_STATE' }
   | { type: 'OPTIMIZE_DEPTH' }
@@ -70,8 +81,8 @@ interface DeepResearchContextType {
   state: DeepResearchState
   toggleActive: () => void
   setActive: (active: boolean) => void
-  addActivity: (activity: ActivityItem & { completedSteps?: number; totalSteps?: number }) => void
-  addSource: (source: SourceItem) => void
+  addActivity: (activity: ResearchActivity & { completedSteps?: number; totalSteps?: number }) => void
+  addSource: (source: ResearchSource) => void
   setDepth: (current: number, max: number) => void
   initProgress: (maxDepth: number, totalSteps: number) => void
   updateProgress: (completed: number, total: number) => void
@@ -113,7 +124,7 @@ function deepResearchReducer(state: DeepResearchState, action: DeepResearchActio
         activity: state.isActive 
           ? state.activity.map(item => 
               item.status === 'pending' 
-                ? { ...item, status: 'complete' }
+                ? { ...item, status: 'complete', timestamp: new Date().toISOString() }
                 : item
             )
           : state.activity
@@ -125,16 +136,19 @@ function deepResearchReducer(state: DeepResearchState, action: DeepResearchActio
         activity: !action.payload 
           ? state.activity.map(item => 
               item.status === 'pending' 
-                ? { ...item, status: 'complete' }
+                ? { ...item, status: 'complete', timestamp: new Date().toISOString() }
                 : item
             )
-          : state.activity
+          : state.activity,
+        ...(action.payload && {
+          completedSteps: 0,
+          currentDepth: 1
+        })
       }
     case 'ADD_SOURCE': {
       const { url, title, relevance, content, query, publishedDate } = action.payload
-      const existingSource = state.sources.find(s => s.url === url)
-      if (existingSource) return state
-
+      const existingSourceIndex = state.sources.findIndex(s => s.url === url)
+      
       const metrics = calculateSourceMetrics(
         content || '',
         query || '',
@@ -158,7 +172,12 @@ function deepResearchReducer(state: DeepResearchState, action: DeepResearchActio
         coverage: metrics.contentQuality * quality.timeRelevance
       }
       
-      const updatedSourceMetrics = [...state.sourceMetrics, newSourceMetrics]
+      const updatedSourceMetrics = [...state.sourceMetrics]
+      if (existingSourceIndex !== -1) {
+        updatedSourceMetrics[existingSourceIndex] = newSourceMetrics
+      } else {
+        updatedSourceMetrics.push(newSourceMetrics)
+      }
       
       const newDepthConfig = optimizeDepthStrategy({
         ...state.depthConfig,
@@ -177,12 +196,24 @@ function deepResearchReducer(state: DeepResearchState, action: DeepResearchActio
         [state.currentDepth]: metrics.relevanceScore
       }
       
+      const newSource = { 
+        url, 
+        title, 
+        relevance, 
+        content, 
+        query, 
+        publishedDate, 
+        timestamp: Date.now(), 
+        quality 
+      }
+      
       return {
         ...state,
-        sources: [
-          ...state.sources,
-          { url, title, relevance, content, query, publishedDate, timestamp: Date.now(), quality }
-        ],
+        sources: existingSourceIndex !== -1
+          ? state.sources.map((source, index) => 
+              index === existingSourceIndex ? newSource : source
+            )
+          : [...state.sources, newSource],
         sourceMetrics: updatedSourceMetrics,
         currentDepth: newDepth,
         depthConfig: {
@@ -206,14 +237,47 @@ function deepResearchReducer(state: DeepResearchState, action: DeepResearchActio
       }
     }
     case 'ADD_ACTIVITY': {
+      if (!action.payload) {
+        console.error('ADD_ACTIVITY: No payload provided')
+        return state
+      }
+
       const newActivity = {
         ...action.payload,
-        depth: state.currentDepth
+        depth: action.payload.depth || state.currentDepth,
+        timestamp: action.payload.timestamp || new Date().toISOString()
       }
+
+      // Validate activity data
+      if (!newActivity.message || !newActivity.type) {
+        console.error('ADD_ACTIVITY: Invalid activity data', newActivity)
+        return state
+      }
+
+      // Prevent duplicate activities
+      const isDuplicate = state.activity.some(
+        item => 
+          item.message === newActivity.message && 
+          item.type === newActivity.type &&
+          item.depth === newActivity.depth
+      )
+
+      if (isDuplicate) {
+        return {
+          ...state,
+          completedSteps: action.payload.completedSteps ?? state.completedSteps,
+          totalExpectedSteps: action.payload.totalSteps ?? state.totalExpectedSteps
+        }
+      }
+
+      // Log activity addition
+      console.log('Adding activity:', newActivity)
+
       return {
         ...state,
         activity: [...state.activity, newActivity],
-        completedSteps: action.payload.completedSteps ?? state.completedSteps,
+        completedSteps: action.payload.completedSteps ?? 
+          (newActivity.status === 'complete' ? state.completedSteps + 1 : state.completedSteps),
         totalExpectedSteps: action.payload.totalSteps ?? state.totalExpectedSteps
       }
     }
@@ -285,6 +349,28 @@ const DeepResearchContext = createContext<DeepResearchContextType | undefined>(u
 function DeepResearchProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(deepResearchReducer, initialState)
 
+  // Add debug logging
+  useEffect(() => {
+    console.log('DeepResearch Provider State:', {
+      isActive: state.isActive,
+      currentDepth: state.currentDepth,
+      activity: state.activity.length,
+      sources: state.sources.length
+    })
+  }, [state])
+
+  // Add initialization effect
+  useEffect(() => {
+    // Initialize the research state
+    dispatch({ 
+      type: 'INIT_PROGRESS', 
+      payload: { totalSteps: 7 } 
+    })
+    
+    // Log initial state
+    console.log('DeepResearch Provider Initialized:', state)
+  }, [])
+
   const toggleActive = useCallback(() => {
     dispatch({ type: 'TOGGLE_ACTIVE' })
   }, [])
@@ -294,13 +380,13 @@ function DeepResearchProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const addActivity = useCallback(
-    (activity: ActivityItem & { completedSteps?: number; totalSteps?: number }) => {
+    (activity: ResearchActivity & { completedSteps?: number; totalSteps?: number }) => {
       dispatch({ type: 'ADD_ACTIVITY', payload: activity })
     },
     []
   )
 
-  const addSource = useCallback((source: SourceItem) => {
+  const addSource = useCallback((source: ResearchSource) => {
     dispatch({ type: 'ADD_SOURCE', payload: source })
   }, [])
 
@@ -355,11 +441,21 @@ function DeepResearchProvider({ children }: { children: ReactNode }) {
 }
 
 // Hook to use the context
-function useDeepResearch() {
+export function useDeepResearch() {
   const context = useContext(DeepResearchContext)
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useDeepResearch must be used within a DeepResearchProvider')
   }
+
+  // Add debug logging
+  console.log('DeepResearch Context:', {
+    isActive: context.state.isActive,
+    activityCount: context.state.activity.length,
+    sourcesCount: context.state.sources.length,
+    currentDepth: context.state.currentDepth,
+    maxDepth: context.state.maxDepth
+  })
+
   return context
 }
 
@@ -544,6 +640,14 @@ function DeepResearchWrapper({
   initialClearedState,
   onDepthChange
 }: DeepResearchWrapperProps) {
+  // Add cleanup effect
+  useEffect(() => {
+    return () => {
+      // Cleanup when wrapper unmounts
+      console.log('DeepResearch Wrapper cleanup')
+    }
+  }, [])
+
   return (
     <DeepResearchProvider>
       <ResearchProvider
@@ -571,8 +675,8 @@ export {
   DeepResearchWrapper,
   useDeepResearch,
   useDeepResearchProgress,
-  type ActivityItem,
-  type DeepResearchState, type ResearchMemory, type SourceItem
+  type DeepResearchState,
+  type ResearchActivity, type ResearchMemory, type ResearchSource
 }
 
 // Utility functions for source quality calculation
@@ -584,7 +688,7 @@ function calculateFreshness(publishedDate?: string): number {
   return Math.max(0, 1 - ageInDays / 365) // Score decreases with age, minimum 0
 }
 
-function calculateSourceAuthority(url: string, sources: SourceItem[]): number {
+function calculateSourceAuthority(url: string, sources: ResearchSource[]): number {
   const domain = new URL(url).hostname
   const relatedSources = sources.filter(source => {
     try {

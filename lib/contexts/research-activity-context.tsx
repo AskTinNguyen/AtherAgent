@@ -2,8 +2,8 @@
 
 import { createContext, ReactNode, useContext, useReducer, useState } from 'react'
 
-// Types
-interface ActivityItem {
+// Export types
+export interface ActivityItem {
   type: 'search' | 'extract' | 'analyze' | 'reasoning' | 'synthesis' | 'thought'
   status: 'pending' | 'complete' | 'error'
   message: string
@@ -11,6 +11,21 @@ interface ActivityItem {
   depth?: number
 }
 
+export interface ResearchState {
+  currentDepth: number
+  maxDepth: number
+  sources: string[]
+  isActive: boolean
+}
+
+export interface ResearchMetrics {
+  sourcesAnalyzed: number
+  qualityScore: number
+  coverageScore: number
+  relevanceScore: number
+}
+
+// Types
 interface ActivityState {
   activities: ActivityItem[]
   completedSteps: number
@@ -24,6 +39,13 @@ type ActivityAction =
   | { type: 'INIT_PROGRESS'; payload: { totalSteps: number } }
   | { type: 'USE_ACTIVITY'; payload: ActivityItem }
 
+type ResearchAction =
+  | { type: 'SET_DEPTH'; payload: number }
+  | { type: 'ADD_SOURCE'; payload: string }
+  | { type: 'SET_ACTIVE'; payload: boolean }
+  | { type: 'ADD_ACTIVITY'; payload: ActivityItem }
+  | { type: 'UPDATE_METRICS'; payload: Partial<ResearchMetrics> }
+
 interface ActivityContextType {
   state: ActivityState
   addActivity: (activity: ActivityItem & { completedSteps?: number; totalSteps?: number }) => void
@@ -33,33 +55,12 @@ interface ActivityContextType {
   initProgress: (totalSteps: number) => void
 }
 
-interface ResearchState {
-  currentDepth: number
-  maxDepth: number
-  sources: string[]
-  isActive: boolean
-}
-
-interface ResearchMetrics {
-  sourcesAnalyzed: number
-  qualityScore: number
-  coverageScore: number
-  relevanceScore: number
-}
-
 interface ResearchContextType {
   state: ResearchState
   activity: ActivityItem[]
   metrics: ResearchMetrics
   dispatch: (action: ResearchAction) => void
 }
-
-type ResearchAction =
-  | { type: 'SET_DEPTH'; payload: number }
-  | { type: 'ADD_SOURCE'; payload: string }
-  | { type: 'SET_ACTIVE'; payload: boolean }
-  | { type: 'ADD_ACTIVITY'; payload: ActivityItem }
-  | { type: 'UPDATE_METRICS'; payload: Partial<ResearchMetrics> }
 
 // Initial state
 const initialState: ActivityState = {
@@ -133,68 +134,41 @@ function researchReducer(state: ResearchState, action: ResearchAction): Research
 const ActivityContext = createContext<ActivityContextType | null>(null)
 const ResearchContext = createContext<ResearchContextType | null>(null)
 
-// Provider
-export function ActivityProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(activityReducer, initialState)
-
-  const addActivity = (activity: ActivityItem & { completedSteps?: number; totalSteps?: number }) => {
-    dispatch({ type: 'ADD_ACTIVITY', payload: activity })
-  }
-
-  const useActivity = (activity: ActivityItem) => {
-    dispatch({ type: 'USE_ACTIVITY', payload: activity })
-  }
-
-  const updateProgress = (completed: number, total: number) => {
-    dispatch({ type: 'UPDATE_PROGRESS', payload: { completed, total } })
-  }
-
-  const clearActivities = () => {
-    dispatch({ type: 'CLEAR_ACTIVITIES' })
-  }
-
-  const initProgress = (totalSteps: number) => {
-    dispatch({ type: 'INIT_PROGRESS', payload: { totalSteps } })
-  }
-
-  return (
-    <ActivityContext.Provider
-      value={{
-        state,
-        addActivity,
-        useActivity,
-        updateProgress,
-        clearActivities,
-        initProgress
-      }}
-    >
-      {children}
-    </ActivityContext.Provider>
-  )
-}
-
+// Combined Provider
 export function ResearchActivityProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(researchReducer, initialResearchState)
   const [activity, setActivity] = useState<ActivityItem[]>([])
   const [metrics, setMetrics] = useState<ResearchMetrics>(initialMetrics)
+  const [activityState, activityDispatch] = useReducer(activityReducer, initialState)
 
-  const contextValue: ResearchContextType = {
+  const activityContextValue: ActivityContextType = {
+    state: activityState,
+    addActivity: (activity) => activityDispatch({ type: 'ADD_ACTIVITY', payload: activity }),
+    useActivity: (activity) => activityDispatch({ type: 'USE_ACTIVITY', payload: activity }),
+    updateProgress: (completed, total) => activityDispatch({ type: 'UPDATE_PROGRESS', payload: { completed, total } }),
+    clearActivities: () => activityDispatch({ type: 'CLEAR_ACTIVITIES' }),
+    initProgress: (totalSteps) => activityDispatch({ type: 'INIT_PROGRESS', payload: { totalSteps } })
+  }
+
+  const researchContextValue: ResearchContextType = {
     state,
     activity,
     metrics,
     dispatch: (action: ResearchAction) => {
       dispatch(action)
       if (action.type === 'ADD_ACTIVITY') {
-        setActivity((prev: ActivityItem[]) => [...prev, action.payload])
+        setActivity(prev => [...prev, action.payload])
       } else if (action.type === 'UPDATE_METRICS') {
-        setMetrics((prev: ResearchMetrics) => ({ ...prev, ...action.payload }))
+        setMetrics(prev => ({ ...prev, ...action.payload }))
       }
     }
   }
 
   return (
-    <ResearchContext.Provider value={contextValue}>
-      {children}
+    <ResearchContext.Provider value={researchContextValue}>
+      <ActivityContext.Provider value={activityContextValue}>
+        {children}
+      </ActivityContext.Provider>
     </ResearchContext.Provider>
   )
 }
