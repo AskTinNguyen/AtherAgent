@@ -12,7 +12,7 @@ import {
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { Chat } from '@/lib/types'
+import { type Chat } from '@/lib/types/index'
 import { cn } from '@/lib/utils'
 import { Trash2 } from 'lucide-react'
 import Link from 'next/link'
