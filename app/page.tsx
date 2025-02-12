@@ -19,8 +19,9 @@ export default function Page() {
         />
       </div>
       
+      
       {/* Main Content Area */}
-      <main className="relative mt-32 h-[calc(100vh-12rem)] flex flex-col overflow-y-auto">
+      <main className="relative mt-32 h-[calc(100vh-12rem)] flex flex-col overflow-y-auto lg:ml-[400px]">
         <div className="flex-1 flex flex-col items-center">
           {/* Chat Container with Blur Reveal */}
           <div className="w-full max-w-2xl px-4 mt-auto">

@@ -3,14 +3,6 @@
 
 import { Card, CardContent } from '@/components/ui/card'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog'
-import {
   Carousel,
   type CarouselApi,
   CarouselContent,
@@ -18,35 +10,44 @@ import {
   CarouselNext,
   CarouselPrevious
 } from '@/components/ui/carousel'
-import { useEffect, useState } from 'react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog'
 import { PlusCircle } from 'lucide-react'
-import { SearchResultImage } from '@/lib/types'
+import { useEffect, useState } from 'react'
+import { SearchResultsImageSkeleton } from './skeletons'
 
 interface SearchResultsImageSectionProps {
-  images: SearchResultImage[]
+  images: {
+    url: string
+    title: string
+    thumbnail?: string
+  }[]
   query?: string
+  isLoading?: boolean
 }
 
-export const SearchResultsImageSection: React.FC<
-  SearchResultsImageSectionProps
-> = ({ images, query }) => {
+export function SearchResultsImageSection({ images, query, isLoading = false }: SearchResultsImageSectionProps) {
   const [api, setApi] = useState<CarouselApi>()
-  const [current, setCurrent] = useState(0)
+  const [current, setCurrent] = useState(1)
   const [count, setCount] = useState(0)
   const [selectedIndex, setSelectedIndex] = useState(0)
 
   // Update the current and count state when the carousel api is available
   useEffect(() => {
-    if (!api) {
-      return
-    }
-
-    setCount(api.scrollSnapList().length)
-    setCurrent(api.selectedScrollSnap() + 1)
-
-    api.on('select', () => {
+    if (api) {
+      setCount(api.scrollSnapList().length)
       setCurrent(api.selectedScrollSnap() + 1)
-    })
+
+      api.on('select', () => {
+        setCurrent(api.selectedScrollSnap() + 1)
+      })
+    }
   }, [api])
 
   // Scroll to the selected index
@@ -56,21 +57,19 @@ export const SearchResultsImageSection: React.FC<
     }
   }, [api, selectedIndex])
 
+  if (isLoading) {
+    return <SearchResultsImageSkeleton />
+  }
+
   if (!images || images.length === 0) {
     return <div className="text-muted-foreground">No images found</div>
   }
 
-  // If enabled the include_images_description is true, the images will be an array of { url: string, description: string }
-  // Otherwise, the images will be an array of strings
-  let convertedImages: { url: string; description: string }[] = []
-  if (typeof images[0] === 'string') {
-    convertedImages = (images as string[]).map(image => ({
-      url: image,
-      description: ''
-    }))
-  } else {
-    convertedImages = images as { url: string; description: string }[]
-  }
+  // Update the image conversion logic
+  let convertedImages = images.map(image => ({
+    url: image.url,
+    description: image.title
+  }))
 
   return (
     <div className="flex flex-wrap gap-2">

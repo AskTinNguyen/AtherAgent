@@ -58,10 +58,12 @@ export function CollapsibleMessage({
             onOpenChange={onOpenChange}
             className="w-full"
           >
-            <CollapsibleTrigger className="flex items-center justify-between w-full group">
-              <div className="flex items-center justify-between w-full gap-2">
-                {header && <div className="text-sm w-full">{header}</div>}
-                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between w-full group cursor-pointer">
+                <div className="flex items-center justify-between w-full gap-2">
+                  {header && <div className="text-sm w-full">{header}</div>}
+                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </div>
               </div>
             </CollapsibleTrigger>
             <CollapsibleContent className="data-[state=closed]:animate-collapse-up data-[state=open]:animate-collapse-down">

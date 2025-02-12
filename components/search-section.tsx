@@ -1,18 +1,37 @@
 'use client'
 
-import type { ExtendedMessage, SearchResultItem, SearchResults as TypeSearchResults } from '@/lib/types'
+import { SearchHeader } from '@/components/search/search-header'
+import { SearchResultsGrid } from '@/components/search/search-results-grid'
+import { useActivity, useDepth, useSources } from '@/lib/contexts/research-provider'
+import { ResearchDiffSystem, type VisualizationData } from '@/lib/utils/research-diff'
 import { extractSearchSources } from '@/lib/utils/search'
-import { ToolInvocation } from 'ai'
-import { Eye, EyeOff } from 'lucide-react'
-import React from 'react'
+import { type SearchResultItem, type SearchSource, type SearchResults as TypeSearchResults } from '@/types/search'
+import { type Message } from 'ai'
+import { BarChart, Grid2X2, Image as ImageIcon } from 'lucide-react'
+import * as React from 'react'
 import { CollapsibleMessage } from './collapsible-message'
-import { useDeepResearch, useDeepResearchProgress } from './deep-research-provider'
-import { SearchSkeleton } from './default-skeleton'
 import { RankedSearchResults } from './ranked-search-results'
-import { SearchResults } from './search-results'
 import { SearchResultsImageSection } from './search-results-image'
-import { Section, ToolArgsSection } from './section'
+import {
+  RankedResultsSkeleton,
+  SearchResultsGridSkeleton,
+  SearchResultsImageSkeleton
+} from './skeletons'
 import { Button } from './ui/button'
+
+interface ToolInvocation {
+  state: string
+  result?: TypeSearchResults
+  args?: {
+    query?: string
+    includeDomains?: string[]
+  }
+  toolCallId?: string
+}
+
+interface ExtendedMessage extends Message {
+  searchSources?: SearchSource[]
+}
 
 interface SearchSectionProps {
   tool: ToolInvocation
@@ -31,269 +50,188 @@ export function SearchSection({
   setMessages,
   chatId
 }: SearchSectionProps) {
-  const { state, addActivity, addSource, setDepth } = useDeepResearch()
-  const { currentDepth } = state
-  const { shouldContinueResearch, nextDepth, maxDepth } = useDeepResearchProgress(currentDepth, 7, chatId)
-  const activityAddedRef = React.useRef<{[key: string]: boolean}>({})
-  const sourcesProcessedRef = React.useRef<{[key: string]: boolean}>({})
+  const isLoading = tool.state === 'call'
+  const searchResults = tool.state === 'result' ? tool.result : undefined
+  const query = tool.args?.query
+  const includeDomains = tool.args?.includeDomains
+
+  const { state: sourcesState, addSource } = useSources()
+  const { state: activityState, addActivity } = useActivity()
+  const { state: depthState, optimizeDepth } = useDepth()
+
+  const [viewMode, setViewMode] = React.useState<'grid' | 'ranked' | 'image'>('grid')
+  const [showDiff, setShowDiff] = React.useState(true)
   const [showRankedAnalysis, setShowRankedAnalysis] = React.useState(false)
   const [previousResults, setPreviousResults] = React.useState<SearchResultItem[]>([])
+  const diffSystemRef = React.useRef<ResearchDiffSystem>(new ResearchDiffSystem())
+  const [diffVisualization, setDiffVisualization] = React.useState<VisualizationData | null>(null)
 
-  // Tool and search state
-  const isToolLoading = tool.state === 'call'
-  const searchResults: TypeSearchResults | undefined = 
-    tool.state === 'result' ? tool.result : undefined
-  const query = tool.args?.query as string | undefined
-  const includeDomains = tool.args?.includeDomains as string[] | undefined
-  const includeDomainsString = includeDomains
-    ? ` [${includeDomains.join(', ')}]`
-    : ''
+  const includeDomainsString = React.useMemo(() => 
+    includeDomains ? ` [${includeDomains.join(', ')}]` : '', 
+    [includeDomains]
+  )
 
-  // Helper function to calculate relevance score
-  const calculateRelevance = React.useCallback((result: { title: string; content?: string }, query: string | undefined): number => {
-    if (!query) return 0.5
+  // Memoized helper functions
+  const extractAndProcessSources = React.useCallback((searchResults: TypeSearchResults | undefined, messages: ExtendedMessage[], toolCallId: string | undefined) => {
+    if (!searchResults?.results || searchResults.results.length === 0) return null
     
-    const queryTerms = query.toLowerCase().split(' ')
-    const titleMatch = queryTerms.filter(term => 
-      result.title.toLowerCase().includes(term)
-    ).length / queryTerms.length
+    const sources = extractSearchSources(searchResults.results)
+    const message = messages.find(m => m.id === toolCallId)
     
-    const contentMatch = result.content 
-      ? queryTerms.filter(term => 
-          result.content?.toLowerCase().includes(term)
-        ).length / queryTerms.length
-      : 0
-    
-    return (titleMatch * 0.6 + contentMatch * 0.4)
+    return { sources, message }
   }, [])
 
-  // Process search results (sources and messages)
-  const processSearchResults = React.useCallback(async () => {
-    if (!query || tool.state !== 'result' || !searchResults?.results) return
+  // Local state
+  const { currentDepth, maxDepth } = depthState
+  const sourcesProcessedRef = React.useRef<{[key: string]: boolean}>({})
+
+  // Memoized values
+  const isToolLoading = React.useMemo(() => tool.state === 'call', [tool.state])
+
+  // Memoized callbacks
+  const handleToggleRankedAnalysis = React.useCallback(() => {
+    setShowRankedAnalysis(prev => !prev)
+  }, [])
+
+  const handleOpenChange = React.useCallback((open: boolean) => {
+    onOpenChange(open)
+  }, [onOpenChange])
+
+  // Process search results and update sources
+  React.useEffect(() => {
+    if (!searchResults) return
+
+    const result = extractAndProcessSources(searchResults, messages, tool.toolCallId)
+    if (!result) return
     
-    const resultsKey = `${tool.toolCallId}-results`
-    if (sourcesProcessedRef.current[resultsKey]) return
+    const { sources, message } = result
     
-    try {
-      // Consolidate all search results including direct URLs
-      const allResults: SearchResultItem[] = [
-        ...searchResults.results,
-        ...(searchResults.directUrls || []).map((url: string) => ({
-          url,
-          title: 'Direct Source',
-          snippet: 'Direct source reference',
-          content: undefined
-        }))
-      ]
+    if (message && !sourcesProcessedRef.current[message.id]) {
+      sourcesProcessedRef.current[message.id] = true
 
-      // Add sources to Deep Research context
-      const sourcesToAdd = allResults.map(result => ({
-        url: result.url,
-        title: result.title,
-        relevance: calculateRelevance({
-          title: result.title,
-          content: result.content
-        }, query),
-        timestamp: Date.now()
-      }))
-
-      // Add all sources in one batch operation
-      await Promise.all(sourcesToAdd.map(source => addSource(source)))
-
-      // Update message with search sources
-      const message = messages.find(msg => 
-        msg.toolInvocations?.some(t => t.toolCallId === tool.toolCallId)
-      )
-
-      if (message) {
-        const searchSources = extractSearchSources(
-          allResults,
-          message.id,
-          query
-        )
-        
-        // Create new messages array with updated message
-        const updatedMessages: ExtendedMessage[] = messages.map(msg => {
-          if (msg.id === message.id) {
-            // Create updated message with search sources
-            const updatedMessage: ExtendedMessage = {
-              ...msg,
-              searchSources
-            }
-            return updatedMessage
+      // Create new messages array with updated message
+      const updatedMessages: ExtendedMessage[] = messages.map(msg => {
+        if (msg.id === message.id) {
+          return {
+            ...msg,
+            searchSources: sources
           }
-          return msg
-        })
-        
-        // Update messages state
-        setMessages(updatedMessages)
-      }
-
-      // Mark as processed
-      sourcesProcessedRef.current[resultsKey] = true
-
-      // Handle research continuation
-      if (shouldContinueResearch) {
-        const analysisKey = `${tool.toolCallId}-analysis`
-        if (!activityAddedRef.current[analysisKey]) {
-          addActivity({
-            type: 'analyze',
-            status: 'pending',
-            message: 'Analyzing results to determine next research direction...',
-            timestamp: new Date().toISOString(),
-            depth: currentDepth
-          })
-          activityAddedRef.current[analysisKey] = true
-          setDepth(nextDepth, maxDepth)
         }
-      }
-    } catch (error) {
-      console.error('Error processing search results:', error)
-    }
-  }, [
-    query,
-    tool.state,
-    tool.toolCallId,
-    searchResults,
-    addSource,
-    calculateRelevance,
-    messages,
-    setMessages,
-    shouldContinueResearch,
-    addActivity,
-    currentDepth,
-    nextDepth,
-    maxDepth,
-    setDepth
-  ])
-
-  // Track search activities
-  React.useEffect(() => {
-    if (!query) return
-
-    const activityKey = `${tool.toolCallId}-${tool.state}`
-    if (activityAddedRef.current[activityKey]) return
-
-    if (tool.state === 'call') {
-      addActivity({
-        type: 'search',
-        status: 'pending',
-        message: `Depth ${currentDepth}: Searching for: ${query}`,
-        timestamp: new Date().toISOString(),
-        depth: currentDepth
+        return msg
       })
-      activityAddedRef.current[activityKey] = true
-    } else if (tool.state === 'result') {
+
+      setMessages(updatedMessages)
+
+      // Add sources to context
+      sources.forEach(source => {
+        const searchResult = searchResults.results.find(r => r.url === source.url)
+        if (searchResult) {
+          addSource({
+            url: source.url,
+            title: source.title,
+            relevance: searchResult.relevance || 0,
+            content: source.content,
+            query: query,
+            publishedDate: source.publishedDate
+          })
+        }
+      })
+    }
+
+    // Track changes and update visualization
+    const metrics = diffSystemRef.current.trackChanges(searchResults.results)
+    const diffs = diffSystemRef.current.compareResults(previousResults, searchResults.results)
+    const visualization = diffSystemRef.current.visualizeDiffs(diffs)
+    
+    setDiffVisualization(visualization)
+    setPreviousResults(searchResults.results)
+
+    // Add activity for significant changes
+    if (metrics.newInsights > 0 || metrics.refinements > 0) {
       addActivity({
-        type: 'search',
+        type: 'analyze',
         status: 'complete',
-        message: `Depth ${currentDepth}: Found ${searchResults?.results?.length ?? 0} results for: ${query}`,
+        message: `Found ${metrics.newInsights} new insights and ${metrics.refinements} refinements`,
         timestamp: new Date().toISOString(),
         depth: currentDepth
       })
-      activityAddedRef.current[activityKey] = true
     }
-  }, [tool.state, tool.toolCallId, query, currentDepth, addActivity, searchResults?.results?.length])
 
-  // Process results when available
-  React.useEffect(() => {
-    processSearchResults()
-  }, [processSearchResults])
-
-  // Update previous results when new results come in
-  React.useEffect(() => {
-    if (searchResults?.results && searchResults.results.length > 0) {
-      setPreviousResults(prevResults => {
-        // Only update if the results are different
-        const currentUrls = new Set(searchResults.results.map(r => r.url))
-        const prevUrls = new Set(prevResults.map(r => r.url))
-        const hasChanges = 
-          currentUrls.size !== prevUrls.size || 
-          ![...currentUrls].every(url => prevUrls.has(url))
-        return hasChanges ? prevResults : searchResults.results
-      })
-    }
-  }, [searchResults?.results])
-
-  const header = (
-    <ToolArgsSection
-      tool="search"
-      number={searchResults?.results?.length}
-    >{`${query}${includeDomainsString}`}</ToolArgsSection>
-  )
+    // Optimize depth based on new metrics
+    optimizeDepth(sourcesState.sourceMetrics)
+  }, [searchResults, messages, tool.toolCallId, query, addSource, currentDepth, addActivity, optimizeDepth, sourcesState.sourceMetrics, previousResults, extractAndProcessSources])
 
   return (
     <CollapsibleMessage
       role="assistant"
       isCollapsible={true}
-      header={header}
+      header={<SearchHeader 
+        showRankedAnalysis={showRankedAnalysis}
+        onToggleRankedAnalysis={() => setShowRankedAnalysis(!showRankedAnalysis)}
+        includeDomainsString={includeDomainsString}
+      />}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
-      className="max-h-[60vh] overflow-y-auto"
     >
-      {searchResults?.images && searchResults.images.length > 0 && (
-        <Section>
-          <SearchResultsImageSection
-            images={searchResults.images}
-            query={query ?? ''}
-          />
-        </Section>
-      )}
-      {isToolLoading ? (
-        <SearchSkeleton />
-      ) : searchResults && searchResults.results ? (
-        <>
-          <div className="flex items-center justify-between gap-2 mb-4 px-1">
-            <h2 className="text-sm font-medium">Sources</h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowRankedAnalysis(!showRankedAnalysis)}
-              className="text-muted-foreground hover:text-foreground rounded-md h-8"
-            >
-              {showRankedAnalysis ? (
-                <>
-                  <EyeOff className="h-4 w-4 mr-2" />
-                  Hide Analysis
-                </>
-              ) : (
-                <>
-                  <Eye className="h-4 w-4 mr-2" />
-                  Show Analysis
-                </>
-              )}
-            </Button>
-          </div>
+      <div className="space-y-6">
+        {/* View Mode Controls */}
+        <div className="flex gap-2 justify-end">
+          <Button
+            variant={viewMode === 'grid' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('grid')}
+          >
+            <Grid2X2 className="w-4 h-4 mr-2" />
+            Grid
+          </Button>
+          <Button
+            variant={viewMode === 'ranked' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('ranked')}
+          >
+            <BarChart className="w-4 h-4 mr-2" />
+            Ranked
+          </Button>
+          <Button
+            variant={viewMode === 'image' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('image')}
+          >
+            <ImageIcon className="w-4 h-4 mr-2" />
+            Images
+          </Button>
+        </div>
 
-          {showRankedAnalysis ? (
-            <RankedSearchResults
-              results={searchResults.results.map(result => ({
-                ...result,
-                metrics: {
-                  relevanceScore: calculateRelevance({ 
-                    title: result.title, 
-                    content: result.content 
-                  }, query),
-                  depthLevel: currentDepth,
-                  contentQuality: result.content ? 
-                    Math.min((result.content.length / 1000) * 0.5 + 0.3, 1) : 0.3,
-                  timeRelevance: 0.7,
-                  sourceAuthority: 0.6
-                },
-                timestamp: Date.now()
-              }))}
-              currentDepth={currentDepth}
-              maxDepth={maxDepth}
-            />
+        {/* Search Results */}
+        {isLoading ? (
+          viewMode === 'grid' ? (
+            <SearchResultsGridSkeleton />
+          ) : viewMode === 'ranked' ? (
+            <RankedResultsSkeleton />
           ) : (
-            <SearchResults 
-              results={searchResults.results}
-              previousResults={previousResults}
-              showDiff={true}
-            />
-          )}
-        </>
-      ) : null}
+            <SearchResultsImageSkeleton />
+          )
+        ) : searchResults?.results ? (
+          <>
+            {viewMode === 'grid' && (
+              <SearchResultsGrid results={searchResults.results} />
+            )}
+            {viewMode === 'ranked' && (
+              <RankedSearchResults 
+                results={searchResults.results}
+                query={query}
+                showMetrics={true}
+              />
+            )}
+            {viewMode === 'image' && searchResults.images && (
+              <SearchResultsImageSection 
+                images={searchResults.images}
+                query={query}
+              />
+            )}
+          </>
+        ) : null}
+      </div>
     </CollapsibleMessage>
   )
 }
