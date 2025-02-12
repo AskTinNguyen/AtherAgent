@@ -349,16 +349,6 @@ const DeepResearchContext = createContext<DeepResearchContextType | undefined>(u
 function DeepResearchProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(deepResearchReducer, initialState)
 
-  // Add debug logging
-  useEffect(() => {
-    console.log('DeepResearch Provider State:', {
-      isActive: state.isActive,
-      currentDepth: state.currentDepth,
-      activity: state.activity.length,
-      sources: state.sources.length
-    })
-  }, [state])
-
   // Add initialization effect
   useEffect(() => {
     // Initialize the research state
@@ -366,9 +356,6 @@ function DeepResearchProvider({ children }: { children: ReactNode }) {
       type: 'INIT_PROGRESS', 
       payload: { totalSteps: 7 } 
     })
-    
-    // Log initial state
-    console.log('DeepResearch Provider Initialized:', state)
   }, [])
 
   const toggleActive = useCallback(() => {
@@ -446,16 +433,6 @@ export function useDeepResearch() {
   if (!context) {
     throw new Error('useDeepResearch must be used within a DeepResearchProvider')
   }
-
-  // Add debug logging
-  console.log('DeepResearch Context:', {
-    isActive: context.state.isActive,
-    activityCount: context.state.activity.length,
-    sourcesCount: context.state.sources.length,
-    currentDepth: context.state.currentDepth,
-    maxDepth: context.state.maxDepth
-  })
-
   return context
 }
 
@@ -671,12 +648,12 @@ function DeepResearchWrapper({
 
 // Exports
 export {
-  DeepResearchProvider,
-  DeepResearchWrapper,
-  useDeepResearch,
-  useDeepResearchProgress,
-  type DeepResearchState,
-  type ResearchActivity, type ResearchMemory, type ResearchSource
+    DeepResearchProvider,
+    DeepResearchWrapper,
+    useDeepResearch,
+    useDeepResearchProgress,
+    type DeepResearchState,
+    type ResearchActivity, type ResearchMemory, type ResearchSource
 }
 
 // Utility functions for source quality calculation
