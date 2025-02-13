@@ -1,181 +1,136 @@
 import { Redis } from '@upstash/redis'
-import { RedisClientType } from 'redis'
+import { createClient } from 'redis'
+
+export type RedisClient = ReturnType<typeof createClient>
 
 export interface RedisWrapper {
-  zrange(key: string, start: number, stop: number, options?: { rev: boolean }): Promise<string[]>
-  hgetall<T extends Record<string, unknown>>(key: string): Promise<T | null>
-  pipeline(): PipelineWrapper
-  hmset(key: string, value: Record<string, any>): Promise<'OK' | number>
+  hgetall<T extends Record<string, any>>(key: string): Promise<T | null>
+  hmset(key: string, value: Record<string, any>): Promise<number>
   zadd(key: string, score: number, member: string): Promise<number>
-  zscore(key: string, member: string): Promise<number | null>
-  del(key: string): Promise<number>
-  zrem(key: string, member: string): Promise<number>
-  close(): Promise<void>
-  ping(): Promise<string>
+  zrange(key: string, start: number, stop: number, options?: { rev?: boolean }): Promise<string[]>
   keys(pattern: string): Promise<string[]>
-}
-
-export interface PipelineWrapper {
-  hgetall(key: string): PipelineWrapper
-  del(key: string): PipelineWrapper
-  zrem(key: string, member: string): PipelineWrapper
-  hmset(key: string, value: Record<string, any>): PipelineWrapper
-  zadd(key: string, score: number, member: string): PipelineWrapper
-  zrange(key: string, start: number, stop: number, options?: { rev: boolean }): PipelineWrapper
-  exec(): Promise<any[]>
+  del(key: string): Promise<number>
 }
 
 export class LocalRedisWrapper implements RedisWrapper {
-  constructor(private client: RedisClientType) {}
+  private client: RedisClient
 
-  async zrange(key: string, start: number, stop: number, options?: { rev: boolean }): Promise<string[]> {
-    return this.client.zRange(key, start, stop, options?.rev ? { REV: true } : undefined)
+  constructor(client: RedisClient) {
+    this.client = client
   }
 
-  async hgetall<T extends Record<string, unknown>>(key: string): Promise<T | null> {
-    const result = await this.client.hGetAll(key)
-    return Object.keys(result).length > 0 ? result as T : null
-  }
-
-  pipeline(): PipelineWrapper {
-    const multi = this.client.multi()
-    return {
-      hgetall(key: string) {
-        multi.hGetAll(key)
-        return this
-      },
-      del(key: string) {
-        multi.del(key)
-        return this
-      },
-      zrem(key: string, member: string) {
-        multi.zRem(key, member)
-        return this
-      },
-      hmset(key: string, value: Record<string, any>) {
-        const args: Record<string, string> = {}
-        for (const [field, val] of Object.entries(value)) {
-          args[field] = typeof val === 'string' ? val : JSON.stringify(val)
-        }
-        for (const [field, val] of Object.entries(args)) {
-          multi.hSet(key, field, val)
-        }
-        return this
-      },
-      zadd(key: string, score: number, member: string) {
-        multi.zAdd(key, { score, value: member })
-        return this
-      },
-      zrange(key: string, start: number, stop: number, options?: { rev: boolean }) {
-        multi.zRange(key, start, stop, options?.rev ? { REV: true } : undefined)
-        return this
-      },
-      async exec() {
+  private stringifyValues(data: Record<string, any>): Record<string, string> {
+    const stringified: Record<string, string> = {}
+    for (const [key, value] of Object.entries(data)) {
+      if (value === undefined || value === null) {
+        stringified[key] = ''
+      } else if (typeof value === 'string') {
+        stringified[key] = value
+      } else if (Buffer.isBuffer(value)) {
+        stringified[key] = value.toString('utf-8')
+      } else if (typeof value === 'object') {
         try {
-          const results = await multi.exec()
-          if (!results) {
-            throw new Error('Pipeline execution returned no results')
-          }
-          return results
-        } catch (error) {
-          console.error('Pipeline execution error:', error)
-          throw error
+          stringified[key] = JSON.stringify(value)
+        } catch {
+          stringified[key] = ''
         }
+      } else {
+        stringified[key] = String(value)
       }
     }
+    return stringified
   }
 
-  async hmset(key: string, value: Record<string, any>): Promise<number> {
-    const args: Record<string, string> = {}
-    for (const [field, val] of Object.entries(value)) {
-      args[field] = typeof val === 'string' ? val : JSON.stringify(val)
+  private parseValues<T extends Record<string, any>>(data: Record<string, string>): T {
+    const parsed: Record<string, any> = {}
+    for (const [key, value] of Object.entries(data)) {
+      if (!value) {
+        parsed[key] = null
+        continue
+      }
+      try {
+        parsed[key] = JSON.parse(value)
+      } catch {
+        parsed[key] = value
+      }
     }
-    return this.client.hSet(key, args)
+    return parsed as T
+  }
+
+  async zrange(key: string, start: number, stop: number, options?: { rev?: boolean }): Promise<string[]> {
+    const result = await this.client.zRange(key, start, stop, options?.rev ? { REV: true } : undefined)
+    return result.map(item => {
+      if (Buffer.isBuffer(item)) return item.toString('utf-8')
+      if (typeof item === 'string') return item
+      return String(item)
+    })
+  }
+
+  async hgetall<T extends Record<string, any>>(key: string): Promise<T | null> {
+    const result = await this.client.hGetAll(key)
+    if (!Object.keys(result).length) return null
+    return this.parseValues<T>(result)
+  }
+
+  async hmset(key: string, data: Record<string, any>): Promise<number> {
+    const stringified = this.stringifyValues(data)
+    const validEntries = Object.entries(stringified).filter(([_, val]) => val !== undefined && val !== null)
+    if (!validEntries.length) return 0
+    
+    const result = await this.client.hSet(key, Object.fromEntries(validEntries))
+    return result || 0
   }
 
   async zadd(key: string, score: number, member: string): Promise<number> {
-    const result = await this.client.zAdd(key, { score, value: member })
-    return result ? 1 : 0
+    if (!member) return 0
+    const result = await this.client.zAdd(key, { score, value: member.toString() })
+    return result || 0
   }
 
-  async zscore(key: string, member: string): Promise<number | null> {
-    return this.client.zScore(key, member)
+  async keys(pattern: string): Promise<string[]> {
+    const result = await this.client.keys(pattern)
+    return result.map(item => {
+      if (Buffer.isBuffer(item)) return item.toString('utf-8')
+      if (typeof item === 'string') return item
+      return String(item)
+    })
   }
 
   async del(key: string): Promise<number> {
     return this.client.del(key)
   }
+}
 
-  async zrem(key: string, member: string): Promise<number> {
-    return this.client.zRem(key, member)
+let redisClient: LocalRedisWrapper | null = null
+
+export async function getRedisClient(): Promise<LocalRedisWrapper> {
+  if (!redisClient) {
+    const client = createClient({
+      url: process.env.LOCAL_REDIS_URL || 'redis://localhost:6379'
+    })
+
+    await client.connect()
+    redisClient = new LocalRedisWrapper(client)
   }
 
-  async close(): Promise<void> {
-    await this.client.quit()
-  }
-
-  async ping(): Promise<string> {
-    const result = await this.client.ping()
-    return result || 'PONG'
-  }
-
-  async keys(pattern: string): Promise<string[]> {
-    return this.client.keys(pattern)
-  }
+  return redisClient
 }
 
 export class UpstashRedisWrapper implements RedisWrapper {
   constructor(private client: Redis) {}
 
-  async zrange(key: string, start: number, stop: number, options?: { rev: boolean }): Promise<string[]> {
-    return this.client.zrange(key, start, stop, options)
+  async zrange(key: string, start: number, stop: number, options?: { rev?: boolean }): Promise<string[]> {
+    return this.client.zrange(key, start, stop, options?.rev ? { rev: true } : undefined)
   }
 
-  async hgetall<T extends Record<string, unknown>>(key: string): Promise<T | null> {
-    return this.client.hgetall(key)
+  async hgetall<T extends Record<string, any>>(key: string): Promise<T | null> {
+    const result = await this.client.hgetall(key)
+    return result as T | null
   }
 
-  pipeline(): PipelineWrapper {
-    const pipeline = this.client.pipeline()
-    return {
-      hgetall(key: string) {
-        pipeline.hgetall(key)
-        return this
-      },
-      del(key: string) {
-        pipeline.del(key)
-        return this
-      },
-      zrem(key: string, member: string) {
-        pipeline.zrem(key, member)
-        return this
-      },
-      hmset(key: string, value: Record<string, any>) {
-        pipeline.hmset(key, value)
-        return this
-      },
-      zadd(key: string, score: number, member: string) {
-        pipeline.zadd(key, { score, member })
-        return this
-      },
-      zrange(key: string, start: number, stop: number, options?: { rev: boolean }) {
-        pipeline.zrange(key, start, stop, options)
-        return this
-      },
-      async exec() {
-        try {
-          const results = await pipeline.exec()
-          return results || []
-        } catch (error) {
-          console.error('Pipeline execution error:', error)
-          throw error
-        }
-      }
-    }
-  }
-
-  async hmset(key: string, value: Record<string, any>): Promise<'OK'> {
-    return this.client.hmset(key, value)
+  async hmset(key: string, value: Record<string, any>): Promise<number> {
+    const result = await this.client.hmset(key, value)
+    return result === 'OK' ? 1 : 0
   }
 
   async zadd(key: string, score: number, member: string): Promise<number> {
@@ -183,27 +138,11 @@ export class UpstashRedisWrapper implements RedisWrapper {
     return result || 0
   }
 
-  async zscore(key: string, member: string): Promise<number | null> {
-    return this.client.zscore(key, member)
+  async keys(pattern: string): Promise<string[]> {
+    return this.client.keys(pattern)
   }
 
   async del(key: string): Promise<number> {
     return this.client.del(key)
-  }
-
-  async zrem(key: string, member: string): Promise<number> {
-    return this.client.zrem(key, member)
-  }
-
-  async close(): Promise<void> {
-    // Upstash Redis doesn't require explicit closing
-  }
-
-  async ping(): Promise<string> {
-    return this.client.ping()
-  }
-
-  async keys(pattern: string): Promise<string[]> {
-    return this.client.keys(pattern)
   }
 } 

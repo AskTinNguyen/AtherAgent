@@ -1,10 +1,13 @@
 import { Redis } from '@upstash/redis'
+import { createClient } from 'redis'
 import { LocalRedisWrapper, RedisWrapper, UpstashRedisWrapper } from './types'
 
 let redis: RedisWrapper | null = null
 let connectionAttempts = 0
 const MAX_RETRIES = 3
 const RETRY_DELAY = 1000 // 1 second
+
+let redisClient: LocalRedisWrapper | null = null
 
 async function createRedisConnection(): Promise<RedisWrapper> {
   try {
@@ -69,51 +72,38 @@ async function createRedisConnection(): Promise<RedisWrapper> {
   }
 }
 
-export async function getRedisClient(): Promise<RedisWrapper> {
-  try {
-    if (redis) {
-      // Test the connection
-      try {
-        await redis.ping()
-        return redis
-      } catch (error) {
-        console.error('Redis connection test failed:', error)
-        // Connection is dead, clear it and try to reconnect
-        await redis.close().catch(console.error)
-        redis = null
-      }
-    }
+export async function getRedisClient(): Promise<LocalRedisWrapper> {
+  if (!redisClient) {
+    const client = createClient({
+      url: process.env.LOCAL_REDIS_URL || 'redis://localhost:6379'
+    })
 
-    while (connectionAttempts < MAX_RETRIES) {
-      try {
-        redis = await createRedisConnection()
-        connectionAttempts = 0 // Reset counter on success
-        return redis
-      } catch (error) {
-        connectionAttempts++
-        console.error(`Redis connection attempt ${connectionAttempts} failed:`, error)
-        
-        if (connectionAttempts === MAX_RETRIES) {
-          throw new Error('Failed to establish Redis connection after multiple attempts')
-        }
-        
-        // Wait before retrying
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * connectionAttempts))
-      }
-    }
+    client.on('error', (err) => {
+      console.error('Redis Client Error:', err)
+    })
 
-    throw new Error('Failed to establish Redis connection')
-  } catch (error) {
-    console.error('Fatal Redis connection error:', error)
-    throw error
+    client.on('connect', () => {
+      console.log('Redis Client Connected')
+    })
+
+    client.on('ready', () => {
+      console.log('Redis Client Ready')
+    })
+
+    await client.connect()
+    redisClient = new LocalRedisWrapper(client)
   }
+
+  return redisClient
 }
 
 // Function to close the Redis connection
 export async function closeRedisConnection(): Promise<void> {
-  if (redis) {
-    await redis.close()
-    redis = null
-    connectionAttempts = 0
+  if (redisClient) {
+    const client = redisClient['client']
+    if (client && typeof client.quit === 'function') {
+      await client.quit()
+    }
+    redisClient = null
   }
 }
