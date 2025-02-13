@@ -10,7 +10,8 @@
     "lint": "next lint",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "redis-ui": "redis-commander"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.5",
@@ -74,6 +75,7 @@
     "react-syntax-highlighter": "^15.5.0",
     "react-textarea-autosize": "^8.5.3",
     "redis": "^4.7.0",
+    "redis-commander": "^0.8.0",
     "rehype-external-links": "^3.0.0",
     "rehype-katex": "^6.0.0",
     "remark-gfm": "^3.0.1",

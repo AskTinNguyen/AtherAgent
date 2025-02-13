@@ -197,13 +197,42 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
       const newSuggestions: ResearchSuggestion[] = []
       const now = Date.now()
 
+      // Helper function to generate unique ID
+      const generateUniqueId = () => `${now}-${Math.random().toString(36).substr(2, 9)}`
+
       // Track unique topics to avoid duplicates
       const suggestedTopics = new Set<string>()
 
+      // Helper function to generate current query based on research state
+      const generateCurrentQuery = () => {
+        const recentActivities = activity.slice(-3) // Get last 3 activities
+        const searchQueries = recentActivities
+          .filter(item => item.type === 'search')
+          .map(item => item.message)
+        
+        if (searchQueries.length > 0) {
+          // Use the most recent search query as base
+          return searchQueries[searchQueries.length - 1]
+        }
+        
+        // If no recent searches, use thought activities
+        const thoughtActivities = recentActivities
+          .filter(item => item.type === 'thought')
+          .map(item => item.message)
+        
+        if (thoughtActivities.length > 0) {
+          return thoughtActivities[thoughtActivities.length - 1]
+        }
+        
+        // Fallback to a generic exploration query
+        return `Research exploration at depth ${currentDepth}`
+      }
+
       // Depth-based suggestions
       if (currentDepth < maxDepth) {
+        const currentQuery = generateCurrentQuery()
         const context = {
-          currentQuery: 'depth_exploration',
+          currentQuery,
           previousQueries: [],
           currentDepth,
           maxDepth,
@@ -225,7 +254,8 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
             category: 'depth_exploration',
             relevanceScore: aiSuggestion.confidence,
             timestamp: now,
-            relatedTopics: aiSuggestion.relatedTopics
+            relatedTopics: aiSuggestion.relatedTopics,
+            suggestionId: generateUniqueId()
           },
           context: {
             rationale: aiSuggestion.rationale,
@@ -279,7 +309,8 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
             relevanceScore: aiSuggestion.confidence,
             timestamp: now,
             relatedTopics: aiSuggestion.relatedTopics,
-            previousQueries: searchQueries
+            previousQueries: searchQueries,
+            suggestionId: generateUniqueId()
           },
           context: {
             rationale: aiSuggestion.rationale,
@@ -290,12 +321,18 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
 
       // Generate refinement suggestions based on depth
       if (currentDepth >= 3) {
+        const currentQuery = generateCurrentQuery()
+        const recentQueries = activity
+          .slice(-5)
+          .filter(item => item.type === 'search')
+          .map(item => item.message)
+
         const context = {
-          currentQuery: 'synthesis',
-          previousQueries: searchQueries,
+          currentQuery,
+          previousQueries: recentQueries,
           currentDepth,
           maxDepth,
-          recentFindings: searchQueries
+          recentFindings: recentQueries
         }
 
         const aiSuggestion = await fetch('/api/research/suggestions', {
@@ -314,7 +351,8 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
             relevanceScore: aiSuggestion.confidence,
             timestamp: now,
             previousQueries: searchQueries,
-            relatedTopics: aiSuggestion.relatedTopics
+            relatedTopics: aiSuggestion.relatedTopics,
+            suggestionId: generateUniqueId()
           },
           context: {
             rationale: aiSuggestion.rationale,
@@ -355,7 +393,8 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
                 relevanceScore: aiSuggestion.confidence,
                 timestamp: now,
                 relatedTopics: aiSuggestion.relatedTopics,
-                previousQueries: [item.message]
+                previousQueries: [item.message],
+                suggestionId: generateUniqueId()
               },
               context: {
                 rationale: aiSuggestion.rationale,
@@ -530,7 +569,7 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
         <div className="space-y-3">
           {suggestions.map((suggestion: ResearchSuggestion, index: number) => (
             <motion.div
-              key={`${suggestion.type}-${index}`}
+              key={suggestion.metadata.suggestionId || `${suggestion.type}-${suggestion.metadata.timestamp}-${index}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}

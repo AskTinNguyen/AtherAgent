@@ -113,6 +113,11 @@ An AI-powered search engine with a generative UI and advanced research capabilit
 
 - [Upstash](https://upstash.com/) - Serverless Redis
 - [Redis](https://redis.io/) - Local Redis option
+- Redis Commander - Development UI for Redis monitoring
+  - Access at http://localhost:8081
+  - Visualize Redis data structure
+  - Monitor Redis usage
+  - Debug Redis state
 
 ### UI & Styling
 
@@ -179,6 +184,15 @@ For optional features configuration (Redis, SearXNG, etc.), see [CONFIGURATION.m
 
 ```bash
 bun dev
+```
+
+#### Using npm with Node.js 20 LTS (Recommended)
+```bash
+# Start the Next.js development server
+npm run dev
+
+# Start Redis monitoring UI (in a separate terminal)
+npm run redis-ui   # Access at http://localhost:8081
 ```
 
 #### Using Docker

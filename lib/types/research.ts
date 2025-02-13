@@ -1,5 +1,55 @@
 import { ResearchState } from '@/lib/contexts/research-context'
 
+export type ResearchActivityType = 
+  | 'search' 
+  | 'extract' 
+  | 'analyze' 
+  | 'reasoning' 
+  | 'synthesis' 
+  | 'thought'
+  | 'user_prompt'
+  | 'ai_response'
+  | 'ai_suggestion'
+  | 'visualization_update'  // For tracking visualization panel changes
+  | 'research_path'        // For tracking research path progression
+  | 'depth_transition'     // For tracking depth level changes
+
+export interface ResearchActivityMetadata {
+  aiModel?: string
+  confidence?: number
+  relatedTopics?: string[]
+  sourceContext?: string
+  previousActivities?: string[]
+  visualizationData?: {
+    type: 'path' | 'depth' | 'suggestion' | 'analysis'
+    depthLevel?: number
+    pathProgress?: number
+    relatedActivities?: string[]
+    displayTimestamp?: string
+    displayDuration?: number
+    interactionType?: 'auto' | 'user_triggered'
+  }
+  researchPath?: {
+    currentStep: number
+    totalSteps: number
+    pathType: string
+    branchingFactor?: number
+  }
+}
+
+export interface ResearchActivity {
+  id: string
+  chatId: string
+  type: ResearchActivityType
+  status: 'pending' | 'complete' | 'error'
+  message: string
+  timestamp: string
+  depth?: number
+  createdAt: string
+  metadata?: ResearchActivityMetadata
+  parentActivityId?: string
+}
+
 export interface ChatResearchActivity {
   id: string
   chatId: string
@@ -121,21 +171,24 @@ export interface ResearchSuggestion {
   type: 'path' | 'source' | 'depth' | 'refinement' | 'related' | 'cross_reference'
   content: string
   confidence: number
-  metadata: {
-    sourceUrl?: string
-    depthLevel: number
-    category: string
-    relevanceScore: number
-    timestamp: number
-    sourceContext?: string
-    relatedTopics?: string[]
-    previousQueries?: string[]
-  }
+  metadata: ResearchSuggestionMetadata
   context?: {
     previousContent?: string
     nextSteps?: string[]
     rationale?: string
   }
+}
+
+export interface ResearchSuggestionMetadata {
+  sourceUrl?: string
+  depthLevel: number
+  category: string
+  relevanceScore: number
+  timestamp: number
+  sourceContext?: string
+  relatedTopics?: string[]
+  previousQueries?: string[]
+  suggestionId?: string
 }
 
 // Update the base ResearchState to include suggestions

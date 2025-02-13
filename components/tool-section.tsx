@@ -1,5 +1,8 @@
 'use client'
 
+import { ResearchActivityProvider } from '@/lib/contexts/research-activity-context'
+import { DepthProvider } from '@/lib/contexts/research-depth-context'
+import { SourcesProvider } from '@/lib/contexts/research-sources-context'
 import { Message, ToolInvocation } from 'ai'
 import RetrieveSection from './retrieve-section'
 import { SearchSection } from './search-section'
@@ -25,14 +28,20 @@ export function ToolSection({
   switch (tool.toolName) {
     case 'search':
       return (
-        <SearchSection
-          tool={tool}
-          isOpen={isOpen}
-          onOpenChange={onOpenChange}
-          messages={messages}
-          setMessages={setMessages}
-          chatId={chatId}
-        />
+        <ResearchActivityProvider>
+          <SourcesProvider>
+            <DepthProvider>
+              <SearchSection
+                tool={tool}
+                isOpen={isOpen}
+                onOpenChange={onOpenChange}
+                messages={messages}
+                setMessages={setMessages}
+                chatId={chatId}
+              />
+            </DepthProvider>
+          </SourcesProvider>
+        </ResearchActivityProvider>
       )
     case 'video_search':
       return (
