@@ -9,24 +9,23 @@ import { ErrorBoundary } from './shared/error-boundary'
 import { Button } from './ui/button'
 import { ResearchCommandCenter } from './visualization/research-command-center'
 
-interface DeepResearchVisualizationProps {
-  location: 'sidebar' | 'header'
-  chatId: string
-  initialClearedState?: boolean
-  onClearStateChange?: (chatId: string, isCleared: boolean) => Promise<void>
-  onSuggestionSelect?: (content: string) => void
-}
-
 export function DeepResearchVisualization({
   location,
   chatId,
   initialClearedState = false,
   onClearStateChange,
   onSuggestionSelect
-}: DeepResearchVisualizationProps) {
+}: {
+  location: 'sidebar' | 'header'
+  chatId: string
+  initialClearedState?: boolean
+  onClearStateChange?: (chatId: string, isCleared: boolean) => Promise<void>
+  onSuggestionSelect?: (query: string) => void
+}) {
   const { state, clearState } = useResearch()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [isVisible, setIsVisible] = useState(true)
 
   // Handle initialization and state clearing
   useEffect(() => {
@@ -46,6 +45,18 @@ export function DeepResearchVisualization({
       setIsCollapsed(false)
     }
   }, [state.isActive, isCollapsed])
+
+  // Handle command bar toggle event
+  useEffect(() => {
+    const handleTogglePanel = () => {
+      setIsVisible(prev => !prev)
+    }
+
+    document.addEventListener('toggle-research-panel', handleTogglePanel)
+    return () => {
+      document.removeEventListener('toggle-research-panel', handleTogglePanel)
+    }
+  }, [])
 
   const handleSetActive = useCallback((active: boolean) => {
     // Implementation depends on your needs
@@ -103,6 +114,8 @@ export function DeepResearchVisualization({
 
         {/* Panel Container */}
         <div className={cn(
+          'research-visualization',
+          !isVisible && 'hidden',
           "fixed inset-y-0 left-0 z-40 transition-all duration-300 ease-in-out",
           location === 'sidebar' ? 'hidden lg:block' : 'block lg:hidden',
           isCollapsed ? "w-0 opacity-0" : "w-[440px] opacity-100"

@@ -16,3 +16,4 @@ To Do lists Today Feb 10 2025
 - [ ] Add a Create new Deep Research based on a Suggestion
 - [ ] Fix Path Visualization
 - [ ] Add the cron job to send Research Updates to the User over MCP like Slack or Telegram
+- [ ] Update Redis test suite to remove pipeline mocks and use direct Redis commands

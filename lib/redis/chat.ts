@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import {
   ChatMetadata,
   ChatOperationResult,
@@ -15,10 +16,34 @@ export class ChatOperations {
     return key
   }
 
+  private static validateDate(dateStr: string): string {
+    try {
+      const date = new Date(dateStr)
+      if (isNaN(date.getTime())) {
+        return new Date().toISOString()
+      }
+      return date.toISOString()
+    } catch {
+      return new Date().toISOString()
+    }
+  }
+
   private static serializeForRedis<T extends Record<string, any>>(data: T): Record<string, string> {
     const serialized: Record<string, string> = {}
     for (const [key, value] of Object.entries(data)) {
-      serialized[key] = typeof value === 'string' ? value : JSON.stringify(value)
+      if (key === 'createdAt' || key === 'updatedAt') {
+        serialized[key] = this.validateDate(value)
+        continue
+      }
+      if (value === undefined || value === null) {
+        serialized[key] = ''
+        continue
+      }
+      try {
+        serialized[key] = typeof value === 'string' ? value : JSON.stringify(value)
+      } catch {
+        serialized[key] = ''
+      }
     }
     return serialized
   }
@@ -26,6 +51,14 @@ export class ChatOperations {
   private static deserializeFromRedis<T extends Record<string, any>>(data: Record<string, string>): T {
     const deserialized: Record<string, any> = {}
     for (const [key, value] of Object.entries(data)) {
+      if (!value) {
+        deserialized[key] = null
+        continue
+      }
+      if (key === 'createdAt' || key === 'updatedAt') {
+        deserialized[key] = this.validateDate(value)
+        continue
+      }
       try {
         deserialized[key] = JSON.parse(value)
       } catch {
@@ -38,7 +71,7 @@ export class ChatOperations {
   static async createChat(title: string): Promise<ChatOperationResult<ChatMetadata>> {
     try {
       const redis = await getRedisClient()
-      const chatId = crypto.randomUUID()
+      const chatId = randomUUID()
       
       const chatInfo: ChatMetadata = {
         id: chatId,
@@ -50,10 +83,14 @@ export class ChatOperations {
         status: 'active'
       }
       
-      await redis.hmset(
+      const result = await redis.hmset(
         this.formatKey(REDIS_KEY_PATTERNS.CHAT_INFO, { chatId }),
         this.serializeForRedis(chatInfo)
       )
+      
+      if (!result) {
+        throw new Error('Failed to create chat')
+      }
       
       return {
         success: true,
@@ -73,20 +110,31 @@ export class ChatOperations {
       const redis = await getRedisClient()
       
       // Store message data
-      await redis.hmset(
-        this.formatKey(REDIS_KEY_PATTERNS.MESSAGE, { 
-          chatId: message.chatId, 
-          messageId: message.id 
-        }),
+      const messageKey = this.formatKey(REDIS_KEY_PATTERNS.MESSAGE, { 
+        chatId: message.chatId, 
+        messageId: message.id 
+      })
+      
+      const storeResult = await redis.hmset(
+        messageKey,
         this.serializeForRedis(message)
       )
       
+      if (!storeResult) {
+        throw new Error('Failed to store message')
+      }
+      
       // Add to message index
-      await redis.zadd(
+      const indexResult = await redis.zadd(
         this.formatKey(REDIS_KEY_PATTERNS.CHAT_MESSAGES, { chatId: message.chatId }),
         new Date(message.createdAt).getTime(),
         message.id
       )
+      
+      if (!indexResult) {
+        await redis.del(messageKey)
+        throw new Error('Failed to index message')
+      }
       
       // Update chat info
       const chatInfoKey = this.formatKey(REDIS_KEY_PATTERNS.CHAT_INFO, { chatId: message.chatId })
@@ -94,7 +142,7 @@ export class ChatOperations {
       
       if (chatInfo) {
         const deserializedInfo = this.deserializeFromRedis<ChatMetadata>(chatInfo)
-        await redis.hmset(
+        const updateResult = await redis.hmset(
           chatInfoKey,
           this.serializeForRedis({
             messageCount: deserializedInfo.messageCount + 1,
@@ -102,15 +150,23 @@ export class ChatOperations {
             updatedAt: new Date().toISOString()
           })
         )
+        
+        if (!updateResult) {
+          console.warn('Failed to update chat info')
+        }
       }
       
       // If message has a parent, update thread relationships
       if (message.parentMessageId) {
-        await redis.zadd(
+        const threadResult = await redis.zadd(
           this.formatKey(REDIS_KEY_PATTERNS.CHAT_THREADS, { chatId: message.chatId }),
           new Date(message.createdAt).getTime(),
           `${message.parentMessageId}:${message.id}`
         )
+        
+        if (!threadResult) {
+          console.warn('Failed to update thread relationships')
+        }
       }
       
       return {

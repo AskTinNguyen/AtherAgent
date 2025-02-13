@@ -1,5 +1,6 @@
 import Footer from '@/components/footer'
 import Header from '@/components/header'
+import { CommandProviderWrapper } from '@/components/providers/command-provider-wrapper'
 import { SessionProvider } from '@/components/providers/session-provider'
 import { ResearchInitializer } from '@/components/research-initializer'
 import { Sidebar } from '@/components/sidebar'
@@ -77,12 +78,14 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <ResearchProvider>
-              <ResearchInitializer />
-              <Header />
-              {children}
-              {enableSaveChatHistory && <Sidebar />}
-              <Footer />
-              <Toaster />
+              <CommandProviderWrapper>
+                <ResearchInitializer />
+                <Header />
+                {children}
+                {enableSaveChatHistory && <Sidebar />}
+                <Footer />
+                <Toaster />
+              </CommandProviderWrapper>
             </ResearchProvider>
           </ThemeProvider>
         </SessionProvider>

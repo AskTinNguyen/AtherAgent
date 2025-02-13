@@ -2,14 +2,14 @@ import { Redis } from '@upstash/redis'
 import { createClient } from 'redis'
 import { LocalRedisWrapper, RedisWrapper, UpstashRedisWrapper } from './types'
 
-let redis: RedisWrapper | null = null
-let connectionAttempts = 0
 const MAX_RETRIES = 3
 const RETRY_DELAY = 1000 // 1 second
 
-let redisClient: LocalRedisWrapper | null = null
+let redisClient: RedisWrapper | null = null
 
-async function createRedisConnection(): Promise<RedisWrapper> {
+export async function getRedisClient(): Promise<RedisWrapper> {
+  if (redisClient) return redisClient
+
   try {
     // Ensure we're on the server side
     if (typeof window !== 'undefined') {
@@ -19,7 +19,6 @@ async function createRedisConnection(): Promise<RedisWrapper> {
     const useLocalRedis = process.env.USE_LOCAL_REDIS === 'true'
 
     if (useLocalRedis) {
-      const { createClient } = await import('redis')
       const client = createClient({
         url: process.env.LOCAL_REDIS_URL || 'redis://localhost:6379',
         socket: {
@@ -42,14 +41,9 @@ async function createRedisConnection(): Promise<RedisWrapper> {
       client.on('ready', () => console.log('Redis Client Ready'))
       client.on('end', () => console.log('Redis Client Connection Closed'))
 
-      try {
-        await client.connect()
-        await client.ping() // Test connection
-        return new LocalRedisWrapper(client)
-      } catch (error) {
-        console.error('Failed to connect to Redis:', error)
-        throw error
-      }
+      await client.connect()
+      await client.ping() // Test connection
+      redisClient = new LocalRedisWrapper(client)
     } else {
       if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
         throw new Error('Redis configuration is missing')
@@ -64,45 +58,26 @@ async function createRedisConnection(): Promise<RedisWrapper> {
         }
       })
 
-      return new UpstashRedisWrapper(client)
+      // Test connection
+      await client.ping()
+      redisClient = new UpstashRedisWrapper(client)
     }
+
+    return redisClient
   } catch (error) {
     console.error('Error creating Redis connection:', error)
     throw error
   }
 }
 
-export async function getRedisClient(): Promise<LocalRedisWrapper> {
-  if (!redisClient) {
-    const client = createClient({
-      url: process.env.LOCAL_REDIS_URL || 'redis://localhost:6379'
-    })
-
-    client.on('error', (err) => {
-      console.error('Redis Client Error:', err)
-    })
-
-    client.on('connect', () => {
-      console.log('Redis Client Connected')
-    })
-
-    client.on('ready', () => {
-      console.log('Redis Client Ready')
-    })
-
-    await client.connect()
-    redisClient = new LocalRedisWrapper(client)
-  }
-
-  return redisClient
-}
-
 // Function to close the Redis connection
 export async function closeRedisConnection(): Promise<void> {
   if (redisClient) {
-    const client = redisClient['client']
-    if (client && typeof client.quit === 'function') {
-      await client.quit()
+    if (redisClient instanceof LocalRedisWrapper) {
+      const client = (redisClient as LocalRedisWrapper)['client']
+      if (client && typeof client.quit === 'function') {
+        await client.quit()
+      }
     }
     redisClient = null
   }

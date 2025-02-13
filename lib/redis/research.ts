@@ -74,9 +74,8 @@ export async function updateChatResearchState(
   const sourcesKey = REDIS_KEYS.researchSources(chatId)
 
   if (isCleared) {
-    const pipeline = redis.pipeline()
     // Update state
-    pipeline.hmset(stateKey, {
+    await redis.hmset(stateKey, {
       isActive: false,
       isCleared: true,
       clearedAt: new Date().toISOString(),
@@ -86,9 +85,8 @@ export async function updateChatResearchState(
       totalExpectedSteps: 0
     })
     // Clear activities and sources
-    pipeline.del(activitiesKey)
-    pipeline.del(sourcesKey)
-    await pipeline.exec()
+    await redis.del(activitiesKey)
+    await redis.del(sourcesKey)
   } else {
     await redis.hmset(stateKey, {
       isActive: true,
@@ -122,16 +120,12 @@ export async function getChatResearchState(chatId: string): Promise<ResearchStat
   const activitiesKey = REDIS_KEYS.researchActivities(chatId)
   const sourcesKey = REDIS_KEYS.researchSources(chatId)
 
-  const pipeline = redis.pipeline()
-  pipeline.hgetall(stateKey)
-  pipeline.zrange(activitiesKey, 0, -1)
-  pipeline.zrange(sourcesKey, 0, -1)
-  
-  const [state, activities, sources] = await pipeline.exec() as [
-    Record<string, string> | null,
-    string[],
-    string[]
-  ]
+  // Get state and activities in parallel
+  const [state, activities, sources] = await Promise.all([
+    redis.hgetall<Record<string, string>>(stateKey),
+    redis.zrange(activitiesKey, 0, -1),
+    redis.zrange(sourcesKey, 0, -1)
+  ])
 
   const parsedState = state ? {
     isActive: state.isActive === 'true',
@@ -219,14 +213,13 @@ export async function updateActivityStatus(
       : activity
   )
 
-  const pipeline = redis.pipeline()
-  pipeline.del(activitiesKey)
+  // Delete old activities
+  await redis.del(activitiesKey)
   
+  // Add updated activities
   for (const activity of updatedActivities) {
-    pipeline.zadd(activitiesKey, Date.now(), JSON.stringify(activity))
+    await redis.zadd(activitiesKey, Date.now(), JSON.stringify(activity))
   }
-  
-  await pipeline.exec()
 }
 
 export async function addUserPrompt(

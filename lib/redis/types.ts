@@ -13,29 +13,27 @@ export interface RedisWrapper {
 }
 
 export class LocalRedisWrapper implements RedisWrapper {
-  private client: RedisClient
-
-  constructor(client: RedisClient) {
-    this.client = client
-  }
+  constructor(private readonly client: RedisClient) {}
 
   private stringifyValues(data: Record<string, any>): Record<string, string> {
     const stringified: Record<string, string> = {}
     for (const [key, value] of Object.entries(data)) {
       if (value === undefined || value === null) {
         stringified[key] = ''
-      } else if (typeof value === 'string') {
+        continue
+      }
+      if (typeof value === 'string') {
         stringified[key] = value
-      } else if (Buffer.isBuffer(value)) {
+        continue
+      }
+      if (Buffer.isBuffer(value)) {
         stringified[key] = value.toString('utf-8')
-      } else if (typeof value === 'object') {
-        try {
-          stringified[key] = JSON.stringify(value)
-        } catch {
-          stringified[key] = ''
-        }
-      } else {
-        stringified[key] = String(value)
+        continue
+      }
+      try {
+        stringified[key] = typeof value === 'object' ? JSON.stringify(value) : String(value)
+      } catch {
+        stringified[key] = ''
       }
     }
     return stringified
@@ -61,7 +59,6 @@ export class LocalRedisWrapper implements RedisWrapper {
     const result = await this.client.zRange(key, start, stop, options?.rev ? { REV: true } : undefined)
     return result.map(item => {
       if (Buffer.isBuffer(item)) return item.toString('utf-8')
-      if (typeof item === 'string') return item
       return String(item)
     })
   }
@@ -83,15 +80,14 @@ export class LocalRedisWrapper implements RedisWrapper {
 
   async zadd(key: string, score: number, member: string): Promise<number> {
     if (!member) return 0
-    const result = await this.client.zAdd(key, { score, value: member.toString() })
-    return result || 0
+    const result = await this.client.zAdd(key, { score, value: member })
+    return result ? 1 : 0
   }
 
   async keys(pattern: string): Promise<string[]> {
     const result = await this.client.keys(pattern)
     return result.map(item => {
       if (Buffer.isBuffer(item)) return item.toString('utf-8')
-      if (typeof item === 'string') return item
       return String(item)
     })
   }
@@ -117,32 +113,40 @@ export async function getRedisClient(): Promise<LocalRedisWrapper> {
 }
 
 export class UpstashRedisWrapper implements RedisWrapper {
-  constructor(private client: Redis) {}
+  constructor(private readonly client: Redis) {}
 
   async zrange(key: string, start: number, stop: number, options?: { rev?: boolean }): Promise<string[]> {
-    return this.client.zrange(key, start, stop, options?.rev ? { rev: true } : undefined)
+    const result = await this.client.zrange(key, start, stop, options?.rev ? { rev: true } : undefined)
+    return result.map(String)
   }
 
   async hgetall<T extends Record<string, any>>(key: string): Promise<T | null> {
-    const result = await this.client.hgetall(key)
-    return result as T | null
+    const result = await this.client.hgetall<Record<string, string>>(key)
+    if (!result || !Object.keys(result).length) return null
+    return result as T
   }
 
   async hmset(key: string, value: Record<string, any>): Promise<number> {
-    const result = await this.client.hmset(key, value)
+    const stringified = Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)])
+    )
+    const result = await this.client.hmset(key, stringified)
     return result === 'OK' ? 1 : 0
   }
 
   async zadd(key: string, score: number, member: string): Promise<number> {
-    const result = await this.client.zadd(key, { score, member })
+    if (!member) return 0
+    const result = await this.client.zadd(key, { score, member: String(member) })
     return result || 0
   }
 
   async keys(pattern: string): Promise<string[]> {
-    return this.client.keys(pattern)
+    const result = await this.client.keys(pattern)
+    return result.map(String)
   }
 
   async del(key: string): Promise<number> {
-    return this.client.del(key)
+    const result = await this.client.del(key)
+    return result || 0
   }
 } 

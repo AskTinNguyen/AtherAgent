@@ -43,7 +43,7 @@ export function Chat({
     onError: error => {
       toast.error(`Error in chat: ${error.message}`)
     },
-    sendExtraMessageFields: true // Enable extra message fields for annotations
+    sendExtraMessageFields: true
   })
 
   const { data: researchState, mutate: mutateResearch } = useSWR<ChatResearchState>(
@@ -59,6 +59,47 @@ export function Chat({
     setMessages(savedMessages)
   }, [id])
 
+  // Handle command bar events
+  useEffect(() => {
+    const handleClearChat = () => {
+      setMessages([])
+      setData(undefined)
+    }
+
+    const handleExportChat = () => {
+      const chatData = {
+        id,
+        messages,
+        research: researchState
+      }
+      const blob = new Blob([JSON.stringify(chatData, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `chat-${id}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    }
+
+    const handleToggleChatMode = () => {
+      // Toggle between different chat modes if implemented
+      toast.info('Chat mode toggled')
+    }
+
+    // Listen for command bar events
+    document.addEventListener('clear-chat', handleClearChat)
+    document.addEventListener('export-chat', handleExportChat)
+    document.addEventListener('toggle-chat-mode', handleToggleChatMode)
+
+    return () => {
+      document.removeEventListener('clear-chat', handleClearChat)
+      document.removeEventListener('export-chat', handleExportChat)
+      document.removeEventListener('toggle-chat-mode', handleToggleChatMode)
+    }
+  }, [id, messages, researchState, setData, setMessages])
+
   const onQuerySelect = (query: string) => {
     append({
       role: 'user',
@@ -68,7 +109,7 @@ export function Chat({
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setData(undefined) // reset data to clear tool call
+    setData(undefined)
     handleSubmit(e)
   }
 
@@ -100,7 +141,7 @@ export function Chat({
 
   return (
     <ResearchProvider>
-    <div className="flex min-h-screen">
+      <div className="flex min-h-screen">
         <DeepResearchVisualization
           location="sidebar"
           chatId={id}
@@ -131,7 +172,7 @@ export function Chat({
             />
           </div>
         </div>
-    </div>
+      </div>
     </ResearchProvider>
   )
 }
