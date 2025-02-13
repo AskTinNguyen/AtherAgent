@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { type ResearchState } from '../deep-research-provider'
 import { MetricsGrid } from './metrics-grid'
 import { ResearchContent } from './research-content'
@@ -34,25 +34,35 @@ export function ResearchCommandCenter({
   isCollapsed
 }: ResearchCommandCenterProps) {
   const [isFullScreen, setIsFullScreen] = useState(false)
+  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now())
 
+  // Track state updates
+  useEffect(() => {
+    setLastUpdateTime(Date.now())
+  }, [state])
+
+  // Handle state clearing
   const handleClearAll = useCallback(async () => {
-    if (!confirm('Are you sure you want to clear research history for this chat? This cannot be undone.')) 
-      return
-
-    try {
-      if (onClearStateChange) {
-        await onClearStateChange(chatId, true)
-      }
-      
-      onSetActive(false)
-      onClearState()
-      onInitProgress(7, 0)
-      sessionStorage.setItem(`deepResearchCleared_${chatId}`, 'true')
-    } catch (error) {
-      console.error('Failed to clear research state:', error)
-      alert('Failed to clear research history. Please try again.')
+    onClearState()
+    onSetActive(false)
+    if (onClearStateChange) {
+      await onClearStateChange(chatId, true)
     }
-  }, [chatId, onClearState, onSetActive, onInitProgress, onClearStateChange])
+  }, [onClearState, onSetActive, onClearStateChange, chatId])
+
+  // Auto-collapse when inactive for too long
+  useEffect(() => {
+    const inactivityTimeout = 5 * 60 * 1000 // 5 minutes
+    const checkInactivity = () => {
+      const now = Date.now()
+      if (now - lastUpdateTime > inactivityTimeout && !state.isActive) {
+        onSetActive(false)
+      }
+    }
+
+    const interval = setInterval(checkInactivity, 60000) // Check every minute
+    return () => clearInterval(interval)
+  }, [lastUpdateTime, state.isActive, onSetActive])
 
   return (
     <div className={cn(
@@ -69,7 +79,7 @@ export function ResearchCommandCenter({
           isActive={state.isActive}
           isCollapsed={isCollapsed}
           isFullScreen={isFullScreen}
-          onCollapse={() => setIsCollapsed(!isCollapsed)}
+          onCollapse={() => setIsFullScreen(false)}
           onFullScreen={() => setIsFullScreen(!isFullScreen)}
           onClearAll={handleClearAll}
           location={location}

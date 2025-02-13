@@ -1,6 +1,7 @@
 'use client'
 
 import { CHAT_ID } from '@/lib/constants'
+import { ResearchProvider } from '@/lib/contexts/research-context'
 import type { ChatResearchState } from '@/lib/types/research'
 import { Message, useChat } from 'ai/react'
 import { useEffect } from 'react'
@@ -8,7 +9,6 @@ import { toast } from 'sonner'
 import useSWR from 'swr'
 import { ChatMessages } from './chat-messages'
 import { ChatPanel } from './chat-panel'
-import { DeepResearchWrapper } from './deep-research-provider'
 import { DeepResearchVisualization } from './deep-research-visualization'
 
 export function Chat({
@@ -99,13 +99,8 @@ export function Chat({
   }
 
   return (
+    <ResearchProvider>
     <div className="flex min-h-screen">
-      <DeepResearchWrapper 
-        chatId={id} 
-        initialClearedState={researchState?.isCleared} 
-        onClearStateChange={handleClearResearch}
-        onDepthChange={handleDepthChange}
-      >
         <DeepResearchVisualization
           location="sidebar"
           chatId={id}
@@ -136,7 +131,7 @@ export function Chat({
             />
           </div>
         </div>
-      </DeepResearchWrapper>
     </div>
+    </ResearchProvider>
   )
 }

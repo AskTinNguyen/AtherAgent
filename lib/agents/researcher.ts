@@ -1,9 +1,11 @@
-import { SearchResult } from '@/lib/types'
+import { SearchResultItem, SearchResults, ToolResultContent } from '@/lib/types'
 import { CoreMessage, smoothStream, streamText } from 'ai'
+import { ResearchContext } from '../ai/research-processor'
 import { retrieveTool } from '../tools/retrieve'
 import { searchTool } from '../tools/search'
 import { videoSearchTool } from '../tools/video-search'
 import { getModel } from '../utils/registry'
+import { checkDiminishingReturns, executeResearchTools, refineQuery } from '../utils/research-loop'
 
 // Define interfaces for tool configuration
 interface ResearchTools {
@@ -25,8 +27,7 @@ interface SearchToolParams {
 const AVAILABLE_TOOLS: ResearchTools = {
   search: {
     ...searchTool,
-    // Ensure default values are provided for optional parameters
-    experimental_toToolResultContent: (result: { results: SearchResult[] }) => {
+    experimental_toToolResultContent: (result: SearchResults): ToolResultContent[] => {
       if (!result || !result.results) {
         return [{ type: 'text', text: 'No results found.' }]
       }
@@ -34,7 +35,7 @@ const AVAILABLE_TOOLS: ResearchTools = {
         {
           type: 'text',
           text: result.results
-            .map((r: SearchResult, i: number) => 
+            .map((r: SearchResultItem, i: number) => 
               `[${i + 1}] ${r.title}\n${r.content}\nURL: ${r.url}`
             )
             .join('\n\n')
@@ -54,13 +55,15 @@ interface ResearcherConfig {
   messages: CoreMessage[]
   model: string
   searchMode: boolean
+  context?: ResearchContext
+  maxIterations?: number
 }
 
 const SYSTEM_PROMPT = `
 Instructions:
 
 You are Ather, a powerful agentic AI assistant providing accurate information. Exclusively available in SIMOS, the world's first agentic AI Simulation Platform, enabling you to act both independently and collaboratively with a USER.
-Today is ${now}. You are pair working with a USER to solve their tasks. The task may require running a new research, modifying or visualizing an existing data, or simply answering a question.
+Today is ${new Date().toLocaleString()}. You are pair working with a USER to solve their tasks. The task may require running a new research, modifying or visualizing an existing data, or simply answering a question.
 
 Follow these instructions when responding:
   - You may be asked to research subjects that is after your knowledge cutoff, assume the user is right when presented with news until present with the latest news from news searches of the present day.
@@ -216,25 +219,104 @@ Search tool is disabled, You must answer the user's request using the other rele
 
 `
 
+// Define researcher return interface
 type ResearcherReturn = Parameters<typeof streamText>[0]
+
+// Track research iterations
+interface ResearchState {
+  iterations: {
+    query: string
+    results: any[]
+    timestamp: number
+  }[]
+  currentDepth: number
+  maxDepth: number
+  recentFindings: string[]
+}
 
 export function researcher({
   messages,
   model,
-  searchMode
+  searchMode,
+  context,
+  maxIterations = 5
 }: ResearcherConfig): ResearcherReturn {
   try {
     const currentDate = new Date().toLocaleString()
+    const researchState: ResearchState = {
+      iterations: [],
+      currentDepth: context?.currentDepth || 1,
+      maxDepth: context?.maxDepth || 3,
+      recentFindings: context?.recentFindings || []
+    }
+
+    // Enhanced tool execution with the research loop
+    const enhancedTools = {
+      ...AVAILABLE_TOOLS,
+      search: {
+        ...AVAILABLE_TOOLS.search,
+        execute: async (params: SearchToolParams) => {
+          const { query } = params
+          
+          // Execute initial search
+          const results = await executeResearchTools(query, { search: true })
+          researchState.iterations.push({
+            query,
+            results,
+            timestamp: Date.now()
+          })
+
+          // Check if we need to refine and search again
+          if (
+            !checkDiminishingReturns(results, researchState.iterations) && 
+            researchState.iterations.length < maxIterations
+          ) {
+            const refinedQuery = refineQuery(
+              query,
+              researchState.iterations,
+              {
+                currentQuery: query,
+                previousQueries: researchState.iterations.map(i => i.query),
+                currentDepth: researchState.currentDepth,
+                maxDepth: researchState.maxDepth,
+                recentFindings: researchState.recentFindings
+              }
+            )
+
+            if (refinedQuery !== query) {
+              const refinedResults = await executeResearchTools(refinedQuery, { search: true })
+              researchState.iterations.push({
+                query: refinedQuery,
+                results: refinedResults,
+                timestamp: Date.now()
+              })
+
+              // Combine results
+              return {
+                results: [
+                  ...results.flatMap((r: any) => r.data?.results || []),
+                  ...refinedResults.flatMap((r: any) => r.data?.results || [])
+                ]
+              }
+            }
+          }
+
+          return {
+            results: results.flatMap((r: any) => r.data?.results || [])
+          }
+        }
+      }
+    }
 
     return {
       model: getModel(model),
       system: `${SYSTEM_PROMPT}\nCurrent date and time: ${currentDate}`,
       messages,
-      tools: AVAILABLE_TOOLS,
+      tools: enhancedTools,
       experimental_activeTools: searchMode
-        ? Object.keys(AVAILABLE_TOOLS)
+        ? Object.keys(enhancedTools)
         : [],
-      maxSteps: searchMode ? 5 : 1,
+      maxSteps: searchMode ? maxIterations : 1,
       experimental_transform: smoothStream({ chunking: 'word' })
     }
   } catch (error) {

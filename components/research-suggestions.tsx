@@ -2,35 +2,15 @@
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AISuggestion, TopicAnalysis } from '@/lib/ai/research-processor'
+import { useResearch } from '@/lib/contexts/research-context'
+import { type ResearchSuggestion } from '@/lib/types/research'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { AlertCircle, Lightbulb, Loader2, Star, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { useDeepResearch } from './deep-research-provider'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
-
-interface ResearchSuggestion {
-  type: 'path' | 'source' | 'depth' | 'refinement' | 'related' | 'cross_reference'
-  content: string
-  confidence: number
-  metadata: {
-    sourceUrl?: string
-    depthLevel: number
-    category: string
-    relevanceScore: number
-    timestamp: number
-    sourceContext?: string
-    relatedTopics?: string[]
-    previousQueries?: string[]
-  }
-  context?: {
-    previousContent?: string
-    nextSteps?: string[]
-    rationale?: string
-  }
-}
 
 interface BookmarkedSuggestion extends Omit<ResearchSuggestion, 'metadata'> {
   id: string
@@ -137,14 +117,31 @@ function generateSuggestionContent(type: ResearchSuggestion['type'], context: {
 export type { ResearchSuggestion }
 
 export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', chatId }: ResearchSuggestionsProps) {
-  const { state, setSuggestions } = useDeepResearch()
-  const { activity, currentDepth, maxDepth, suggestions } = state
+  const { state, addActivity } = useResearch()
+  const { activity } = state
+  const currentDepth = state.depth?.current ?? 1
+  const maxDepth = state.depth?.max ?? 7
+  const suggestions = state.suggestions ?? []
+  
   const [isLoading, setIsLoading] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, boolean>>({})
   const [bookmarkedSuggestions, setBookmarkedSuggestions] = useState<Record<string, BookmarkedSuggestion>>({})
   const [hasAttemptedInitialLoad, setHasAttemptedInitialLoad] = useState(false)
+
+  // Function to convert suggestions to activities
+  const convertSuggestionsToActivities = (suggestions: ResearchSuggestion[]) => {
+    return suggestions.map(suggestion => ({
+      type: 'thought' as const,
+      status: 'complete' as const,
+      message: suggestion.content,
+      timestamp: new Date().toISOString(),
+      depth: suggestion.metadata.depthLevel,
+      completedSteps: state.completedSteps + 1,
+      totalSteps: state.totalExpectedSteps
+    }))
+  }
 
   // Load cached suggestions on mount
   useEffect(() => {
@@ -155,16 +152,15 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
       try {
         const response = await fetch(`/api/research/suggestions/cache?userId=${userId}&chatId=${chatId}`)
         if (!response.ok) {
-          // If no cache exists, generate new suggestions
           await generateSuggestions(0, true)
           return
         }
         
         const cachedSuggestions = await response.json()
         if (cachedSuggestions && cachedSuggestions.length > 0) {
-          setSuggestions(cachedSuggestions)
+          const activities = convertSuggestionsToActivities(cachedSuggestions)
+          activities.forEach(activity => addActivity(activity))
         } else {
-          // If cache is empty, generate new suggestions
           await generateSuggestions(0, true)
         }
       } catch (error) {
@@ -176,14 +172,14 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
       }
     }
     loadCachedSuggestions()
-  }, [chatId, userId, setSuggestions, hasAttemptedInitialLoad])
+  }, [chatId, userId, addActivity, hasAttemptedInitialLoad, state.completedSteps, state.totalExpectedSteps])
 
   // Monitor activity changes to trigger suggestion updates
   useEffect(() => {
-    if (activity.length > 0 && !isLoading && !isStreaming) {
+    if (activity.length > 0 && !isLoading && !isStreaming && suggestions.length === 0) {
       generateSuggestions(0, true)
     }
-  }, [activity.length])
+  }, [activity.length, isLoading, isStreaming, suggestions.length])
 
   // Function to generate suggestions based on current research state
   const generateSuggestions = useCallback(async (retryCount = 0, forceRefresh = false) => {
@@ -377,9 +373,11 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
         return scoreB - scoreA
       })
 
-      setSuggestions(sortedSuggestions)
+      // Convert suggestions to activities and add them
+      const activities = convertSuggestionsToActivities(sortedSuggestions)
+      activities.forEach(activity => addActivity(activity))
 
-      // Cache the new suggestions with chatId
+      // Cache the new suggestions
       await fetch('/api/research/suggestions/cache', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -405,7 +403,7 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
       setIsLoading(false)
       setIsStreaming(false)
     }
-  }, [activity, currentDepth, maxDepth, isLoading, isStreaming, suggestions.length, userId, chatId, setSuggestions])
+  }, [activity, currentDepth, maxDepth, isLoading, isStreaming, suggestions.length, userId, chatId, addActivity, state.completedSteps, state.totalExpectedSteps])
 
   const handleRetry = useCallback(() => {
     generateSuggestions(0, true)
@@ -530,7 +528,7 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
         </div>
       ) : (
         <div className="space-y-3">
-          {suggestions.map((suggestion, index) => (
+          {suggestions.map((suggestion: ResearchSuggestion, index: number) => (
             <motion.div
               key={`${suggestion.type}-${index}`}
               initial={{ opacity: 0, y: 10 }}

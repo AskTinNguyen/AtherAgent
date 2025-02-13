@@ -107,7 +107,7 @@ describe('Chart Data Processing', () => {
         const message = createChartMessage(data)
         expect(message).toBeTruthy()
         expect(message?.data.labels).toEqual(['A', 'B'])
-      })
+      }
     })
   })
 }) 

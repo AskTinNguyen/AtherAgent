@@ -1,23 +1,18 @@
 'use client'
 
+import { useResearch } from '@/lib/contexts/research-context'
 import { cn } from '@/lib/utils'
 import { Globe } from 'lucide-react'
 import { Toggle } from './ui/toggle'
 
-interface SearchModeToggleProps {
-  enabled: boolean
-  onEnabledChange: (enabled: boolean) => void
-}
+export function SearchModeToggle() {
+  const { state, toggleSearch } = useResearch()
 
-export function SearchModeToggle({
-  enabled,
-  onEnabledChange
-}: SearchModeToggleProps) {
   return (
     <Toggle
       aria-label="Toggle search mode"
-      pressed={enabled}
-      onPressedChange={onEnabledChange}
+      pressed={state.searchEnabled}
+      onPressedChange={toggleSearch}
       variant="outline"
       className={cn(
         'gap-1 px-3 border border-input text-muted-foreground bg-background',

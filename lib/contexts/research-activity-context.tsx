@@ -2,6 +2,7 @@
 
 import { createContext, ReactNode, useContext, useReducer, useState } from 'react'
 
+
 // Export types
 export interface ActivityItem {
   type: 'search' | 'extract' | 'analyze' | 'reasoning' | 'synthesis' | 'thought'
@@ -134,6 +135,19 @@ function researchReducer(state: ResearchState, action: ResearchAction): Research
 const ActivityContext = createContext<ActivityContextType | null>(null)
 const ResearchContext = createContext<ResearchContextType | null>(null)
 
+// Provider check utilities
+function assertContextExists<T>(
+  context: T | null,
+  contextName: string
+): asserts context is T {
+  if (context === null) {
+    throw new Error(
+      `${contextName} must be used within its Provider. ` +
+      'Please ensure the component is wrapped in ResearchActivityProvider.'
+    )
+  }
+}
+
 // Combined Provider
 export function ResearchActivityProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(researchReducer, initialResearchState)
@@ -173,19 +187,15 @@ export function ResearchActivityProvider({ children }: { children: ReactNode }) 
   )
 }
 
-// Hook
+// Hooks with enhanced error messages
 export function useActivity() {
   const context = useContext(ActivityContext)
-  if (!context) {
-    throw new Error('useActivity must be used within an ActivityProvider')
-  }
+  assertContextExists(context, 'useActivity')
   return context
 }
 
 export function useResearchContext() {
   const context = useContext(ResearchContext)
-  if (!context) {
-    throw new Error('useResearchContext must be used within a ResearchActivityProvider')
-  }
+  assertContextExists(context, 'useResearchContext')
   return context
 } 
