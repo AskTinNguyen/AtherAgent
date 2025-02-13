@@ -3,10 +3,19 @@
 import { useResearch } from '@/lib/contexts/research-context'
 import { cn } from '@/lib/utils'
 import { Globe } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Toggle } from './ui/toggle'
 
 export function SearchModeToggle() {
   const { state, toggleSearch } = useResearch()
+  const [shortcutKey, setShortcutKey] = useState<string>('Ctrl')
+
+  useEffect(() => {
+    // Check platform on client side
+    if (typeof window !== 'undefined') {
+      setShortcutKey(navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl')
+    }
+  }, [])
 
   return (
     <Toggle
@@ -25,7 +34,7 @@ export function SearchModeToggle() {
       <Globe className="size-4" />
       <span className="text-xs">Search</span>
       <kbd className="ml-2 text-[10px] text-muted-foreground">
-        {navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl'} + .
+        {shortcutKey} + .
       </kbd>
     </Toggle>
   )

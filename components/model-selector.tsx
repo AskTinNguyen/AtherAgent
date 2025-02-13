@@ -9,12 +9,12 @@ import { useEffect, useState } from 'react'
 import { createModelId } from '../lib/utils'
 import { Button } from './ui/button'
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList
 } from './ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
@@ -37,6 +37,7 @@ interface ModelSelectorProps {
 export function ModelSelector({ open: controlledOpen, onOpenChange }: ModelSelectorProps = {}) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
   const [selectedModelId, setSelectedModelId] = useState<string>('')
+  const [shortcutKey, setShortcutKey] = useState<string>('Ctrl')
 
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen : uncontrolledOpen
@@ -47,6 +48,13 @@ export function ModelSelector({ open: controlledOpen, onOpenChange }: ModelSelec
       setUncontrolledOpen(newOpen)
     }
   }
+
+  useEffect(() => {
+    // Check platform on client side
+    if (typeof window !== 'undefined') {
+      setShortcutKey(navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl')
+    }
+  }, [])
 
   useEffect(() => {
     const savedModel = getCookie('selected-model')
@@ -92,7 +100,7 @@ export function ModelSelector({ open: controlledOpen, onOpenChange }: ModelSelec
               <span>Select model</span>
             )}
             <kbd className="ml-1 text-[10px] text-muted-foreground hidden sm:inline-block">
-              {navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl'} + ↑
+              {shortcutKey} + ↑
             </kbd>
           </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

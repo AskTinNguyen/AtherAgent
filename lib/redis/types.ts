@@ -8,6 +8,7 @@ export interface RedisWrapper {
   hmset(key: string, value: Record<string, any>): Promise<number>
   zadd(key: string, score: number, member: string): Promise<number>
   zrange(key: string, start: number, stop: number, options?: { rev?: boolean }): Promise<string[]>
+  zrem(key: string, member: string): Promise<number>
   keys(pattern: string): Promise<string[]>
   del(key: string): Promise<number>
 }
@@ -95,6 +96,12 @@ export class LocalRedisWrapper implements RedisWrapper {
   async del(key: string): Promise<number> {
     return this.client.del(key)
   }
+
+  async zrem(key: string, member: string): Promise<number> {
+    if (!member) return 0
+    const result = await this.client.zRem(key, member)
+    return result || 0
+  }
 }
 
 let redisClient: LocalRedisWrapper | null = null
@@ -147,6 +154,12 @@ export class UpstashRedisWrapper implements RedisWrapper {
 
   async del(key: string): Promise<number> {
     const result = await this.client.del(key)
+    return result || 0
+  }
+
+  async zrem(key: string, member: string): Promise<number> {
+    if (!member) return 0
+    const result = await this.client.zrem(key, member)
     return result || 0
   }
 } 

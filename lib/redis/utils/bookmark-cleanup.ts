@@ -29,13 +29,10 @@ export async function cleanupOldBookmarkData(): Promise<{
       }
     }
 
-    // 3. Delete all found keys in a pipeline
-    const pipeline = redis.pipeline()
-    keysToDelete.forEach(key => {
-      pipeline.del(key)
-    })
-
-    await pipeline.exec()
+    // 3. Delete all found keys
+    await Promise.all(
+      keysToDelete.map(key => redis.del(key))
+    )
     
     console.log(`Successfully deleted ${keysToDelete.length} old bookmark keys`)
     return {

@@ -10,27 +10,19 @@ describe('ChatOperations', () => {
     zadd: jest.fn(),
     zrange: jest.fn(),
     hgetall: jest.fn(),
-    pipeline: jest.fn(),
-    del: jest.fn()
-  }
-
-  const mockPipeline = {
-    hmset: jest.fn().mockReturnThis(),
-    zadd: jest.fn().mockReturnThis(),
-    hgetall: jest.fn().mockReturnThis(),
-    exec: jest.fn()
+    del: jest.fn(),
+    zrem: jest.fn()
   }
 
   beforeEach(() => {
     jest.clearAllMocks()
-    mockRedis.pipeline.mockReturnValue(mockPipeline)
     ;(getRedisClient as jest.Mock).mockResolvedValue(mockRedis)
   })
 
   describe('createChat', () => {
     it('should create a new chat successfully', async () => {
       const title = 'Test Chat'
-      mockRedis.hmset.mockResolvedValue('OK')
+      mockRedis.hmset.mockResolvedValue(1)
 
       const result = await ChatOperations.createChat(title)
 
@@ -63,19 +55,19 @@ describe('ChatOperations', () => {
 
     it('should store a message successfully', async () => {
       mockRedis.hgetall.mockResolvedValue({ messageCount: 0 })
-      mockPipeline.exec.mockResolvedValue([])
+      mockRedis.hmset.mockResolvedValue(1)
+      mockRedis.zadd.mockResolvedValue(1)
 
       const result = await ChatOperations.storeMessage(mockMessage)
 
       expect(result.success).toBe(true)
       expect(result.data).toEqual(mockMessage)
-      expect(mockPipeline.hmset).toHaveBeenCalled()
-      expect(mockPipeline.zadd).toHaveBeenCalled()
-      expect(mockPipeline.exec).toHaveBeenCalled()
+      expect(mockRedis.hmset).toHaveBeenCalled()
+      expect(mockRedis.zadd).toHaveBeenCalled()
     })
 
     it('should handle errors when storing message', async () => {
-      mockPipeline.exec.mockRejectedValue(new Error('Pipeline error'))
+      mockRedis.hmset.mockRejectedValue(new Error('Redis error'))
 
       const result = await ChatOperations.storeMessage(mockMessage)
 
@@ -93,14 +85,17 @@ describe('ChatOperations', () => {
       ]
 
       mockRedis.zrange.mockResolvedValue(messageIds)
-      mockPipeline.exec.mockResolvedValue(messages)
+      mockRedis.hgetall.mockImplementation((key) => {
+        const id = key.split(':').pop()
+        return Promise.resolve(messages.find(m => m.id === id))
+      })
 
       const result = await ChatOperations.getChatMessages('123')
 
       expect(result.success).toBe(true)
       expect(result.data).toHaveLength(2)
       expect(mockRedis.zrange).toHaveBeenCalled()
-      expect(mockPipeline.hgetall).toHaveBeenCalledTimes(2)
+      expect(mockRedis.hgetall).toHaveBeenCalledTimes(2)
     })
 
     it('should handle empty message list', async () => {
@@ -131,14 +126,17 @@ describe('ChatOperations', () => {
       ]
 
       mockRedis.zrange.mockResolvedValue(threadIds)
-      mockPipeline.exec.mockResolvedValue(messages)
+      mockRedis.hgetall.mockImplementation((key) => {
+        const id = key.split(':').pop()
+        return Promise.resolve(messages.find(m => m.id === id))
+      })
 
       const result = await ChatOperations.getMessageThread('123', 'parent')
 
       expect(result.success).toBe(true)
       expect(result.data).toHaveLength(2)
       expect(mockRedis.zrange).toHaveBeenCalled()
-      expect(mockPipeline.hgetall).toHaveBeenCalledTimes(2)
+      expect(mockRedis.hgetall).toHaveBeenCalledTimes(2)
     })
 
     it('should handle empty thread', async () => {

@@ -297,56 +297,58 @@ export async function createBookmark(
   const bookmark = createDefaultBookmarkProperties(type, userId, content, metadata)
   const redisSchema = bookmarkToRedisSchema(bookmark)
   
-  const pipeline = redis.pipeline()
-  
-  // Store core bookmark data
-  pipeline.hmset(
-    BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmark.id),
-    redisSchema.core
-  )
-  
-  // Store metadata
-  pipeline.hmset(
-    BOOKMARK_REDIS_KEYS.bookmarkResearchContext(bookmark.id),
-    redisSchema.metadata
-  )
-  
-  // Store analytics
-  pipeline.hmset(
-    BOOKMARK_REDIS_KEYS.bookmarkAnalytics(bookmark.id),
-    redisSchema.analytics
-  )
-  
-  // Store organization data
-  pipeline.hmset(
-    `${BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmark.id)}:organization`,
-    redisSchema.organization
-  )
-  
-  // Store sharing data
-  pipeline.hmset(
-    BOOKMARK_REDIS_KEYS.bookmarkPermissions(bookmark.id),
-    redisSchema.sharing
-  )
-  
-  // Add to user's bookmark list with timestamp score for ordering
-  pipeline.zadd(
-    BOOKMARK_REDIS_KEYS.userBookmarks(userId),
-    Date.now(),
-    bookmark.id
-  )
-  
-  // Add to category if not uncategorized
-  if (bookmark.organization.category !== 'uncategorized') {
-    pipeline.zadd(
-      BOOKMARK_REDIS_KEYS.bookmarkCategories(userId),
-      Date.now(),
-      bookmark.organization.category
+  try {
+    // Store core bookmark data
+    await redis.hmset(
+      BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmark.id),
+      redisSchema.core
     )
+    
+    // Store metadata
+    await redis.hmset(
+      BOOKMARK_REDIS_KEYS.bookmarkResearchContext(bookmark.id),
+      redisSchema.metadata
+    )
+    
+    // Store analytics
+    await redis.hmset(
+      BOOKMARK_REDIS_KEYS.bookmarkAnalytics(bookmark.id),
+      redisSchema.analytics
+    )
+    
+    // Store organization data
+    await redis.hmset(
+      `${BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmark.id)}:organization`,
+      redisSchema.organization
+    )
+    
+    // Store sharing data
+    await redis.hmset(
+      BOOKMARK_REDIS_KEYS.bookmarkPermissions(bookmark.id),
+      redisSchema.sharing
+    )
+    
+    // Add to user's bookmark list with timestamp score for ordering
+    await redis.zadd(
+      BOOKMARK_REDIS_KEYS.userBookmarks(userId),
+      Date.now(),
+      bookmark.id
+    )
+    
+    // Add to category if not uncategorized
+    if (bookmark.organization.category !== 'uncategorized') {
+      await redis.zadd(
+        BOOKMARK_REDIS_KEYS.bookmarkCategories(userId),
+        Date.now(),
+        bookmark.organization.category
+      )
+    }
+    
+    return bookmark
+  } catch (error) {
+    console.error('Failed to create bookmark:', error)
+    throw error
   }
-  
-  await pipeline.exec()
-  return bookmark
 }
 
 /**
@@ -354,36 +356,40 @@ export async function createBookmark(
  */
 export async function getBookmark(bookmarkId: string): Promise<EnhancedBookmark | null> {
   const redis = await getRedisClient()
-  const pipeline = redis.pipeline()
   
-  // Get all bookmark components
-  pipeline.hgetall(BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmarkId))
-  pipeline.hgetall(BOOKMARK_REDIS_KEYS.bookmarkResearchContext(bookmarkId))
-  pipeline.hgetall(BOOKMARK_REDIS_KEYS.bookmarkAnalytics(bookmarkId))
-  pipeline.hgetall(`${BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmarkId)}:organization`)
-  pipeline.hgetall(BOOKMARK_REDIS_KEYS.bookmarkPermissions(bookmarkId))
-  
-  const [core, metadata, analytics, organization, sharing] = await pipeline.exec()
-  
-  if (!core || !metadata || !analytics || !organization || !sharing) {
+  try {
+    // Get all bookmark components
+    const [core, metadata, analytics, organization, sharing] = await Promise.all([
+      redis.hgetall(BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmarkId)),
+      redis.hgetall(BOOKMARK_REDIS_KEYS.bookmarkResearchContext(bookmarkId)),
+      redis.hgetall(BOOKMARK_REDIS_KEYS.bookmarkAnalytics(bookmarkId)),
+      redis.hgetall(`${BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmarkId)}:organization`),
+      redis.hgetall(BOOKMARK_REDIS_KEYS.bookmarkPermissions(bookmarkId))
+    ])
+    
+    if (!core || !metadata || !analytics || !organization || !sharing) {
+      return null
+    }
+    
+    const redisSchema: BookmarkRedisSchema = {
+      core: core as any,
+      metadata: metadata as any,
+      analytics: analytics as any,
+      organization: organization as any,
+      sharing: sharing as any
+    }
+    
+    // Update last accessed time
+    const now = new Date().toISOString()
+    await redis.hmset(BOOKMARK_REDIS_KEYS.bookmarkAnalytics(bookmarkId), {
+      lastAccessed: now
+    })
+    
+    return redisSchemaToBookmark(redisSchema)
+  } catch (error) {
+    console.error('Failed to get bookmark:', error)
     return null
   }
-  
-  const redisSchema: BookmarkRedisSchema = {
-    core: core as any,
-    metadata: metadata as any,
-    analytics: analytics as any,
-    organization: organization as any,
-    sharing: sharing as any
-  }
-  
-  // Update last accessed time
-  const now = new Date().toISOString()
-  await redis.hmset(BOOKMARK_REDIS_KEYS.bookmarkAnalytics(bookmarkId), {
-    lastAccessed: now
-  })
-  
-  return redisSchemaToBookmark(redisSchema)
 }
 
 /**
@@ -495,17 +501,22 @@ export async function updateBookmark(
   }
   
   const redisSchema = bookmarkToRedisSchema(updated)
-  const pipeline = redis.pipeline()
   
-  // Update all components
-  pipeline.hmset(BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmarkId), redisSchema.core)
-  pipeline.hmset(BOOKMARK_REDIS_KEYS.bookmarkResearchContext(bookmarkId), redisSchema.metadata)
-  pipeline.hmset(BOOKMARK_REDIS_KEYS.bookmarkAnalytics(bookmarkId), redisSchema.analytics)
-  pipeline.hmset(`${BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmarkId)}:organization`, redisSchema.organization)
-  pipeline.hmset(BOOKMARK_REDIS_KEYS.bookmarkPermissions(bookmarkId), redisSchema.sharing)
-  
-  await pipeline.exec()
-  return updated
+  try {
+    // Update all components
+    await Promise.all([
+      redis.hmset(BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmarkId), redisSchema.core),
+      redis.hmset(BOOKMARK_REDIS_KEYS.bookmarkResearchContext(bookmarkId), redisSchema.metadata),
+      redis.hmset(BOOKMARK_REDIS_KEYS.bookmarkAnalytics(bookmarkId), redisSchema.analytics),
+      redis.hmset(`${BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmarkId)}:organization`, redisSchema.organization),
+      redis.hmset(BOOKMARK_REDIS_KEYS.bookmarkPermissions(bookmarkId), redisSchema.sharing)
+    ])
+    
+    return updated
+  } catch (error) {
+    console.error('Failed to update bookmark:', error)
+    return null
+  }
 }
 
 /**
@@ -519,18 +530,20 @@ export async function deleteBookmark(bookmarkId: string, userId: string): Promis
     return false
   }
   
-  const pipeline = redis.pipeline()
-  
-  // Remove from all storage locations
-  pipeline.del(BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmarkId))
-  pipeline.del(BOOKMARK_REDIS_KEYS.bookmarkResearchContext(bookmarkId))
-  pipeline.del(BOOKMARK_REDIS_KEYS.bookmarkAnalytics(bookmarkId))
-  pipeline.del(`${BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmarkId)}:organization`)
-  pipeline.del(BOOKMARK_REDIS_KEYS.bookmarkPermissions(bookmarkId))
-  
-  // Remove from user's bookmark list
-  pipeline.zrem(BOOKMARK_REDIS_KEYS.userBookmarks(userId), bookmarkId)
-  
-  await pipeline.exec()
-  return true
+  try {
+    // Remove from all storage locations in parallel
+    await Promise.all([
+      redis.del(BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmarkId)),
+      redis.del(BOOKMARK_REDIS_KEYS.bookmarkResearchContext(bookmarkId)),
+      redis.del(BOOKMARK_REDIS_KEYS.bookmarkAnalytics(bookmarkId)),
+      redis.del(`${BOOKMARK_REDIS_KEYS.bookmarkDetails(bookmarkId)}:organization`),
+      redis.del(BOOKMARK_REDIS_KEYS.bookmarkPermissions(bookmarkId)),
+      redis.zrem(BOOKMARK_REDIS_KEYS.userBookmarks(userId), bookmarkId)
+    ])
+    
+    return true
+  } catch (error) {
+    console.error('Failed to delete bookmark:', error)
+    return false
+  }
 } 

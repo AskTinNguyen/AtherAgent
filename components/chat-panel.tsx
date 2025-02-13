@@ -1,9 +1,11 @@
 'use client'
 
-import { AttachmentFile, SearchSource } from '@/lib/types'
+import { useResearch } from '@/lib/contexts/research-context'
+import { type SearchSource } from '@/lib/types'
+import { type AttachmentFile } from '@/lib/types/index'
 import { cn } from '@/lib/utils'
 import { uploadFile, validateFile } from '@/lib/utils/upload'
-import { Message } from 'ai'
+import { type Message } from 'ai'
 import { ArrowUp, Maximize2, MessageCirclePlus, Square, Type, Upload } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { useRouter } from 'next/navigation'
@@ -56,19 +58,19 @@ export function ChatPanel({
   onDepthChange
 }: ChatPanelProps) {
   const [showEmptyScreen, setShowEmptyScreen] = useState(false)
-  const [searchMode, setSearchMode] = useState(false)
   const [isFullSize, setIsFullSize] = useState(false)
   const [isMarkdownView, setIsMarkdownView] = useState(false)
   const router = useRouter()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const isFirstRender = useRef(true)
-  const [isComposing, setIsComposing] = useState(false) // Composition state
-  const [enterDisabled, setEnterDisabled] = useState(false) // Disable Enter after composition ends
+  const [isComposing, setIsComposing] = useState(false)
+  const [enterDisabled, setEnterDisabled] = useState(false)
   const [attachments, setAttachments] = useState<AttachmentFile[]>([])
   const [isSourcePickerVisible, setIsSourcePickerVisible] = useState(false)
   const [sourcePickerPosition, setSourcePickerPosition] = useState({ top: 0, left: 0 })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false)
+  const { state, toggleSearch } = useResearch()
 
   // Add keyboard shortcuts handler
   useEffect(() => {
@@ -76,9 +78,8 @@ export function ChatPanel({
       // Check for Command + . (Mac) or Control + . (Windows/Linux) for search mode
       if ((e.metaKey || e.ctrlKey) && e.key === '.') {
         e.preventDefault()
-        const newSearchMode = !searchMode
-        setSearchMode(newSearchMode)
-        onSearchModeChange?.(newSearchMode)
+        toggleSearch()
+        onSearchModeChange?.(state.searchEnabled)
       }
       
       // Check for Command + Up Arrow (Mac) or Control + Up Arrow (Windows/Linux) for model selector
@@ -90,7 +91,7 @@ export function ChatPanel({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [searchMode, onSearchModeChange, modelSelectorOpen])
+  }, [toggleSearch, modelSelectorOpen, state.searchEnabled, onSearchModeChange])
 
   const handleCompositionStart = () => setIsComposing(true)
 
@@ -105,7 +106,6 @@ export function ChatPanel({
   const handleNewChat = () => {
     setMessages([])
     setShowEmptyScreen(false)
-    setSearchMode(false)
     setIsFullSize(false)
     setIsMarkdownView(false)
     setAttachments([])
@@ -217,7 +217,6 @@ export function ChatPanel({
     if (query) {
       handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLTextAreaElement>)
       setShowEmptyScreen(false)
-      setSearchMode(false)
       setIsFullSize(false)
       setIsMarkdownView(false)
       setAttachments([])
@@ -471,19 +470,8 @@ export function ChatPanel({
             {/* Left side buttons group - Currently contains ModelSelector and SearchModeToggle */}
             <div className="flex items-center gap-2">
                 <ModelSelector open={modelSelectorOpen} onOpenChange={setModelSelectorOpen} />
-                <SearchModeToggle
-                    enabled={searchMode}
-                    onEnabledChange={(enabled: boolean) => {
-                        setSearchMode(enabled)
-                        onSearchModeChange?.(enabled)
-                    }}
-                />
-                <SearchDepthToggle
-                    enabled={searchMode}
-                    currentDepth={currentDepth}
-                    maxDepth={maxDepth}
-                    onDepthChange={onDepthChange ?? (() => {})}
-                />
+                <SearchModeToggle />
+                <SearchDepthToggle />
             </div>
 
             {/* Right side buttons group - Currently contains New Chat, Full Size, and Submit */}
