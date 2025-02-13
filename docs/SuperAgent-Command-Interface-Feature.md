@@ -345,25 +345,87 @@ export interface CommandGroup {
    - Export Chat (⌘⇧E)
    - Toggle Chat Mode (⌘⇧M)
 
-### Technical Updates
-- Simplified provider hierarchy
-- Improved action registration
-- Enhanced search functionality
-- Better keyboard navigation
-- Proper section grouping
-- Streamlined component structure
+### Ather Command Trigger Feature
 
-### Visual Updates
-- Added backdrop blur effect
-- Implemented theme-aware styling
-- Added smooth animations
-- Improved keyboard shortcut display
-- Enhanced visual hierarchy
+#### Overview
+The Ather Command Trigger feature provides a natural language interface to AI capabilities. Users can simply type "Ather" followed by their intent in natural language, and the system will intelligently route the request to the appropriate AI capability.
 
-### Removed Components
-- `command-bar.tsx` (using kbar components directly)
-- `command-provider.tsx` (using kbar provider)
-- `types.ts` (using kbar types)
+#### Natural Language Commands
+Instead of strict command patterns, the interface presents high-level capabilities that users can invoke naturally:
+
+1. **Text Understanding** (⌘⇧T)
+   ```
+   Examples:
+   "Ather what's the main point of this text?"
+   "Ather can you summarize this for me?"
+   "Ather extract the key ideas from this"
+   ```
+
+2. **Research Assistant** (⌘⇧R)
+   ```
+   Examples:
+   "Ather help me research quantum computing"
+   "Ather what do you know about this topic?"
+   "Ather find relevant information about..."
+   ```
+
+3. **Code Assistant** (⌘⇧C)
+   ```
+   Examples:
+   "Ather help me write a function that..."
+   "Ather explain this code"
+   "Ather optimize this algorithm"
+   ```
+
+4. **Knowledge Base** (⌘⇧K)
+   ```
+   Examples:
+   "Ather explain how blockchain works"
+   "Ather what's the difference between X and Y?"
+   "Ather help me understand this concept"
+   ```
+
+#### Implementation Approach
+
+1. **Natural Language Processing**
+   - No strict regex patterns or command parsing
+   - Uses LLM to understand user intent
+   - Context-aware request handling
+   - Flexible input interpretation
+
+2. **System Prompts**
+   ```typescript
+   interface SystemPrompt {
+     category: 'understanding' | 'research' | 'code' | 'knowledge'
+     context: string
+     examples: string[]
+     constraints?: string[]
+   }
+   ```
+
+3. **UI Components**
+   - Minimalist command input
+   - Real-time suggestion of capabilities
+   - Example prompts as suggestions
+   - Visual feedback for AI processing
+
+4. **Interaction Flow**
+   ```
+   User Input -> LLM Intent Classification -> System Prompt Selection -> AI Processing -> Response
+   ```
+
+5. **Performance Considerations**
+   - Client-side intent pre-classification
+   - Cached system prompts
+   - Streaming responses for long-form content
+   - Progressive loading of suggestions
+
+#### Key Benefits
+- More intuitive user experience
+- No need to memorize specific commands
+- Flexible and adaptable to user's natural expression
+- Reduced cognitive load on users
+- Better handling of edge cases and variations
 
 ## Success Metrics
 

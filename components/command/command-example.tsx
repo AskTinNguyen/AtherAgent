@@ -1,5 +1,6 @@
 'use client'
 
+import { MessageType } from '@/lib/types/chat'
 import { cn } from '@/lib/utils'
 import {
     Action,
@@ -7,13 +8,18 @@ import {
     KBarPortal,
     KBarPositioner,
     KBarSearch,
+    useKBar,
     useRegisterActions
 } from 'kbar'
 import {
+    BookOpen,
+    Brain,
+    Code,
     Download,
     FileSearch,
     Home,
     PanelLeftClose,
+    Search,
     Settings,
     Sun,
     Trash2
@@ -23,11 +29,144 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { RenderResults } from './render-results'
 
+// Define the type for system prompts
+type SystemPrompts = {
+  [key: string]: string
+}
+
+// Simplified saved prompts for quick access
+const ATHER_SYSTEM_PROMPTS: SystemPrompts = {
+  understand: `I want you to analyze and summarize the following text, focusing on key points and main ideas while maintaining context:`,
+
+  research: `I want you to act as a research assistant and provide comprehensive information about the following topic:`,
+
+  code: `I want you to act as an expert software developer. Please help me with the following code-related request:`,
+
+  explain: `I want you to explain the following concept in clear, simple terms with examples:`
+}
+
+// Add this helper function to create chat messages
+function createChatMessage(content: string, role: 'user' | 'assistant' | 'system' = 'user') {
+  return {
+    id: crypto.randomUUID(),
+    role,
+    type: MessageType.TEXT,
+    content,
+    timestamp: Date.now()
+  }
+}
+
+// Simplified helper to dispatch chat messages
+function dispatchChatMessage(systemPrompt: string, userContent: string) {
+  // Create a new conversation with the system prompt and user content
+  document.dispatchEvent(new CustomEvent('chat-message', {
+    detail: createChatMessage(systemPrompt, 'system')
+  }))
+
+  document.dispatchEvent(new CustomEvent('chat-message', {
+    detail: createChatMessage(userContent, 'user')
+  }))
+
+  // Trigger send
+  document.dispatchEvent(new CustomEvent('chat-send'))
+}
+
+// Add this helper function at the top level
+function isAtherCommand(query: string) {
+  return query.toLowerCase().trim().startsWith('ather')
+}
+
+// Add root action for AI Commands
+const AI_ROOT_ACTION: Action = {
+  id: 'ather-root',
+  name: 'Quick Prompts',
+  keywords: '',
+  section: 'AI',
+  subtitle: 'Launch saved prompts'
+}
+
 export function CommandExample() {
   const { setTheme } = useTheme()
   const router = useRouter()
+  const { query } = useKBar()
 
-  const actions: Action[] = [
+  // Simplified Ather AI actions
+  const atherActions: Action[] = [
+    {
+      id: 'ather-understand',
+      name: 'Analyze Text',
+      shortcut: ['meta', 'shift', 't'],
+      keywords: 'analyze summarize understand text',
+      subtitle: 'Analyze or summarize text',
+      parent: 'ather-root',
+      icon: <Brain className="w-4 h-4" />,
+      perform: () => {
+        const input = document.querySelector<HTMLInputElement>('input.kbar-input')
+        const userInput = input?.value || ''
+        if (!userInput.trim()) return
+        
+        dispatchChatMessage(ATHER_SYSTEM_PROMPTS.understand, userInput)
+        query.toggle()
+      }
+    },
+    {
+      id: 'ather-research',
+      name: 'Research Topic',
+      shortcut: ['meta', 'shift', 'r'],
+      keywords: 'research investigate study topic',
+      subtitle: 'Research any topic',
+      parent: 'ather-root',
+      icon: <Search className="w-4 h-4" />,
+      perform: () => {
+        const input = document.querySelector<HTMLInputElement>('input.kbar-input')
+        const userInput = input?.value || ''
+        if (!userInput.trim()) return
+        
+        dispatchChatMessage(ATHER_SYSTEM_PROMPTS.research, userInput)
+        query.toggle()
+      }
+    },
+    {
+      id: 'ather-code',
+      name: 'Code Help',
+      shortcut: ['meta', 'shift', 'c'],
+      keywords: 'code program develop explain',
+      subtitle: 'Get coding assistance',
+      parent: 'ather-root',
+      icon: <Code className="w-4 h-4" />,
+      perform: () => {
+        const input = document.querySelector<HTMLInputElement>('input.kbar-input')
+        const userInput = input?.value || ''
+        if (!userInput.trim()) return
+        
+        dispatchChatMessage(ATHER_SYSTEM_PROMPTS.code, userInput)
+        query.toggle()
+      }
+    },
+    {
+      id: 'ather-explain',
+      name: 'Explain Concept',
+      shortcut: ['meta', 'shift', 'k'],
+      keywords: 'explain understand learn concept',
+      subtitle: 'Get concept explanations',
+      parent: 'ather-root',
+      icon: <BookOpen className="w-4 h-4" />,
+      perform: () => {
+        const input = document.querySelector<HTMLInputElement>('input.kbar-input')
+        const userInput = input?.value || ''
+        if (!userInput.trim()) return
+        
+        dispatchChatMessage(ATHER_SYSTEM_PROMPTS.explain, userInput)
+        query.toggle()
+      }
+    }
+  ]
+
+  // Register both root and AI actions together first
+  useRegisterActions([AI_ROOT_ACTION, ...atherActions])
+
+  // Register regular commands
+  const regularActions: Action[] = [
     // System Commands
     {
       id: 'theme',
@@ -112,8 +251,7 @@ export function CommandExample() {
     },
   ]
 
-  // Register actions with kbar
-  useRegisterActions(actions)
+  useRegisterActions(regularActions)
 
   return (
     <KBarPortal>
@@ -129,13 +267,13 @@ export function CommandExample() {
         >
           <KBarSearch 
             className={cn(
-              'flex h-12 w-full',
+              'flex h-12 w-full kbar-input',
               'border-b bg-transparent px-4',
               'text-sm placeholder:text-muted-foreground',
               'focus:outline-none focus:ring-0',
               'disabled:cursor-not-allowed disabled:opacity-50'
             )}
-            defaultPlaceholder="Type a command or search... (e.g., 'clear chat', 'toggle theme')"
+            defaultPlaceholder="Type your text, then select an AI command..."
           />
           <div className="max-h-[400px] overflow-y-auto p-2">
             <RenderResults />

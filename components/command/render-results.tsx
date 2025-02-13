@@ -1,55 +1,69 @@
 'use client'
 
-import { cn } from '@/lib/utils'
 import { KBarResults, useMatches } from 'kbar'
 
 export function RenderResults() {
-  const { results } = useMatches()
+  const { results, rootActionId } = useMatches()
+
+  // Separate AI commands and other results
+  const aiCommands = results.filter(item => 
+    typeof item !== 'string' && 
+    (item.section === 'AI Commands' || item.id === 'ather-root')
+  )
+  
+  const otherResults = results.filter(item => 
+    typeof item === 'string' || 
+    (item.section !== 'AI Commands' && item.id !== 'ather-root')
+  )
+
+  // Combine results with AI commands always at the top
+  const combinedResults = [...aiCommands, ...otherResults]
 
   return (
     <KBarResults
-      items={results}
-      onRender={({ item, active }) =>
-        typeof item === 'string' ? (
-          // Render section header
-          <div className="px-4 py-2 text-xs text-muted-foreground uppercase">
-            {item}
-          </div>
-        ) : (
-          // Render command item
+      items={combinedResults}
+      onRender={({ item, active }) => {
+        if (typeof item === 'string') {
+          return (
+            <div className="px-4 py-2 text-xs text-muted-foreground uppercase">
+              {item}
+            </div>
+          )
+        }
+
+        return (
           <div
-            className={cn(
-              'flex items-center justify-between px-4 py-2',
-              'rounded-md cursor-pointer',
-              'text-sm transition-colors',
-              active ? 'bg-accent text-accent-foreground' : 'hover:bg-muted'
-            )}
+            className={`
+              flex items-center justify-between px-4 py-2 rounded-md
+              ${active ? 'bg-accent text-accent-foreground' : 'transparent'}
+            `}
           >
             <div className="flex items-center gap-2">
-              {item.icon && <span>{item.icon}</span>}
-              <span>{item.name}</span>
+              {item.icon && <div className="w-4 h-4">{item.icon}</div>}
+              <div>
+                <div>{item.name}</div>
+                {item.subtitle && (
+                  <div className="text-xs text-muted-foreground">{item.subtitle}</div>
+                )}
+              </div>
             </div>
             {item.shortcut?.length ? (
               <div className="flex items-center gap-1">
-                {item.shortcut.map((sc) => (
+                {item.shortcut.map((shortcut: string) => (
                   <kbd
-                    key={sc}
-                    className={cn(
-                      'pointer-events-none inline-flex h-5 select-none items-center gap-1',
-                      'rounded border bg-muted px-1.5',
-                      'font-mono text-[10px] font-medium'
-                    )}
+                    key={shortcut}
+                    className="px-2 py-1 text-xs rounded bg-muted"
                   >
-                    {sc === 'meta' ? '⌘' : 
-                     sc === 'shift' ? '⇧' : 
-                     sc.charAt(0).toUpperCase() + sc.slice(1)}
+                    {shortcut === 'meta' ? '⌘' : 
+                     shortcut === 'shift' ? '⇧' : 
+                     shortcut.charAt(0).toUpperCase() + shortcut.slice(1)}
                   </kbd>
                 ))}
               </div>
             ) : null}
           </div>
         )
-      }
+      }}
     />
   )
 } 
