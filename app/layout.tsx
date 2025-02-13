@@ -2,7 +2,6 @@ import Footer from '@/components/footer'
 import Header from '@/components/header'
 import { CommandProviderWrapper } from '@/components/providers/command-provider-wrapper'
 import { SessionProvider } from '@/components/providers/session-provider'
-import { ResearchInitializer } from '@/components/research-initializer'
 import { Sidebar } from '@/components/sidebar'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
@@ -79,7 +78,6 @@ export default function RootLayout({
           >
             <ResearchProvider>
               <CommandProviderWrapper>
-                <ResearchInitializer />
                 <Header />
                 {children}
                 {enableSaveChatHistory && <Sidebar />}

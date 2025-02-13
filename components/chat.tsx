@@ -1,7 +1,6 @@
 'use client'
 
 import { CHAT_ID } from '@/lib/constants'
-import { ResearchProvider } from '@/lib/contexts/research-context'
 import type { ChatResearchState } from '@/lib/types/research'
 import { Message, useChat } from 'ai/react'
 import { useEffect } from 'react'
@@ -10,6 +9,7 @@ import useSWR from 'swr'
 import { ChatMessages } from './chat-messages'
 import { ChatPanel } from './chat-panel'
 import { DeepResearchVisualization } from './deep-research-visualization'
+import { ResearchInitializer } from './research-initializer'
 
 export function Chat({
   id,
@@ -140,39 +140,42 @@ export function Chat({
   }
 
   return (
-    <ResearchProvider>
-      <div className="flex min-h-screen">
-        <DeepResearchVisualization
-          location="sidebar"
-          chatId={id}
-          initialClearedState={researchState?.isCleared}
-          onClearStateChange={handleClearResearch}
-          onSuggestionSelect={onQuerySelect}
-        />
-        <div className="flex-1 flex justify-center">
-          <div className="w-full max-w-3xl pt-14 pb-60">
-            <ChatMessages
-              messages={messages}
-              data={data}
-              onQuerySelect={onQuerySelect}
-              isLoading={isLoading}
-              chatId={id}
-              setMessages={setMessages}
-            />
-            <ChatPanel
-              input={input}
-              handleInputChange={handleInputChange}
-              handleSubmit={onSubmit}
-              isLoading={isLoading}
-              messages={messages}
-              setMessages={setMessages}
-              stop={stop}
-              query={query}
-              append={append}
-            />
-          </div>
+    <div className="flex min-h-screen">
+      {messages.length > 0 && (
+        <>
+          <ResearchInitializer />
+          <DeepResearchVisualization
+            location="sidebar"
+            chatId={id}
+            initialClearedState={researchState?.isCleared}
+            onClearStateChange={handleClearResearch}
+            onSuggestionSelect={onQuerySelect}
+          />
+        </>
+      )}
+      <div className="flex-1 flex justify-center">
+        <div className="w-full max-w-3xl pt-14 pb-60">
+          <ChatMessages
+            messages={messages}
+            data={data}
+            onQuerySelect={onQuerySelect}
+            isLoading={isLoading}
+            chatId={id}
+            setMessages={setMessages}
+          />
+          <ChatPanel
+            input={input}
+            handleInputChange={handleInputChange}
+            handleSubmit={onSubmit}
+            isLoading={isLoading}
+            messages={messages}
+            setMessages={setMessages}
+            stop={stop}
+            query={query}
+            append={append}
+          />
         </div>
       </div>
-    </ResearchProvider>
+    </div>
   )
 }

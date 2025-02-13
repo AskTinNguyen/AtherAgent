@@ -3,6 +3,8 @@
 ## Overview
 Implementation plan for a Raycast/Superhuman-style command interface using kbar and existing project components. This feature will provide a fast, keyboard-first interface for navigating and controlling the application.
 
+![SuperAgent_Interface](public/images/SuperAgent_Interface.png)
+
 ## Technical Stack
 - **Core Libraries**:
   - @kbar/react (command bar interface)

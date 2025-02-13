@@ -67,6 +67,7 @@ export function CommandExample() {
       keywords: 'research panel toggle visualization show hide sidebar',
       perform: () => {
         document.dispatchEvent(new CustomEvent('toggle-research-panel'))
+        toast.success('Research panel toggled')
       },
       icon: <PanelLeftClose className="w-4 h-4" />,
       section: 'Research',
@@ -104,6 +105,7 @@ export function CommandExample() {
       keywords: 'chat mode toggle switch change settings',
       perform: () => {
         document.dispatchEvent(new CustomEvent('toggle-chat-mode'))
+        toast.success('Chat mode toggled')
       },
       icon: <Settings className="w-4 h-4" />,
       section: 'Chat',

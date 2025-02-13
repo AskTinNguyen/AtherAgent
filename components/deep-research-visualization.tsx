@@ -5,6 +5,7 @@ import { useResearch } from '@/lib/contexts/research-context'
 import { cn } from '@/lib/utils'
 import { ChevronLeft } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { ErrorBoundary } from './shared/error-boundary'
 import { Button } from './ui/button'
 import { ResearchCommandCenter } from './visualization/research-command-center'
@@ -49,7 +50,16 @@ export function DeepResearchVisualization({
   // Handle command bar toggle event
   useEffect(() => {
     const handleTogglePanel = () => {
-      setIsVisible(prev => !prev)
+      setIsVisible(prev => {
+        const newState = !prev
+        toast.info(`Panel visibility: ${newState ? 'Shown' : 'Hidden'}`)
+        return newState
+      })
+      setIsCollapsed(prev => {
+        const newState = !prev
+        toast.info(`Panel collapsed: ${newState ? 'Yes' : 'No'}`)
+        return newState
+      })
     }
 
     document.addEventListener('toggle-research-panel', handleTogglePanel)
@@ -67,6 +77,15 @@ export function DeepResearchVisualization({
     // Implementation depends on your needs
     console.log('Initializing progress:', { max, current })
   }, [])
+
+  // Update chevron button click handler to show toast
+  const handleChevronClick = () => {
+    setIsCollapsed(prev => {
+      const newState = !prev
+      toast.info(`Panel collapsed: ${newState ? 'Yes' : 'No'}`)
+      return newState
+    })
+  }
 
   // Only hide if explicitly cleared
   if (initialClearedState) {
@@ -96,7 +115,7 @@ export function DeepResearchVisualization({
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setIsCollapsed(!isCollapsed)}
+          onClick={handleChevronClick}
           className={cn(
             "fixed left-2 top-[calc(50vh-2rem)] rounded-full text-foreground/30 z-50",
             !state.isActive && "opacity-50"
