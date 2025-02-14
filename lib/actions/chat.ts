@@ -171,73 +171,34 @@ export async function clearChats(
 }
 
 export async function saveChat(chat: Chat, userId: string = 'anonymous') {
+  console.log('[DEBUG] Starting chat save:', { chatId: chat.id, userId })
+  
   try {
     const redis = await getRedisClient()
-    const multi = redis.multi() // Using multi() instead of pipeline() for better type support
-    const chatKey = `chat:${chat.id}`
+    const key = getUserChatKey(userId)
     
-    // Save chat metadata
-    const chatMetadata = {
-      id: chat.id,
-      title: chat.title,
-      createdAt: validateDate(chat.createdAt),
-      updatedAt: new Date().toISOString(),
-      messageCount: chat.messages.length,
-      userId,
-      sharePath: chat.sharePath
-    }
-    
-    multi.hmset(`${chatKey}:info`, chatMetadata)
-    
-    // Save messages individually and update message index
-    const timestamp = Date.now()
-    chat.messages.forEach((message, index) => {
-      const messageId = `${chat.id}:${index + 1}`
-      const messageKey = `message:${messageId}`
-      
-      // Store message data
-      multi.hmset(messageKey, {
-        id: messageId,
-        chatId: chat.id,
-        role: message.role,
-        content: typeof message.content === 'string' 
-          ? message.content 
-          : JSON.stringify(message.content),
-        createdAt: new Date(timestamp + index).toISOString()
-      })
-      
-      // Add to message index
-      multi.zadd(
-        `${chatKey}:messages`,
-        timestamp + index,
-        messageId
-      )
-    })
-    
-    // Add to user's chat list
-    multi.zadd(getUserChatKey(userId), timestamp, chatKey)
-    
-    // For backward compatibility, also save in old format
-    multi.hmset(chatKey, {
+    // Ensure chat has required fields
+    const chatToSave = {
       ...chat,
-      messages: JSON.stringify(chat.messages),
-      createdAt: validateDate(chat.createdAt)
+      id: chat.id || crypto.randomUUID(),
+      createdAt: validateDate(chat.createdAt || new Date().toISOString()),
+      userId
+    }
+    
+    console.log('[DEBUG] Prepared chat for save:', { chatId: chatToSave.id, key })
+    
+    // Save chat data
+    const result = await redis.zadd(key, {
+      score: new Date(chatToSave.createdAt).getTime(),
+      member: JSON.stringify(chatToSave)
     })
     
-    const results = await multi.exec() as RedisResult[]
+    console.log('[DEBUG] Chat save result:', { result, chatId: chatToSave.id })
     
-    // Check if any operation in the pipeline failed
-    if (!results || results.some((result: RedisResult) => result.err !== null)) {
-      throw new Error('One or more Redis operations failed during chat save')
-    }
-    
-    return true
+    revalidatePath('/')
+    return chatToSave
   } catch (error) {
-    console.error('Error saving chat:', error)
-    if (error instanceof Error) {
-      // Enhance error message with more context
-      throw new Error(`Failed to save chat: ${error.message}`)
-    }
+    console.error('[DEBUG] Error saving chat:', error)
     throw error
   }
 }

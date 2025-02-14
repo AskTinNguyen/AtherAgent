@@ -1,6 +1,5 @@
 'use client'
 
-import { CHAT_ID } from '@/lib/constants'
 import type { ChatResearchState } from '@/lib/types/research'
 import { Message, useChat } from 'ai/react'
 import { useEffect } from 'react'
@@ -20,6 +19,8 @@ export function Chat({
   savedMessages?: Message[]
   query?: string
 }) {
+  console.log('[DEBUG] Chat component mounting:', { id, hasMessages: savedMessages.length > 0 })
+
   const {
     messages,
     input,
@@ -33,14 +34,23 @@ export function Chat({
     setData
   } = useChat({
     initialMessages: savedMessages,
-    id: CHAT_ID,
+    id,
     body: {
-      id
+      id,
+      initialQuery: query
     },
-    onFinish: () => {
-      window.history.replaceState({}, '', `/search/${id}`)
+    onFinish: async () => {
+      console.log('[DEBUG] Chat finished, updating URL:', { id })
+      try {
+        await fetch(`/api/chat/${id}/validate`, { method: 'POST' })
+        window.history.replaceState({}, '', `/chat/${id}`)
+      } catch (error) {
+        console.error('[DEBUG] Error validating chat:', error)
+        toast.error('Error creating chat session')
+      }
     },
     onError: error => {
+      console.error('[DEBUG] Chat error:', error)
       toast.error(`Error in chat: ${error.message}`)
     },
     sendExtraMessageFields: true
@@ -56,8 +66,21 @@ export function Chat({
   )
 
   useEffect(() => {
-    setMessages(savedMessages)
-  }, [id])
+    const initializeChat = async () => {
+      console.log('[DEBUG] Initializing chat:', { id, messagesCount: messages.length })
+      try {
+        if (savedMessages.length === 0) {
+          await fetch(`/api/chat/${id}/init`, { method: 'POST' })
+        }
+        setMessages(savedMessages)
+      } catch (error) {
+        console.error('[DEBUG] Error initializing chat:', error)
+        toast.error('Error initializing chat session')
+      }
+    }
+
+    initializeChat()
+  }, [id, savedMessages])
 
   // Handle command bar events
   useEffect(() => {
