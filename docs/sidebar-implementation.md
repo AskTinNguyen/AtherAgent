@@ -74,34 +74,72 @@ sidebar/
 
 ## State Management
 
-### Redis Schema
+### Redis Schema Implementation Status
+✅ Completed:
+- Defined Redis key structure and types
+- Implemented folder CRUD operations
+- Added chat-to-folder mapping
+- Added sidebar preferences storage
+- Implemented folder reordering
+- Added proper error handling and validation
+
+### Redis Key Structure
 ```typescript
-interface RedisSchema {
-  // Folder Structure
-  'user:{userId}:folders': {
-    [folderId: string]: {
-      id: string
-      name: string
-      chats: string[]
-      createdAt: string
-      updatedAt: string
-      order: number
-    }
-  }
-
-  // Chat Group Mappings
-  'user:{userId}:chatGroups': {
-    [chatId: string]: string // folderId
-  }
-
-  // User Preferences
-  'user:{userId}:sidebarPrefs': {
-    isExpanded: boolean
-    lastActiveFolder: string
-    sortPreference: 'name' | 'date' | 'custom'
-  }
+const RedisKeys = {
+  folders: (userId: string) => `user:${userId}:folders`,
+  chatGroups: (userId: string) => `user:${userId}:chatGroups`,
+  sidebarPrefs: (userId: string) => `user:${userId}:sidebarPrefs`,
 }
 ```
+
+### Data Models
+```typescript
+interface Folder {
+  id: string
+  name: string
+  chats: string[]
+  createdAt: string
+  updatedAt: string
+  order: number
+}
+
+interface SidebarPreferences {
+  isExpanded: boolean
+  lastActiveFolder: string | null
+  sortPreference: 'name' | 'date' | 'custom'
+}
+```
+
+### Drag and Drop Implementation Status
+✅ Completed Features
+1. Core Setup
+   - Installed @dnd-kit packages
+   - Created DragDropContext provider
+   - Implemented drag event handlers
+   - Added folder reordering logic
+
+2. Draggable Components
+   - Created FolderItem component with drag handles
+   - Implemented ChatItem with drag functionality
+   - Added visual feedback during drag operations
+   - Implemented drop zone indicators
+
+3. Animations & Visual Feedback
+   - Added smooth transitions for drag operations
+   - Implemented drop zone highlighting
+   - Added cursor state changes
+   - Visual feedback for active drag states
+
+🔄 In Progress
+1. Mobile Optimization
+   - Touch gesture handling
+   - Mobile-friendly drag constraints
+   - Touch feedback improvements
+
+2. Performance Enhancements
+   - Drag operation debouncing
+   - Optimized re-renders
+   - Animation performance tuning
 
 ### Context Structure
 ```typescript
@@ -165,20 +203,78 @@ const KEYBOARD_SHORTCUTS = {
 ## Technical Implementation
 
 ### Drag and Drop Implementation
+
+#### DragDropContext
 ```typescript
-interface DragDropConfig {
-  types: {
-    CHAT: 'chat'
-    FOLDER: 'folder'
-    MULTI_SELECT: 'multi-select'
-  }
-  
-  zones: {
-    FOLDER: 'folder-zone'
-    SIDEBAR: 'sidebar-zone'
-    CHAT_LIST: 'chat-list-zone'
+interface DragDropContextValue {
+  activeId: string | null
+  activeParentId: string | null
+  items: string[]
+  setItems: (items: string[]) => void
+}
+```
+
+#### Drag Event Handlers
+```typescript
+// Drag Start
+const handleDragStart = (event: DragStartEvent) => {
+  setActiveId(active.id)
+  setActiveParentId(active.data.current?.sortable?.containerId)
+}
+
+// Drag Over
+const handleDragOver = async (event: DragOverEvent) => {
+  // Handle chat-to-folder drops
+  if (active.data.current?.type === 'chat' && over.data.current?.type === 'folder') {
+    await handleChatFolderDrop(activeId, overId)
   }
 }
+
+// Drag End
+const handleDragEnd = async (event: DragEndEvent) => {
+  // Handle folder reordering
+  if (active.id !== over.id) {
+    const newItems = arrayMove(items, oldIndex, newIndex)
+    await reorderFolders(userId, newItems)
+  }
+}
+```
+
+#### Draggable Components
+1. FolderItem
+   - Drag handle on folder icon
+   - Drop zone indicator for chat drops
+   - Visual feedback during drag
+   - Folder expansion toggle
+
+2. ChatItem
+   - Full item drag handle
+   - Parent folder tracking
+   - Active state management
+   - Drag constraints
+
+### Usage Example
+```typescript
+<DragDropProvider userId={userId} initialItems={folderIds}>
+  <div className="sidebar-content">
+    {folders.map((folder, index) => (
+      <FolderItem
+        key={folder.id}
+        folder={folder}
+        index={index}
+        items={folderIds}
+      />
+    ))}
+    {chats.map(chat => (
+      <ChatItem
+        key={chat.id}
+        id={chat.id}
+        title={chat.title}
+        folderId={chat.folderId}
+      />
+    ))}
+  </div>
+</DragDropProvider>
 ```
 
 ### Search Implementation
@@ -288,28 +384,28 @@ interface AriaConfig {
 ## Implementation Timeline
 
 ### Phase 1: Core Structure (Week 1)
-- [ ] Base sidebar container
-- [ ] Responsive layout
-- [ ] Basic state management
+- [x] Base sidebar container
+- [x] Responsive layout
+- [x] Basic state management
 - [ ] Redis schema setup
 
 ### Phase 2: Integration (Week 2)
-- [ ] Existing components
-- [ ] State sharing
-- [ ] Layout adjustments
-- [ ] Transition animations
+- [x] Existing components
+- [x] State sharing
+- [x] Layout adjustments
+- [x] Transition animations
 
 ### Phase 3: New Features (Week 3)
-- [ ] Search functionality
-- [ ] Folder system
+- [x] Search functionality
+- [x] Folder system
 - [ ] Drag and drop
 - [ ] Keyboard shortcuts
 
 ### Phase 4: Polish (Week 4)
 - [ ] Performance optimization
-- [ ] Accessibility improvements
+- [x] Accessibility improvements
 - [ ] Testing
-- [ ] Documentation
+- [x] Documentation
 
 ## Conclusion
 

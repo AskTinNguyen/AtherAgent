@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { DragDropProvider } from '@/lib/contexts/drag-drop-context'
 import { useSidebarContext } from '@/lib/contexts/sidebar-context'
 import { cn } from '@/lib/utils'
 import { Menu } from 'lucide-react'
@@ -28,12 +29,14 @@ export function Sidebar() {
           <SidebarHeader />
           <div className="flex-1 overflow-hidden">
             {isExpanded && (
-              <div className="h-full flex flex-col">
-                <SidebarContent />
-                <div className="flex-1 overflow-hidden">
-                  <BookmarkManager className="h-full" />
+              <DragDropProvider>
+                <div className="h-full flex flex-col">
+                  <SidebarContent />
+                  <div className="flex-1 overflow-hidden">
+                    <BookmarkManager className="h-full" />
+                  </div>
                 </div>
-              </div>
+              </DragDropProvider>
             )}
           </div>
           <SidebarFooter />
@@ -68,12 +71,14 @@ export function Sidebar() {
           <div className="flex flex-col h-full">
             <SidebarHeader />
             <div className="flex-1 overflow-hidden">
-              <div className="h-full flex flex-col">
-                <SidebarContent />
-                <div className="flex-1 overflow-hidden">
-                  <BookmarkManager className="h-full" />
+              <DragDropProvider>
+                <div className="h-full flex flex-col">
+                  <SidebarContent />
+                  <div className="flex-1 overflow-hidden">
+                    <BookmarkManager className="h-full" />
+                  </div>
                 </div>
-              </div>
+              </DragDropProvider>
             </div>
             <SidebarFooter />
           </div>

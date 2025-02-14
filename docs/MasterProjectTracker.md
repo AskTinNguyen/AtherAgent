@@ -114,38 +114,95 @@ Central tracking system for project progress, daily activities, and git commits.
     - Interactive node exploration
     - Real-time updates optimization
 
-- 🆕 Sidebar System Implementation
-  - [x] Core Structure
-    - [x] Base sidebar container
-    - [x] Responsive layout
-    - [x] Basic state management
-    - [ ] Redis schema setup
-  - [x] Integration Features
-    - [x] History chat panel
-    - [x] Research visualization
-    - [x] New chat creation
-    - [x] Search functionality
-  - [x] Folder Management
-    - [x] Create/Edit/Delete folders
-    - [x] Folder structure
-    - [x] Collapsible submenus
-    - [ ] Drag and drop organization
-    - [ ] Bulk actions support
-    - [ ] Automatic sorting
-  - [x] Mobile Responsiveness
-    - [x] Sheet menu for mobile
-    - [x] Responsive transitions
-    - [x] Touch-friendly interactions
-  - [x] UI Components
-    - [x] Retractable mini and wide sidebar
-    - [x] Scrollable sidebar menu
-    - [x] Grouped menu with labels
-    - [x] Extracted menu items configuration
-  - [ ] Performance & Accessibility
-    - [ ] Virtual scrolling
-    - [ ] Keyboard navigation
-    - [x] ARIA implementation
-    - [x] Focus management
+### Sidebar System Implementation
+**Status**: 🔄 In Progress
+- ✅ Core Structure
+  - ✅ Base sidebar container
+  - ✅ Responsive layout
+  - ✅ Basic state management
+  - ✅ Redis schema setup
+- ✅ Integration Features
+  - ✅ History chat panel
+  - ✅ Research visualization
+  - ✅ New chat creation
+  - ✅ Search functionality
+- 🔄 Folder Management
+  - ✅ Create/Edit/Delete folders
+  - ✅ Folder structure
+  - ✅ Collapsible submenus
+  - 🔄 Drag and drop organization
+    - ✅ DnD context setup
+    - ✅ Folder reordering
+    - ✅ Chat-to-folder drag
+    - ✅ Base components (Draggable/Droppable)
+    - ✅ Redis operations for folder management
+    - ✅ Chat item component
+    - ✅ Folder item component
+    - ✅ TypeScript improvements
+    - ✅ Sidebar integration
+    - ✅ Delete functionality
+    - ✅ Basic drag and drop functionality working
+    - ⏳ Drop zone indicators
+    - ⏳ Drag animations
+    - ⏳ Mobile touch support
+  - ⚠️ Bulk actions support
+  - ⚠️ Automatic sorting
+- ✅ Mobile Responsiveness
+  - ✅ Sheet menu for mobile
+  - ✅ Responsive transitions
+  - ✅ Touch-friendly interactions
+- ✅ UI Components
+  - ✅ Retractable mini and wide sidebar
+  - ✅ Scrollable sidebar menu
+  - ✅ Grouped menu with labels
+  - ✅ Extracted menu items configuration
+  - ✅ Improved default state (starts collapsed)
+- 🔄 Performance & Accessibility
+  - ⚠️ Virtual scrolling
+  - ⚠️ Keyboard navigation
+  - ✅ ARIA implementation
+  - ✅ Focus management
+
+### Current Sprint Tasks (February 15, 2025)
+1. ✅ Implement Redis Schema for Folders
+   - ✅ Design data structure
+   - ✅ Create CRUD operations
+   - ✅ Add persistence layer
+   - ✅ Implement caching strategy
+
+2. 🔄 Drag and Drop Implementation
+   - ✅ Set up DnD context
+   - ✅ Create drag zones
+   - ✅ Add drop handlers
+   - ✅ Implement basic drag and drop
+   - ⏳ Add drop zone indicators
+   - ⏳ Add animations
+   - ⏳ Mobile optimization
+
+3. ⚠️ Performance Optimization
+   - Add virtual scrolling
+   - Optimize re-renders
+   - Implement caching
+   - Add keyboard shortcuts
+
+### Technical Debt
+1. Folder System
+   - Need proper error handling for folder operations
+   - Add validation for folder names
+   - Implement folder limits
+   - Add folder sharing capabilities
+
+2. Search System
+   - Optimize search performance
+   - Add advanced filters
+   - Implement search history
+   - Add saved searches
+
+3. Mobile Experience
+   - Improve touch gestures
+   - Add swipe actions
+   - Optimize mobile layout
+   - Enhance mobile transitions
 
 ## Current Priority Tasks
 From To Do lists.md:
@@ -245,8 +302,8 @@ From To Do lists.md:
   - Skipped 100 already migrated/invalid chats
   - Zero migration failures
   - Improved data structure consistency
-- ⚠️ Known Issues:
-  - 404 "This page could not be found" error still occurs when creating new chat sessions
+- [x] Fixed Known Issues:
+  - 404 "This page could not be found" error still occurs when creating new chat session -> change /search to /chat
   - Need to investigate chat initialization process
   - Potential race condition in chat creation flow
 
@@ -333,3 +390,12 @@ From To Do lists.md:
   - Implemented cleanup utility for invalid entries
   - Known issue: 404 errors on new chat creation persist
   - Improved Redis data consistency and validation 
+
+### February 15, 2025
+#### Morning Progress
+- [x] Improved sidebar UX
+  - Changed default state to start collapsed
+  - Maintained smooth transition animations
+  - Preserved mobile responsiveness with sheet component
+  - Kept proper z-indexing and positioning
+  - Logo button visible in top-left when collapsed 

@@ -97,14 +97,16 @@ export type SerperSearchResultItem = {
 }
 
 // Chat Types
-export interface Chat extends Record<string, any> {
+export interface Chat {
   id: string
   title: string
-  createdAt: Date
-  userId: string
-  path: string
-  messages: ExtendedCoreMessage[]
-  sharePath?: string
+  path?: string
+  createdAt: number
+  updatedAt: number
+  order: number
+  lastMessage?: string
+  messageCount?: number
+  folderId?: string
 }
 
 export type ExtendedCoreMessage = Omit<CoreMessage, 'role' | 'content'> & {

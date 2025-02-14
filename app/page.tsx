@@ -3,6 +3,10 @@
 import { BlurReveal } from '@/components/blur-reveal'
 import { Chat } from '@/components/chat'
 import { useChatSession } from '@/lib/contexts/chat-session-context'
+import { memo } from 'react'
+
+// Memoize the Chat component to prevent unnecessary re-renders
+const MemoizedChat = memo(Chat)
 
 export default function Page() {
   const { chatId } = useChatSession()
@@ -45,7 +49,7 @@ export default function Page() {
             </div>
 
             {/* Chat Section - Main chat interface */}
-            {chatId && <Chat id={chatId} />}
+            {chatId && <MemoizedChat id={chatId} />}
           </div>
         </div>
       </main>
