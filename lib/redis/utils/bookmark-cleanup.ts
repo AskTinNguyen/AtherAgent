@@ -1,49 +1,89 @@
 import { getRedisClient } from '../config'
 
 /**
- * Utility to clean up old bookmark data from Redis
- * Only removes data with old bookmark-related keys
+ * Cleans up all bookmark-related data from Redis
  */
-export async function cleanupOldBookmarkData(): Promise<{
+export async function cleanupBookmarkData(): Promise<{
   deletedKeys: string[]
-  error?: string
+  success: boolean
 }> {
   const redis = await getRedisClient()
   const deletedKeys: string[] = []
 
   try {
-    // 1. Find all user bookmark keys
-    const userBookmarkPattern = 'user:*:bookmarks'
-    const userBookmarkKeys = await redis.keys(userBookmarkPattern)
+    // Get all bookmark-related keys
+    const patterns = [
+      'user:*:bookmarks',
+      'bookmark:*',
+      'user:*:bookmark:*',
+      'bookmark:*:permissions',
+      'bookmark:*:analytics',
+      'bookmark:*:research',
+      'bookmark:*:relations',
+      'bookmark:*:version'
+    ]
 
-    // 2. Find all bookmark detail keys
-    const bookmarkDetailPattern = 'bookmark:*'
-    const bookmarkDetailKeys = await redis.keys(bookmarkDetailPattern)
-
-    // Combine all keys to delete
-    const keysToDelete = [...userBookmarkKeys, ...bookmarkDetailKeys]
-
-    if (keysToDelete.length === 0) {
-      return {
-        deletedKeys: [],
-      }
+    // Get all keys matching our patterns
+    const keys: string[] = []
+    for (const pattern of patterns) {
+      const matchingKeys = await redis.keys(pattern)
+      keys.push(...matchingKeys)
     }
 
-    // 3. Delete all found keys
-    await Promise.all(
-      keysToDelete.map(key => redis.del(key))
-    )
-    
-    console.log(`Successfully deleted ${keysToDelete.length} old bookmark keys`)
-    return {
-      deletedKeys: keysToDelete
+    if (keys.length === 0) {
+      return { deletedKeys: [], success: true }
     }
 
+    // Delete all keys in batches to avoid timeout
+    const BATCH_SIZE = 100
+    for (let i = 0; i < keys.length; i += BATCH_SIZE) {
+      const batch = keys.slice(i, i + BATCH_SIZE)
+      await Promise.all(batch.map(key => redis.del(key)))
+      deletedKeys.push(...batch)
+    }
+
+    console.log(`Successfully deleted ${deletedKeys.length} bookmark-related keys`)
+    return { deletedKeys, success: true }
   } catch (error) {
-    console.error('Error cleaning up old bookmark data:', error)
-    return {
-      deletedKeys,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    console.error('Error cleaning up bookmark data:', error)
+    return { deletedKeys, success: false }
+  }
+}
+
+/**
+ * Verifies if cleanup was successful
+ */
+export async function verifyCleanup(): Promise<{
+  remainingKeys: string[]
+  isClean: boolean
+}> {
+  const redis = await getRedisClient()
+  
+  try {
+    // Check for any remaining bookmark keys
+    const patterns = [
+      'user:*:bookmarks',
+      'bookmark:*',
+      'user:*:bookmark:*',
+      'bookmark:*:permissions',
+      'bookmark:*:analytics',
+      'bookmark:*:research',
+      'bookmark:*:relations',
+      'bookmark:*:version'
+    ]
+
+    const remainingKeys: string[] = []
+    for (const pattern of patterns) {
+      const keys = await redis.keys(pattern)
+      remainingKeys.push(...keys)
     }
+    
+    return {
+      remainingKeys,
+      isClean: remainingKeys.length === 0
+    }
+  } catch (error) {
+    console.error('Error verifying cleanup:', error)
+    throw error
   }
 } 

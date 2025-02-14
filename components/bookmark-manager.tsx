@@ -3,35 +3,35 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  BaseMetadata,
-  BookmarkType,
-  ChatMetadata,
-  EnhancedBookmark,
-  ResearchMetadata,
-  SearchMetadata
+    BaseMetadata,
+    BookmarkType,
+    ChatMetadata,
+    EnhancedBookmark,
+    ResearchMetadata,
+    SearchMetadata
 } from '@/lib/redis/types/bookmarks'
 import { cn } from '@/lib/utils'
 import {
-  FolderOpen,
-  Search,
-  Tag,
-  Trash2
+    FolderOpen,
+    Search,
+    Tag,
+    Trash2
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -321,10 +321,9 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
   )
 
   return (
-    <div className={className}>
-      <div className="mb-6 space-y-4">
-        <div className="flex gap-4">
-          <div className="relative flex-1 max-w-sm">
+    <div className={cn("flex flex-col h-full", className)}>
+      <div className="flex-none p-4 space-y-4 border-t">
+        <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search bookmarks..."
@@ -333,9 +332,11 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
               className="pl-9"
             />
           </div>
+        
+        <div className="flex gap-2">
           <Select value={selectedType} onValueChange={(value) => setSelectedType(value as any)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by type" />
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="Type" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Types</SelectItem>
@@ -344,25 +345,23 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
               <SelectItem value="chat_message">Chat</SelectItem>
             </SelectContent>
           </Select>
+
           <Select value={sortBy} onValueChange={(value) => setSortBy(value as any)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Sort by" />
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="Sort" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="created">Created Date</SelectItem>
-              <SelectItem value="accessed">Last Accessed</SelectItem>
-              <SelectItem value="effectiveness">Effectiveness</SelectItem>
+              <SelectItem value="created">Created</SelectItem>
+              <SelectItem value="accessed">Accessed</SelectItem>
+              <SelectItem value="effectiveness">Effective</SelectItem>
             </SelectContent>
           </Select>
         </div>
         
-        <div className="flex gap-4">
-          <Select 
-            value={selectedCategory} 
-            onValueChange={setSelectedCategory}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by category" />
+        <div className="flex gap-2">
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Categories</SelectItem>
@@ -374,12 +373,9 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
             </SelectContent>
           </Select>
 
-          <Select 
-            value={selectedTag} 
-            onValueChange={setSelectedTag}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by tag" />
+          <Select value={selectedTag} onValueChange={setSelectedTag}>
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="Tag" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Tags</SelectItem>
@@ -394,12 +390,13 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
       </div>
 
       {error && (
-        <div className="text-destructive mb-4">
+        <div className="text-destructive p-4 text-sm">
           Error: {error}
         </div>
       )}
 
-      <ScrollArea className="h-[600px] pr-4">
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-4">
         {isLoading && page === 1 ? (
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
@@ -433,6 +430,7 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
             )}
           </>
         )}
+        </div>
       </ScrollArea>
     </div>
   )

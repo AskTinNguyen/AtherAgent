@@ -1,5 +1,6 @@
 'use client'
 
+import { useChatSession } from '@/lib/contexts/chat-session-context'
 import { useResearch } from '@/lib/contexts/research-context'
 import { type SearchSource } from '@/lib/types'
 import { type AttachmentFile } from '@/lib/types/index'
@@ -57,6 +58,7 @@ export function ChatPanel({
   maxDepth = 3,
   onDepthChange
 }: ChatPanelProps) {
+  const { setIsSessionActive } = useChatSession()
   const [showEmptyScreen, setShowEmptyScreen] = useState(false)
   const [isFullSize, setIsFullSize] = useState(false)
   const [isMarkdownView, setIsMarkdownView] = useState(false)
@@ -331,6 +333,13 @@ export function ChatPanel({
     setIsSourcePickerVisible(false)
   }
 
+  // Update the handleSubmit wrapper
+  const handleSubmitWrapper = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsSessionActive(true)
+    handleSubmit(e)
+  }
+
   return (
     <div
       className={cn(
@@ -347,18 +356,18 @@ export function ChatPanel({
         </div>
       )} */}
       <form
-        onSubmit={handleSubmit}
+        onSubmit={handleSubmitWrapper}
         className={cn(
-          'max-w-3xl w-full mx-auto',
+          'max-w-3xl w-full mx-auto overflow-hidden',
           messages.length > 0 ? 'px-2 py-4' : 'px-6'
         )}
       >
-        <div className="relative flex flex-col w-full gap-0 bg-muted rounded-3xl border border-input">
+        <div className="relative flex flex-col w-full gap-0 bg-muted rounded-3xl border border-input overflow-hidden">
           <div className="relative w-full">
             <div
               {...getRootProps()}
               className={cn(
-                'relative w-full',
+                'relative w-full overflow-hidden',
                 isDragActive && 'after:absolute after:inset-0 after:rounded-3xl after:border-2 after:border-dashed after:border-primary after:bg-primary/5 after:z-50'
               )}
             >
@@ -366,11 +375,11 @@ export function ChatPanel({
               {isMarkdownView ? (
                 <div 
                   className={cn(
-                    "w-full min-h-12 bg-transparent px-4 py-3 text-sm prose prose-sm max-w-none dark:prose-invert overflow-y-auto",
+                    "w-full min-h-12 bg-transparent px-4 py-3 text-sm prose prose-sm max-w-none dark:prose-invert overflow-y-auto break-words",
                     "prose-headings:mt-2 prose-headings:mb-1 prose-headings:text-foreground",
                     "prose-p:my-1 prose-p:leading-relaxed prose-p:text-muted-foreground",
-                    "prose-pre:my-1 prose-pre:p-2 prose-pre:bg-muted prose-pre:text-foreground",
-                    "prose-code:text-primary prose-code:bg-muted prose-code:p-1 prose-code:rounded",
+                    "prose-pre:my-1 prose-pre:p-2 prose-pre:bg-muted prose-pre:text-foreground prose-pre:overflow-x-auto",
+                    "prose-code:text-primary prose-code:bg-muted prose-code:p-1 prose-code:rounded prose-code:break-words",
                     "prose-strong:text-foreground prose-strong:font-semibold",
                     "prose-em:text-muted-foreground",
                     "prose-ul:my-1 prose-ol:my-1 prose-li:text-muted-foreground",
@@ -413,7 +422,7 @@ export function ChatPanel({
                   spellCheck={false}
                   value={input}
                   className={cn(
-                    "resize-none w-full bg-transparent border-0 px-4 py-3 text-sm",
+                    "resize-none w-full bg-transparent border-0 px-4 py-3 text-sm break-words",
                     "placeholder:text-muted-foreground focus-visible:outline-none",
                     "disabled:cursor-not-allowed disabled:opacity-50",
                     isDragActive && "opacity-50",

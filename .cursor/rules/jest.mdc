@@ -1,0 +1,29 @@
+---
+description: Jest Testing Framework
+globs: jest.*.*, *.test.ts
+---
+Jest Testing Framework
+
+### Incremental Approach
+1. Focus on one operation at a time
+2. Start with happy paths
+3. Add edge cases incrementally
+4. Document patterns and gotchas
+5. Each test should be independent, meaning that tests don’t share or rely on side effects from other tests.
+6. Use Jest’s lifecycle methods (beforeEach, afterEach, beforeAll, afterAll) to set up a clean testing environment if needed.
+7. Leverage Mocks and Spies Properly
+• When testing functions that interact with external systems (APIs, databases, etc.), replace those with mocks.
+• Use jest.fn(), jest.mock(), or jest.spyOn() to mimic behavior and record how functions are used. Monitor call counts or parameters to ensure your code behaves correctly.
+8. Write Clear and Explicit Assertions
+• Use Jest’s assertion methods wisely (e.g., toBe, toEqual, toThrow, etc.) to check expected outcomes exactly.
+• Provide useful messages or use custom matchers when it makes debugging a failing test easier.
+9. Use Code Coverage Tools
+• Jest comes with built-in support for code coverage. Use this feature to identify untested parts of your code.
+• While high coverage is not everything, it can be a useful metric to ensure key functionalities are exercised by your tests.
+10. Always record coverage and progress in this document at the end of each Phase.
+
+### Test Organization
+1. Group tests by operation
+2. Clear test descriptions
+3. Consistent mock patterns
+4. Shared test utilities

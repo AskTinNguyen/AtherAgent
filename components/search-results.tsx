@@ -4,7 +4,7 @@ import { ErrorBoundary } from '@/components/shared/error-boundary'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { useSources } from '@/lib/contexts/research-provider'
+import { SourcesProvider, useSources } from '@/lib/contexts/research-sources-context'
 import { compareSearchResults } from '@/lib/diff'
 import { DiffResult } from '@/lib/diff/types'
 import { SearchResult as BaseSearchResult } from '@/lib/types'
@@ -328,7 +328,9 @@ function SearchResultsContent({
 export function SearchResults(props: SearchResultsProps) {
   return (
     <ErrorBoundary>
-      <SearchResultsContent {...props} />
+      <SourcesProvider>
+        <SearchResultsContent {...props} />
+      </SourcesProvider>
     </ErrorBoundary>
   )
 }

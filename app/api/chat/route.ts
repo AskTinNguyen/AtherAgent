@@ -1,3 +1,4 @@
+import { getChats } from '@/lib/actions/chat'
 import { createManualToolStreamResponse } from '@/lib/streaming/create-manual-tool-stream'
 import { createToolCallingStreamResponse } from '@/lib/streaming/create-tool-calling-stream'
 import { ChatChartMessage } from '@/lib/types/chart'
@@ -41,6 +42,16 @@ function processChartData(message: string | { content: string }): { content: str
     return { content, chartData }
   } catch (error) {
     return { content: typeof message === 'string' ? message : message?.content || '' }
+  }
+}
+
+export async function GET() {
+  try {
+    const chats = await getChats('anonymous')
+    return Response.json(chats)
+  } catch (error) {
+    console.error('Error fetching chats:', error)
+    return Response.json([], { status: 500 })
   }
 }
 

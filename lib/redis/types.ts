@@ -3,14 +3,21 @@ import { createClient } from 'redis'
 
 export type RedisClient = ReturnType<typeof createClient>
 
+export interface RedisMulti {
+  hmset(key: string, value: Record<string, any>): this
+  zadd(key: string, score: number, member: string): this
+  exec(): Promise<Array<{ err: Error | null; result: any }>>
+}
+
 export interface RedisWrapper {
   hgetall<T extends Record<string, any>>(key: string): Promise<T | null>
   hmset(key: string, value: Record<string, any>): Promise<number>
   zadd(key: string, score: number, member: string): Promise<number>
   zrange(key: string, start: number, stop: number, options?: { rev?: boolean }): Promise<string[]>
-  zrem(key: string, member: string): Promise<number>
+  zrem(key: string, ...members: string[]): Promise<number>
   keys(pattern: string): Promise<string[]>
-  del(key: string): Promise<number>
+  del(...keys: string[]): Promise<number>
+  multi(): RedisMulti
 }
 
 export class LocalRedisWrapper implements RedisWrapper {
@@ -93,14 +100,43 @@ export class LocalRedisWrapper implements RedisWrapper {
     })
   }
 
-  async del(key: string): Promise<number> {
-    return this.client.del(key)
+  async del(...keys: string[]): Promise<number> {
+    if (!keys.length) return 0
+    return this.client.del(keys as any)
   }
 
-  async zrem(key: string, member: string): Promise<number> {
-    if (!member) return 0
-    const result = await this.client.zRem(key, member)
+  async zrem(key: string, ...members: string[]): Promise<number> {
+    if (!members.length) return 0
+    const result = await this.client.zRem(key, members as any)
     return result || 0
+  }
+
+  multi(): RedisMulti {
+    const multi = this.client.multi()
+    const wrapper: RedisMulti = {
+      hmset: (key: string, value: Record<string, any>) => {
+        const stringified = this.stringifyValues(value)
+        const validEntries = Object.entries(stringified).filter(([_, val]) => val !== undefined && val !== null)
+        if (validEntries.length) {
+          multi.hSet(key, Object.fromEntries(validEntries))
+        }
+        return wrapper
+      },
+      zadd: (key: string, score: number, member: string) => {
+        if (member) {
+          multi.zAdd(key, { score, value: member })
+        }
+        return wrapper
+      },
+      exec: async () => {
+        const results = await multi.exec()
+        return results?.map(result => ({
+          err: result instanceof Error ? result : null,
+          result: result instanceof Error ? null : result
+        })) || []
+      }
+    }
+    return wrapper
   }
 }
 
@@ -152,14 +188,42 @@ export class UpstashRedisWrapper implements RedisWrapper {
     return result.map(String)
   }
 
-  async del(key: string): Promise<number> {
-    const result = await this.client.del(key)
+  async del(...keys: string[]): Promise<number> {
+    if (!keys.length) return 0
+    const result = await this.client.del(keys as any)
     return result || 0
   }
 
-  async zrem(key: string, member: string): Promise<number> {
-    if (!member) return 0
-    const result = await this.client.zrem(key, member)
+  async zrem(key: string, ...members: string[]): Promise<number> {
+    if (!members.length) return 0
+    const result = await this.client.zrem(key, members as any)
     return result || 0
+  }
+
+  multi(): RedisMulti {
+    const pipeline = this.client.pipeline()
+    const wrapper: RedisMulti = {
+      hmset: (key: string, value: Record<string, any>) => {
+        const stringified = Object.fromEntries(
+          Object.entries(value).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)])
+        )
+        pipeline.hmset(key, stringified)
+        return wrapper
+      },
+      zadd: (key: string, score: number, member: string) => {
+        if (member) {
+          pipeline.zadd(key, { score, member: String(member) })
+        }
+        return wrapper
+      },
+      exec: async () => {
+        const results = await pipeline.exec()
+        return results?.map(result => ({
+          err: result instanceof Error ? result : null,
+          result: result instanceof Error ? null : result
+        })) || []
+      }
+    }
+    return wrapper
   }
 } 

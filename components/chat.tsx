@@ -8,8 +8,8 @@ import { toast } from 'sonner'
 import useSWR from 'swr'
 import { ChatMessages } from './chat-messages'
 import { ChatPanel } from './chat-panel'
-import { DeepResearchVisualization } from './deep-research-visualization'
-import { ResearchInitializer } from './research-initializer'
+// import { DeepResearchVisualization } from './deep-research-visualization'
+// import { ResearchInitializer } from './research-initializer'
 
 export function Chat({
   id,
@@ -143,37 +143,43 @@ export function Chat({
     <div className="flex min-h-screen">
       {messages.length > 0 && (
         <>
-          <ResearchInitializer />
+          {/* <ResearchInitializer />
           <DeepResearchVisualization
             location="sidebar"
             chatId={id}
             initialClearedState={researchState?.isCleared}
             onClearStateChange={handleClearResearch}
             onSuggestionSelect={onQuerySelect}
-          />
+          /> */}
         </>
       )}
-      <div className="flex-1 flex justify-center">
-        <div className="w-full max-w-3xl pt-14 pb-60">
-          <ChatMessages
-            messages={messages}
-            data={data}
-            onQuerySelect={onQuerySelect}
-            isLoading={isLoading}
-            chatId={id}
-            setMessages={setMessages}
-          />
-          <ChatPanel
-            input={input}
-            handleInputChange={handleInputChange}
-            handleSubmit={onSubmit}
-            isLoading={isLoading}
-            messages={messages}
-            setMessages={setMessages}
-            stop={stop}
-            query={query}
-            append={append}
-          />
+      <div className="flex-1 flex justify-center transition-all duration-300">
+        <div className="relative w-full max-w-3xl">
+          <div className="pt-14 pb-32">
+            <ChatMessages
+              messages={messages}
+              data={data}
+              onQuerySelect={onQuerySelect}
+              isLoading={isLoading}
+              chatId={id}
+              setMessages={setMessages}
+            />
+          </div>
+          <div className="fixed bottom-0 left-0 right-0 lg:left-[400px] bg-gradient-to-t from-background to-background/0 pt-6">
+            <div className="mx-auto w-full max-w-3xl">
+              <ChatPanel
+                input={input}
+                handleInputChange={handleInputChange}
+                handleSubmit={onSubmit}
+                isLoading={isLoading}
+                messages={messages}
+                setMessages={setMessages}
+                stop={stop}
+                query={query}
+                append={append}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
