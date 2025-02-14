@@ -1,23 +1,27 @@
 'use client'
 
+import { useResearch } from '@/lib/contexts/research-context'
 import { cn } from '@/lib/utils'
 import { Globe } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Toggle } from './ui/toggle'
 
-interface SearchModeToggleProps {
-  enabled: boolean
-  onEnabledChange: (enabled: boolean) => void
-}
+export function SearchModeToggle() {
+  const { state, toggleSearch } = useResearch()
+  const [shortcutKey, setShortcutKey] = useState<string>('Ctrl')
 
-export function SearchModeToggle({
-  enabled,
-  onEnabledChange
-}: SearchModeToggleProps) {
+  useEffect(() => {
+    // Check platform on client side
+    if (typeof window !== 'undefined') {
+      setShortcutKey(navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl')
+    }
+  }, [])
+
   return (
     <Toggle
       aria-label="Toggle search mode"
-      pressed={enabled}
-      onPressedChange={onEnabledChange}
+      pressed={state.searchEnabled}
+      onPressedChange={toggleSearch}
       variant="outline"
       className={cn(
         'gap-1 px-3 border border-input text-muted-foreground bg-background',
@@ -30,7 +34,7 @@ export function SearchModeToggle({
       <Globe className="size-4" />
       <span className="text-xs">Search</span>
       <kbd className="ml-2 text-[10px] text-muted-foreground">
-        {navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl'} + .
+        {shortcutKey} + .
       </kbd>
     </Toggle>
   )

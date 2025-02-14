@@ -29,14 +29,13 @@ export async function DELETE(
     const userChatKey = `user:v2:chat:${userId}`
 
     // Delete the chat and its reference in the user's chat list
-    const pipeline = redis.pipeline()
-    pipeline.del(`chat:${chatId}`)
-    pipeline.zrem(userChatKey, `chat:${chatId}`)
-    
-    const results = await pipeline.exec()
+    const [deleteResult, removeResult] = await Promise.all([
+      redis.del(`chat:${chatId}`),
+      redis.zrem(userChatKey, `chat:${chatId}`)
+    ])
     
     // Check if deletion was successful
-    if (!results || results.some((result: unknown) => !result)) {
+    if (!deleteResult || !removeResult) {
       return NextResponse.json(
         { error: 'Failed to delete chat' },
         { status: 500 }

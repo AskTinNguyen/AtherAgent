@@ -1,42 +1,24 @@
+import { useResearch } from '@/lib/contexts/research-context'
 import * as Tabs from '@radix-ui/react-tabs'
 import { Layers } from 'lucide-react'
-import { type ResearchActivity, type ResearchMemory, type ResearchSource, type SourceMetrics } from '../deep-research-provider'
 import { ResearchHistoryTimeline } from '../research-history-timeline'
-import { ResearchPathVisualization } from '../research-path-visualization'
 import { ResearchSuggestions } from '../research-suggestions'
+import { ResearchPathVisualization } from './research-path-visualization'
 
 interface ResearchTabsProps {
-  activity: ResearchActivity[]
-  sources: ResearchSource[]
   chatId: string
   onSuggestionSelect?: (content: string) => void
-  currentDepth: number
-  maxDepth: number
-  researchMemory: ResearchMemory[]
-  sourceMetrics: SourceMetrics[]
 }
 
 const cn = (...classes: (string | boolean | undefined)[]) => 
   classes.filter((c): c is string => typeof c === 'string').join(' ')
 
 export function ResearchTabs({ 
-  activity, 
-  sources, 
   chatId, 
-  onSuggestionSelect,
-  currentDepth,
-  maxDepth,
-  researchMemory,
-  sourceMetrics
+  onSuggestionSelect
 }: ResearchTabsProps) {
-  // Add debug logging
-  console.log('ResearchTabs Props:', {
-    activity,
-    currentDepth,
-    maxDepth,
-    researchMemory,
-    sourceMetrics
-  })
+  const { state } = useResearch()
+  const { activity, sources } = state
 
   return (
     <Tabs.Root defaultValue="activity" className="h-[calc(100vh-11rem)] flex flex-col">
@@ -77,13 +59,7 @@ export function ResearchTabs({
         value="path" 
         className="flex-1 overflow-y-auto"
       >
-        <ResearchPathVisualization 
-          activity={activity}
-          currentDepth={currentDepth}
-          maxDepth={maxDepth}
-          researchMemory={researchMemory}
-          sourceMetrics={sourceMetrics}
-        />
+        <ResearchPathVisualization />
       </Tabs.Content>
 
       <Tabs.Content 

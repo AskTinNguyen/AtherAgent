@@ -9,6 +9,7 @@ interface StreamState {
   isStreaming: boolean
   currentMessageId: string | null
   streamedContent: string
+  toolCallStatus: 'none' | 'executing' | 'completed'
 }
 
 interface ChatMessagesProps {
@@ -32,7 +33,8 @@ export function ChatMessages({
   const [streamState, setStreamState] = useState<StreamState>({
     isStreaming: false,
     currentMessageId: null,
-    streamedContent: ''
+    streamedContent: '',
+    toolCallStatus: 'none'
   })
   const manualToolCallId = 'manual-tool-call'
   const scrollTimeout = useRef<NodeJS.Timeout>()
@@ -44,7 +46,8 @@ export function ChatMessages({
     setStreamState({
       isStreaming: false,
       currentMessageId: null,
-      streamedContent: ''
+      streamedContent: '',
+      toolCallStatus: 'none'
     })
     setMessages([]) // Clear messages when chatId changes
   }, [chatId, setMessages])
@@ -75,20 +78,64 @@ export function ChatMessages({
         if (!mounted) break
 
         if (typeof item === 'object' && item !== null) {
-          if ('type' in item && item.type === 'text' && 'value' in item) {
+          // Handle tool calls
+          if ('type' in item && item.type === 'tool_call') {
+            console.debug('🛠️ Tool Call Started:', { item })
             setStreamState(prev => ({
               ...prev,
               isStreaming: true,
-              streamedContent: item.value as string
+              toolCallStatus: 'executing'
             }))
           }
 
-          // Always process message updates, even if we think we're done
+          // Handle tool results
+          if ('type' in item && item.type === 'tool_result') {
+            console.debug('✅ Tool Call Completed:', { item })
+            setStreamState(prev => ({
+              ...prev,
+              toolCallStatus: 'completed',
+              isStreaming: true  // Keep streaming for subsequent content
+            }))
+          }
+
+          // Handle text streaming
+          if ('type' in item && item.type === 'text' && 'value' in item) {
+            console.debug('📝 Text Streaming:', { 
+              content: (item.value as string).slice(0, 50) + '...',
+              toolCallStatus: streamState.toolCallStatus 
+            })
+            setStreamState(prev => ({
+              ...prev,
+              isStreaming: true,
+              streamedContent: item.value as string,
+              toolCallStatus: prev.toolCallStatus === 'completed' ? 'none' : prev.toolCallStatus
+            }))
+          }
+
+          // Always process message updates
           if ('type' in item && item.type === 'message-update' && 'data' in item) {
+            console.debug('📨 Message Update:', { item })
             const messageData = item.data as unknown as { messages: Message[] }
             if (Array.isArray(messageData.messages)) {
+              const lastMessage = messageData.messages[messageData.messages.length - 1]
+              setStreamState(prev => ({
+                ...prev,
+                currentMessageId: lastMessage.id,
+                streamedContent: lastMessage.content
+              }))
               setMessages(messageData.messages)
             }
+          }
+
+          // Handle stream completion
+          if ('type' in item && item.type === 'done') {
+            console.debug('🏁 Stream Completed')
+            setStreamState(prev => ({
+              ...prev,
+              isStreaming: false,
+              currentMessageId: null,
+              toolCallStatus: 'none'
+            }))
           }
         }
       }
@@ -96,15 +143,14 @@ export function ChatMessages({
 
     processStreamData()
 
-    // Cleanup function
     return () => {
       mounted = false
     }
-  }, [data, setMessages])
+  }, [data, setMessages, streamState.toolCallStatus])
 
   // Update messages with streamed content
   useEffect(() => {
-    if (streamState.streamedContent && streamState.isStreaming) {
+    if (streamState.streamedContent && (streamState.isStreaming || streamState.toolCallStatus === 'completed')) {
       setMessages(prev => {
         const lastMessage = prev[prev.length - 1]
         if (lastMessage?.role === 'assistant') {
@@ -123,7 +169,7 @@ export function ChatMessages({
         ]
       })
     }
-  }, [streamState.streamedContent, streamState.isStreaming, setMessages])
+  }, [streamState.streamedContent, streamState.isStreaming, streamState.toolCallStatus, setMessages])
 
   // Cleanup timeout on unmount
   useEffect(() => {

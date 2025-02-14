@@ -1,18 +1,34 @@
 'use server'
 
 import { getRedisClient } from '@/lib/redis/config'
-import { type Chat } from '@/lib/types'
-import { normalizeDate } from '@/lib/utils'
+import { Message } from '@/lib/types/chat'
 import { JSONValue } from 'ai'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
-async function getRedis() {
-  return await getRedisClient()
+interface Chat {
+  id: string
+  title: string
+  messages: Message[]
+  createdAt: string
+  userId?: string
+  sharePath?: string
 }
 
-const CHAT_VERSION = 'v2'
+function validateDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr)
+    if (isNaN(date.getTime())) {
+      return new Date().toISOString()
+    }
+    return date.toISOString()
+  } catch {
+    return new Date().toISOString()
+  }
+}
+
 function getUserChatKey(userId: string) {
+  const CHAT_VERSION = 'v1'
   return `user:${CHAT_VERSION}:chat:${userId}`
 }
 
@@ -22,7 +38,7 @@ export async function getChats(userId?: string | null) {
   }
 
   try {
-    const redis = await getRedis()
+    const redis = await getRedisClient()
     const chats = await redis.zrange(getUserChatKey(userId), 0, -1, {
       rev: true
     })
@@ -38,8 +54,7 @@ export async function getChats(userId?: string | null) {
           return chat
         } catch (error) {
           console.error(`Error fetching chat ${chatKey}:`, error)
-          // Also remove invalid chat reference
-          await redis.zrem(getUserChatKey(userId), chatKey)
+          // Skip invalid chats
           return null
         }
       })
@@ -57,97 +72,19 @@ export async function getChats(userId?: string | null) {
         }
         return true
       })
-      .map((chat: Record<string, any>) => {
-        const plainChat = { ...chat }
-        if (typeof plainChat.messages === 'string') {
-          try {
-            const parsedMessages = JSON.parse(plainChat.messages)
-            plainChat.messages = parsedMessages.map((msg: any) => {
-              try {
-                // Handle special chart message type with better error handling
-                if (msg.type === 'chart') {
-                  return {
-                    ...msg,
-                    data: msg.data ? (
-                      typeof msg.data === 'string' ? 
-                        JSON.parse(msg.data) : 
-                        msg.data
-                    ) : null
-                  }
-                }
-
-                return {
-                  ...msg,
-                  // Enhanced tool invocations parsing
-                  ...(msg.toolInvocations && {
-                    toolInvocations: msg.toolInvocations.map((tool: any) => {
-                      try {
-                        return {
-                          ...tool,
-                          args: typeof tool.args === 'string' ? JSON.parse(tool.args) : tool.args,
-                          result: tool.result && typeof tool.result === 'string' ? 
-                            JSON.parse(tool.result) : tool.result
-                        }
-                      } catch (error) {
-                        console.error('Error parsing tool invocation:', error)
-                        return tool // Return original if parsing fails
-                      }
-                    })
-                  }),
-                  // Enhanced annotations parsing
-                  ...(msg.annotations && {
-                    annotations: msg.annotations.map((annotation: any) => {
-                      try {
-                        if (typeof annotation === 'string') {
-                          return JSON.parse(annotation)
-                        }
-                        // Enhanced chart annotation parsing
-                        if (annotation?.type === 'chart') {
-                          return {
-                            ...annotation,
-                            data: typeof annotation.data === 'string' ? 
-                              JSON.parse(annotation.data) : 
-                              annotation.data
-                          }
-                        }
-                        return annotation
-                      } catch (error) {
-                        console.error('Error parsing annotation:', error)
-                        return null // Skip invalid annotations
-                      }
-                    }).filter(Boolean) // Remove null annotations
-                  }),
-                  // Enhanced content parsing with chart extraction
-                  ...(msg.content && typeof msg.content === 'string' && {
-                    content: msg.content,
-                    annotations: [
-                      ...(msg.annotations || []),
-                      ...extractChartAnnotations(msg.content)
-                    ].filter(Boolean) // Remove null annotations
-                  })
-                }
-              } catch (error) {
-                console.error('Error processing message:', error)
-                return msg // Return original message if processing fails
-              }
-            }).filter(Boolean) // Remove null messages
-          } catch (error) {
-            console.error('Error parsing chat messages:', error)
-            plainChat.messages = []
-          }
-        }
-        // Normalize the date when retrieving
-        plainChat.createdAt = new Date(normalizeDate(plainChat.createdAt))
-        return plainChat as Chat
-      })
+      .map((chat: Record<string, any>) => ({
+        ...chat,
+        messages: typeof chat.messages === 'string' ? JSON.parse(chat.messages) : chat.messages,
+        createdAt: validateDate(chat.createdAt)
+      }))
   } catch (error) {
-    console.error('Error getting chats:', error)
+    console.error('Error fetching chats:', error)
     return []
   }
 }
 
 export async function getChat(id: string, userId: string = 'anonymous') {
-  const redis = await getRedis()
+  const redis = await getRedisClient()
   const chat = await redis.hgetall<Chat>(`chat:${id}`)
 
   if (!chat) {
@@ -157,76 +94,14 @@ export async function getChat(id: string, userId: string = 'anonymous') {
   // Parse the messages if they're stored as a string
   if (typeof chat.messages === 'string') {
     try {
-      // Parse messages and ensure tool invocations and annotations are preserved
-      const parsedMessages = JSON.parse(chat.messages)
-      chat.messages = parsedMessages.map((msg: any) => {
-        // Handle special chart message type
-        if (msg.type === 'chart' && msg.data) {
-          return {
-            ...msg,
-            data: typeof msg.data === 'string' ? JSON.parse(msg.data) : msg.data
-          }
-        }
-
-        return {
-          ...msg,
-          // Ensure tool invocations are properly structured
-          ...(msg.toolInvocations && {
-            toolInvocations: msg.toolInvocations.map((tool: any) => ({
-              ...tool,
-              args: typeof tool.args === 'string' ? JSON.parse(tool.args) : tool.args,
-              result: tool.result && typeof tool.result === 'string' ? 
-                JSON.parse(tool.result) : tool.result
-            }))
-          }),
-          // Ensure annotations (including charts) are properly structured
-          ...(msg.annotations && {
-            annotations: msg.annotations.map((annotation: any) => {
-              if (typeof annotation === 'string') {
-                try {
-                  return JSON.parse(annotation)
-                } catch {
-                  return annotation
-                }
-              }
-              // If it's a chart annotation, ensure data is properly parsed
-              if (annotation?.type === 'chart' && typeof annotation.data === 'string') {
-                try {
-                  return {
-                    ...annotation,
-                    data: JSON.parse(annotation.data)
-                  }
-                } catch {
-                  return annotation
-                }
-              }
-              return annotation
-            })
-          }),
-          // Handle chart data in content if present
-          ...(msg.content && typeof msg.content === 'string' && {
-            content: msg.content,
-            annotations: [
-              ...(msg.annotations || []),
-              ...extractChartAnnotations(msg.content)
-            ]
-          })
-        }
-      })
+      chat.messages = JSON.parse(chat.messages)
     } catch (error) {
       console.error('Error parsing chat messages:', error)
       chat.messages = []
     }
   }
 
-  // Ensure messages is always an array
-  if (!Array.isArray(chat.messages)) {
-    chat.messages = []
-  }
-
-  // Normalize the date when retrieving
-  chat.createdAt = new Date(normalizeDate(chat.createdAt))
-
+  chat.createdAt = validateDate(chat.createdAt)
   return chat
 }
 
@@ -259,42 +134,60 @@ function extractChartAnnotations(content: string): JSONValue[] {
 export async function clearChats(
   userId: string = 'anonymous'
 ): Promise<{ error?: string }> {
-  const redis = await getRedis()
+  const redis = await getRedisClient()
   const userChatKey = getUserChatKey(userId)
   const chats = await redis.zrange(userChatKey, 0, -1)
+  
   if (!chats.length) {
     return { error: 'No chats to clear' }
   }
-  const pipeline = redis.pipeline()
 
-  for (const chat of chats) {
-    pipeline.del(chat)
-    pipeline.zrem(userChatKey, chat)
+  try {
+    // Delete all chats and their references in parallel
+    const deleteResults = await Promise.all(
+      chats.flatMap(chat => [
+        redis.del(chat),
+        redis.zrem(userChatKey, chat)
+      ])
+    )
+
+    // Check if any operation failed
+    if (deleteResults.some(result => !result)) {
+      return { error: 'Some chats could not be deleted' }
+    }
+
+    revalidatePath('/')
+    redirect('/')
+    return {}
+  } catch (error) {
+    console.error('Error clearing chats:', error)
+    return { error: 'Failed to clear chats' }
   }
-
-  await pipeline.exec()
-
-  revalidatePath('/')
-  redirect('/')
 }
 
 export async function saveChat(chat: Chat, userId: string = 'anonymous') {
   try {
-    const redis = await getRedis()
-    const pipeline = redis.pipeline()
+    const redis = await getRedisClient()
 
     const chatToSave = {
       ...chat,
       messages: JSON.stringify(chat.messages),
-      createdAt: normalizeDate(chat.createdAt)
+      createdAt: validateDate(chat.createdAt)
     }
 
-    pipeline.hmset(`chat:${chat.id}`, chatToSave)
-    pipeline.zadd(getUserChatKey(userId), Date.now(), `chat:${chat.id}`)
+    // Save chat data
+    const saveResult = await redis.hmset(`chat:${chat.id}`, chatToSave)
+    if (!saveResult) {
+      throw new Error('Failed to save chat data')
+    }
 
-    const results = await pipeline.exec()
+    // Add to user's chat list
+    const indexResult = await redis.zadd(getUserChatKey(userId), Date.now(), `chat:${chat.id}`)
+    if (!indexResult) {
+      throw new Error('Failed to index chat')
+    }
 
-    return results
+    return true
   } catch (error) {
     console.error('Error saving chat:', error)
     throw error
@@ -302,7 +195,7 @@ export async function saveChat(chat: Chat, userId: string = 'anonymous') {
 }
 
 export async function getSharedChat(id: string) {
-  const redis = await getRedis()
+  const redis = await getRedisClient()
   const chat = await redis.hgetall<Chat>(`chat:${id}`)
 
   if (!chat || !chat.sharePath) {
@@ -313,7 +206,7 @@ export async function getSharedChat(id: string) {
 }
 
 export async function shareChat(id: string, userId: string = 'anonymous') {
-  const redis = await getRedis()
+  const redis = await getRedisClient()
   const chat = await redis.hgetall<Chat>(`chat:${id}`)
 
   if (!chat || chat.userId !== userId) {
@@ -325,7 +218,44 @@ export async function shareChat(id: string, userId: string = 'anonymous') {
     sharePath: `/share/${id}`
   }
 
-  await redis.hmset(`chat:${id}`, payload)
+  const result = await redis.hmset(`chat:${id}`, payload)
+  if (!result) {
+    throw new Error('Failed to update chat')
+  }
 
   return payload
+}
+
+export async function deleteChat(
+  chatId: string,
+  userId: string = 'anonymous'
+): Promise<{ error?: string }> {
+  const redis = await getRedisClient()
+  const userChatKey = getUserChatKey(userId)
+  const chats = await redis.zrange(userChatKey, 0, -1)
+  const chat = `chat:${chatId}`
+
+  if (!chats.includes(chat)) {
+    return { error: 'Unauthorized' }
+  }
+
+  try {
+    // Delete chat data
+    const deleteResult = await redis.del(chat)
+    if (!deleteResult) {
+      return { error: 'Failed to delete chat data' }
+    }
+
+    // Remove from user's chat list
+    const removeResult = await redis.zrem(userChatKey, chat)
+    if (!removeResult) {
+      return { error: 'Failed to remove chat from user list' }
+    }
+
+    revalidatePath('/')
+    return {}
+  } catch (error) {
+    console.error('Error deleting chat:', error)
+    return { error: 'Failed to delete chat' }
+  }
 }

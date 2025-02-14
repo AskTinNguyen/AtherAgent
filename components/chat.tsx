@@ -8,8 +8,8 @@ import { toast } from 'sonner'
 import useSWR from 'swr'
 import { ChatMessages } from './chat-messages'
 import { ChatPanel } from './chat-panel'
-import { DeepResearchWrapper } from './deep-research-provider'
 import { DeepResearchVisualization } from './deep-research-visualization'
+import { ResearchInitializer } from './research-initializer'
 
 export function Chat({
   id,
@@ -43,7 +43,7 @@ export function Chat({
     onError: error => {
       toast.error(`Error in chat: ${error.message}`)
     },
-    sendExtraMessageFields: true // Enable extra message fields for annotations
+    sendExtraMessageFields: true
   })
 
   const { data: researchState, mutate: mutateResearch } = useSWR<ChatResearchState>(
@@ -59,6 +59,47 @@ export function Chat({
     setMessages(savedMessages)
   }, [id])
 
+  // Handle command bar events
+  useEffect(() => {
+    const handleClearChat = () => {
+      setMessages([])
+      setData(undefined)
+    }
+
+    const handleExportChat = () => {
+      const chatData = {
+        id,
+        messages,
+        research: researchState
+      }
+      const blob = new Blob([JSON.stringify(chatData, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `chat-${id}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    }
+
+    const handleToggleChatMode = () => {
+      // Toggle between different chat modes if implemented
+      toast.info('Chat mode toggled')
+    }
+
+    // Listen for command bar events
+    document.addEventListener('clear-chat', handleClearChat)
+    document.addEventListener('export-chat', handleExportChat)
+    document.addEventListener('toggle-chat-mode', handleToggleChatMode)
+
+    return () => {
+      document.removeEventListener('clear-chat', handleClearChat)
+      document.removeEventListener('export-chat', handleExportChat)
+      document.removeEventListener('toggle-chat-mode', handleToggleChatMode)
+    }
+  }, [id, messages, researchState, setData, setMessages])
+
   const onQuerySelect = (query: string) => {
     append({
       role: 'user',
@@ -68,7 +109,7 @@ export function Chat({
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setData(undefined) // reset data to clear tool call
+    setData(undefined)
     handleSubmit(e)
   }
 
@@ -100,43 +141,41 @@ export function Chat({
 
   return (
     <div className="flex min-h-screen">
-      <DeepResearchWrapper 
-        chatId={id} 
-        initialClearedState={researchState?.isCleared} 
-        onClearStateChange={handleClearResearch}
-        onDepthChange={handleDepthChange}
-      >
-        <DeepResearchVisualization
-          location="sidebar"
-          chatId={id}
-          initialClearedState={researchState?.isCleared}
-          onClearStateChange={handleClearResearch}
-          onSuggestionSelect={onQuerySelect}
-        />
-        <div className="flex-1 flex justify-center">
-          <div className="w-full max-w-3xl pt-14 pb-60">
-            <ChatMessages
-              messages={messages}
-              data={data}
-              onQuerySelect={onQuerySelect}
-              isLoading={isLoading}
-              chatId={id}
-              setMessages={setMessages}
-            />
-            <ChatPanel
-              input={input}
-              handleInputChange={handleInputChange}
-              handleSubmit={onSubmit}
-              isLoading={isLoading}
-              messages={messages}
-              setMessages={setMessages}
-              stop={stop}
-              query={query}
-              append={append}
-            />
-          </div>
+      {messages.length > 0 && (
+        <>
+          <ResearchInitializer />
+          <DeepResearchVisualization
+            location="sidebar"
+            chatId={id}
+            initialClearedState={researchState?.isCleared}
+            onClearStateChange={handleClearResearch}
+            onSuggestionSelect={onQuerySelect}
+          />
+        </>
+      )}
+      <div className="flex-1 flex justify-center">
+        <div className="w-full max-w-3xl pt-14 pb-60">
+          <ChatMessages
+            messages={messages}
+            data={data}
+            onQuerySelect={onQuerySelect}
+            isLoading={isLoading}
+            chatId={id}
+            setMessages={setMessages}
+          />
+          <ChatPanel
+            input={input}
+            handleInputChange={handleInputChange}
+            handleSubmit={onSubmit}
+            isLoading={isLoading}
+            messages={messages}
+            setMessages={setMessages}
+            stop={stop}
+            query={query}
+            append={append}
+          />
         </div>
-      </DeepResearchWrapper>
+      </div>
     </div>
   )
 }

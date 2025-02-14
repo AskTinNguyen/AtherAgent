@@ -1,25 +1,54 @@
-import { searchSchema } from '@/lib/schema/search'
-import {
-    SearchResultImage,
-    SearchResultItem,
-    SearchResults,
-    SearXNGResponse,
-    SearXNGResult
-} from '@/lib/types'
+import { searchSchema, searchSchemaWithDefaults } from '@/lib/schema/search'
+import { SearchResult } from '@/lib/types'
 import { sanitizeUrl } from '@/lib/utils'
 import { tool } from 'ai'
 import Exa from 'exa-js'
 
+// Define interfaces for search results
+interface SearchImage {
+  url: string
+  description?: string
+}
+
+interface SearchResults {
+  results: Array<{
+    title: string
+    url: string
+    content: string
+    relevance?: number
+    depth?: number
+  }>
+  query: string
+  images: SearchImage[]
+  number_of_results: number
+}
+
+interface SearXNGResult {
+  url: string
+  title: string
+  content: string
+  img_src?: string
+}
+
+interface SearXNGResponse {
+  query: string
+  results: SearXNGResult[]
+  number_of_results?: number
+}
+
 export const searchTool = tool({
   description: 'Search the web for information',
   parameters: searchSchema,
-  execute: async ({
-    query,
-    max_results = 20,
-    search_depth = 'basic',
-    include_domains = [],
-    exclude_domains = []
-  }) => {
+  execute: async (args: unknown) => {
+    // Parse with defaults schema to ensure all optional fields have values
+    const {
+      query,
+      max_results = 20,
+      search_depth = 'basic',
+      include_domains = [],
+      exclude_domains = []
+    } = searchSchemaWithDefaults.parse(args)
+
     // Ensure arrays are properly initialized
     const includeDomains = Array.isArray(include_domains) ? include_domains : []
     const excludeDomains = Array.isArray(exclude_domains) ? exclude_domains : []
@@ -157,19 +186,27 @@ async function tavilySearch(
           description
         }))
         .filter(
-          (
-            image: SearchResultImage
-          ): image is { url: string; description: string } =>
+          (image: { url: string; description?: string }): image is SearchImage & { description: string } =>
             typeof image === 'object' &&
             image.description !== undefined &&
             image.description !== ''
         )
-    : data.images.map((url: string) => sanitizeUrl(url))
+    : data.images.map((url: string) => ({ url: sanitizeUrl(url) }))
+
+  const results = data.results.map((result: SearXNGResult) => ({
+    title: result.title || '',
+    url: result.url || '',
+    content: result.content || '',
+    relevance: 1,
+    depth: searchDepth === 'advanced' ? 2 : 1
+  }))
 
   return {
-    ...data,
-    images: processedImages
-  }
+    results,
+    query,
+    images: processedImages,
+    number_of_results: results.length
+  } satisfies SearchResults
 }
 
 async function exaSearch(
@@ -263,7 +300,7 @@ async function searxngSearch(
     // Format the results to match the expected SearchResults structure
     return {
       results: generalResults.map(
-        (result: SearXNGResult): SearchResultItem => ({
+        (result: SearXNGResult): SearchResult => ({
           title: result.title,
           url: result.url,
           content: result.content

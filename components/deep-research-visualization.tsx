@@ -1,127 +1,158 @@
 'use client'
 
+import { ResearchActivityProvider } from '@/lib/contexts/research-activity-context'
+import { useResearch } from '@/lib/contexts/research-context'
 import { cn } from '@/lib/utils'
 import { ChevronLeft } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useDeepResearch } from './deep-research-provider'
+import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { ErrorBoundary } from './shared/error-boundary'
 import { Button } from './ui/button'
 import { ResearchCommandCenter } from './visualization/research-command-center'
 
-interface DeepResearchVisualizationProps {
-  location: 'sidebar' | 'header'
-  chatId: string
-  onClearStateChange?: (chatId: string, isCleared: boolean) => Promise<void>
-  initialClearedState?: boolean
-  onSuggestionSelect?: (content: string) => void
-}
-
 export function DeepResearchVisualization({
   location,
   chatId,
-  onClearStateChange,
   initialClearedState = false,
+  onClearStateChange,
   onSuggestionSelect
-}: DeepResearchVisualizationProps) {
-  const { state, clearState, setActive, initProgress } = useDeepResearch()
+}: {
+  location: 'sidebar' | 'header'
+  chatId: string
+  initialClearedState?: boolean
+  onClearStateChange?: (chatId: string, isCleared: boolean) => Promise<void>
+  onSuggestionSelect?: (query: string) => void
+}) {
+  const { state, clearState } = useResearch()
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
+  const [isVisible, setIsVisible] = useState(true)
 
-  // Add initialization effect
+  // Handle initialization and state clearing
   useEffect(() => {
-    // Initialize with active state and default progress
-    setActive(true)
-    initProgress(7, 0)
-    
-    console.log('DeepResearch: Initialized state')
-  }, [setActive, initProgress])
+    if (!isInitialized) {
+      setIsInitialized(true)
+      
+      // Handle initial cleared state
+      if (initialClearedState && !state.isActive) {
+        clearState()
+      }
+    }
+  }, [clearState, initialClearedState, state.isActive, isInitialized])
 
-  // Debug logging
+  // Show panel when research becomes active
   useEffect(() => {
-    console.log('DeepResearch State Updated:', {
-      isActive: state.isActive,
-      currentDepth: state.currentDepth,
-      activity: state.activity.length,
-      sources: state.sources.length
+    if (state.isActive && isCollapsed) {
+      setIsCollapsed(false)
+    }
+  }, [state.isActive, isCollapsed])
+
+  // Handle command bar toggle event
+  useEffect(() => {
+    const handleTogglePanel = () => {
+      setIsVisible(prev => {
+        const newState = !prev
+        toast.info(`Panel visibility: ${newState ? 'Shown' : 'Hidden'}`)
+        return newState
+      })
+      setIsCollapsed(prev => {
+        const newState = !prev
+        toast.info(`Panel collapsed: ${newState ? 'Yes' : 'No'}`)
+        return newState
+      })
+    }
+
+    document.addEventListener('toggle-research-panel', handleTogglePanel)
+    return () => {
+      document.removeEventListener('toggle-research-panel', handleTogglePanel)
+    }
+  }, [])
+
+  const handleSetActive = useCallback((active: boolean) => {
+    // Implementation depends on your needs
+    console.log('Setting active state:', active)
+  }, [])
+
+  const handleInitProgress = useCallback((max: number, current: number) => {
+    // Implementation depends on your needs
+    console.log('Initializing progress:', { max, current })
+  }, [])
+
+  // Update chevron button click handler to show toast
+  const handleChevronClick = () => {
+    setIsCollapsed(prev => {
+      const newState = !prev
+      toast.info(`Panel collapsed: ${newState ? 'Yes' : 'No'}`)
+      return newState
     })
-  }, [state])
+  }
 
-  // Add debug logging
-  console.log('DeepResearch State:', {
-    activity: state.activity,
-    currentDepth: state.currentDepth,
-    maxDepth: state.maxDepth,
-    researchMemory: state.researchMemory,
-    sourceMetrics: state.sourceMetrics,
-    isActive: state.isActive,
-    sources: state.sources
-  })
-
-  // Add debug logging for the condition check
-  console.log('DeepResearch Visibility Check:', {
-    initialClearedState,
-    isActive: state.isActive,
-    activityLength: state.activity.length,
-    sourcesLength: state.sources.length
-  })
-
+  // Only hide if explicitly cleared
   if (initialClearedState) {
-    console.log('DeepResearch: Rendering null due to cleared state')
     return null
   }
 
   return (
     <ErrorBoundary>
-      <style jsx global>{`
-        @keyframes glow {
-          0%, 100% { 
-            opacity: 0.3;
-            filter: brightness(1);
+      <ResearchActivityProvider>
+        <style jsx global>{`
+          @keyframes glow {
+            0%, 100% { 
+              opacity: 0.3;
+              filter: brightness(1);
+            }
+            50% { 
+              opacity: 1;
+              filter: brightness(1.5) drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
+            }
           }
-          50% { 
-            opacity: 1;
-            filter: brightness(1.5) drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
+          .glow-effect {
+            animation: glow 2s ease-in-out infinite;
           }
-        }
-        .glow-effect {
-          animation: glow 2s ease-in-out infinite;
-        }
-      `}</style>
+        `}</style>
 
-      {/* Chevron Button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className="fixed left-2 top-[calc(50vh-2rem)] rounded-full text-foreground/30 z-50"
-      >
-        <ChevronLeft 
-          size={32} 
+        {/* Chevron Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleChevronClick}
           className={cn(
-            "glow-effect",
-            isCollapsed && "rotate-180"
+            "fixed left-2 top-[calc(50vh-2rem)] rounded-full text-foreground/30 z-50",
+            !state.isActive && "opacity-50"
           )}
-        />
-      </Button>
+        >
+          <ChevronLeft 
+            size={32} 
+            className={cn(
+              "glow-effect",
+              isCollapsed && "rotate-180",
+              state.isActive && "text-primary"
+            )}
+          />
+        </Button>
 
-      {/* Panel Container */}
-      <div className={cn(
-        "fixed inset-y-0 left-0 z-40",
-        location === 'header' ? 'block lg:hidden' : 'hidden lg:block',
-        isCollapsed && "w-0 pointer-events-none"
-      )}>
-        <ResearchCommandCenter
-          location={location}
-          chatId={chatId}
-          state={state}
-          onClearState={clearState}
-          onSetActive={setActive}
-          onInitProgress={initProgress}
-          onClearStateChange={onClearStateChange}
-          initialClearedState={initialClearedState}
-          onSuggestionSelect={onSuggestionSelect}
-          isCollapsed={isCollapsed}
-        />
-      </div>
+        {/* Panel Container */}
+        <div className={cn(
+          'research-visualization',
+          !isVisible && 'hidden',
+          "fixed inset-y-0 left-0 z-40 transition-all duration-300 ease-in-out",
+          location === 'sidebar' ? 'hidden lg:block' : 'block lg:hidden',
+          isCollapsed ? "w-0 opacity-0" : "w-[440px] opacity-100"
+        )}>
+          <ResearchCommandCenter
+            location={location}
+            chatId={chatId}
+            state={state}
+            onClearState={clearState}
+            onSetActive={handleSetActive}
+            onInitProgress={handleInitProgress}
+            initialClearedState={initialClearedState}
+            onClearStateChange={onClearStateChange}
+            onSuggestionSelect={onSuggestionSelect}
+            isCollapsed={isCollapsed}
+          />
+        </div>
+      </ResearchActivityProvider>
     </ErrorBoundary>
   )
 } 

@@ -7,11 +7,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { useResearch } from '@/lib/contexts/research-context'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { Clock, Download } from 'lucide-react'
 import { useState } from 'react'
-import { useDeepResearch } from './deep-research-provider'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
 
@@ -29,7 +29,7 @@ interface TimelineGroup {
 }
 
 export function ResearchHistoryTimeline() {
-  const { state } = useDeepResearch()
+  const { state } = useResearch()
   const { activity } = state
   const [filter, setFilter] = useState<string>('all')
 

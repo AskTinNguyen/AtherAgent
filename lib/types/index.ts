@@ -1,5 +1,14 @@
 import { CoreMessage, JSONValue, Message } from 'ai'
 
+// Search Result Types
+export type SearchResultItem = {
+  title: string
+  url: string
+  content: string
+  relevance: number
+  depth?: number
+}
+
 export interface SearchResults {
   results: SearchResultItem[]
   images?: SearchResultImage[]
@@ -15,6 +24,44 @@ export type SearchResultImage = {
   thumbnail?: string
 }
 
+// Tool Result Types
+export interface ToolResultContent {
+  type: 'text'
+  text: string
+}
+
+// Research Types
+export interface ResearchDepthConfig {
+  currentDepth: number
+  maxDepth: number
+  minRelevanceScore: number
+  adaptiveThreshold: number
+  depthScores: Record<number, number>
+}
+
+export interface ResearchSourceMetrics {
+  relevanceScore: number
+  depthLevel: number
+  contentQuality: number
+  timeRelevance: number
+  sourceAuthority: number
+  crossValidation?: number
+  coverage?: number
+}
+
+export interface ResearchDepthRules {
+  minRelevanceForNextDepth: number
+  maxSourcesPerDepth: number
+  depthTimeoutMs: number
+  qualityThreshold: number
+}
+
+export type ResearchStage = 'overview' | 'deep_research' | 'verification' | 'report'
+
+// Re-export research types
+export * from './research'
+
+// Provider Types
 export type ExaSearchResults = {
   results: ExaSearchResultItem[]
 }
@@ -26,13 +73,6 @@ export type SerperSearchResults = {
     engine: string
   }
   videos: SerperSearchResultItem[]
-}
-
-export type SearchResultItem = {
-  url: string
-  title: string
-  snippet?: string
-  content?: string
 }
 
 export type ExaSearchResultItem = {
@@ -56,17 +96,17 @@ export type SerperSearchResultItem = {
   position: number
 }
 
+// Chat Types
 export interface Chat extends Record<string, any> {
   id: string
   title: string
   createdAt: Date
   userId: string
   path: string
-  messages: ExtendedCoreMessage[] // Note: Changed from AIMessage to ExtendedCoreMessage
+  messages: ExtendedCoreMessage[]
   sharePath?: string
 }
 
-// ExtendedCoreMessage for saveing annotations
 export type ExtendedCoreMessage = Omit<CoreMessage, 'role' | 'content'> & {
   role: CoreMessage['role'] | 'data'
   content: CoreMessage['content'] | JSONValue
@@ -89,6 +129,7 @@ export type AIMessage = {
     | 'end'
 }
 
+// SearXNG Types
 export interface SearXNGResult {
   title: string
   url: string
@@ -113,6 +154,7 @@ export type SearXNGSearchResults = {
   query: string
 }
 
+// Attachment Types
 export interface AttachmentFile {
   id: string
   file: File
@@ -123,6 +165,7 @@ export interface AttachmentFile {
   error?: string
 }
 
+// Research Source Types
 export interface ResearchSource {
   id: string
   url: string

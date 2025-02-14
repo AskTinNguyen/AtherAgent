@@ -1,3 +1,4 @@
+import { ResearchSource } from '@/components/deep-research-provider'
 import { ResearchDepthConfig, ResearchDepthRules, ResearchSourceMetrics } from '../types/research'
 
 const DEFAULT_DEPTH_RULES: ResearchDepthRules = {
@@ -169,4 +170,25 @@ export function optimizeDepthStrategy(
   newConfig.minRelevanceScore = Math.max(0.3, Math.min(0.7, avgRecentScore - 0.1))
   
   return newConfig
+}
+
+// Check if facts are cross-validated across multiple sources
+export async function checkCrossValidation(sources: ResearchSource[]): Promise<boolean> {
+  // Basic implementation - in production this should use more sophisticated NLP
+  const sourcesByDomain = new Map<string, ResearchSource[]>()
+  
+  // Group sources by domain
+  sources.forEach(source => {
+    try {
+      const domain = new URL(source.url).hostname
+      const domainSources = sourcesByDomain.get(domain) || []
+      domainSources.push(source)
+      sourcesByDomain.set(domain, domainSources)
+    } catch {
+      // Skip invalid URLs
+    }
+  })
+  
+  // Consider facts cross-validated if we have sources from at least 2 different domains
+  return sourcesByDomain.size >= 2
 } 

@@ -26,6 +26,7 @@ import {
   ResearchMetadata,
   SearchMetadata
 } from '@/lib/redis/types/bookmarks'
+import { cn } from '@/lib/utils'
 import {
   FolderOpen,
   Search,
@@ -267,8 +268,8 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
   }
 
   // Update the renderBookmarkCard function
-  const renderBookmarkCard = (bookmark: EnhancedBookmark) => (
-    <Card key={bookmark.id} className="mb-4">
+  const renderBookmarkCard = (bookmark: EnhancedBookmark, index: number) => (
+    <Card key={bookmark.id} className={cn("mb-4", index % 2 === 1 && "bg-muted/50")}>
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <div>
@@ -419,7 +420,7 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
           </div>
         ) : (
           <>
-            {filteredBookmarks.map(renderBookmarkCard)}
+            {filteredBookmarks.map((bookmark, index) => renderBookmarkCard(bookmark, index))}
             {hasMore && (
               <Button
                 variant="outline"
