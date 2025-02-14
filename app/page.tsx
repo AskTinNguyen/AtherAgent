@@ -1,22 +1,23 @@
+'use client'
+
 import { BlurReveal } from '@/components/blur-reveal'
 import { Chat } from '@/components/chat'
-import { generateId } from 'ai'
-import Image from 'next/image'
+import { useChatSession } from '@/lib/contexts/chat-session-context'
 
 export default function Page() {
-  const id = generateId()
+  const { chatId } = useChatSession()
   
   return (
     <div className="fixed inset-0 overflow-hidden">
       {/* Background Layer */}
       <div className="absolute inset-0">
-        <Image
+        {/* <Image
           src="/wallpaper-bw.png"
           alt="Background"
           fill
           className="object-cover"
           priority
-        />
+        /> */}
       </div>
       
       {/* Main Content Area - Contains the primary chat interface */}
@@ -44,7 +45,7 @@ export default function Page() {
             </div>
 
             {/* Chat Section - Main chat interface */}
-            <Chat id={id} />
+            {chatId && <Chat id={chatId} />}
           </div>
         </div>
       </main>

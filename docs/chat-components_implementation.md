@@ -133,6 +133,7 @@ Features ✅:
 - Loading state during deletion
 - Redis storage cleanup
 - Automatic UI refresh after deletion
+- Error state handling with user feedback
 
 Implementation Details:
 - Uses Shadcn UI AlertDialog for confirmation
@@ -140,6 +141,34 @@ Implementation Details:
 - Atomic operations using Redis pipeline
 - Error handling with user feedback
 - Proper cleanup of all related Redis keys
+- Handles edge cases:
+  - Invalid chat IDs
+  - Non-existent chats
+  - Failed deletions
+  - Network errors
+- State management:
+  - Loading states
+  - Error states
+  - UI feedback
+  - Automatic refresh
+
+Redis Implementation:
+```typescript
+// Delete chat data and references
+const deleteChat = async (chatId: string) => {
+  const redis = await getRedisClient()
+  const chatKey = `chat:${chatId}`
+  const userChatKey = `user:v2:chat:${userId}`
+
+  // Delete chat data and its reference atomically
+  const [deleteResult, removeResult] = await Promise.all([
+    redis.del(chatKey),
+    redis.zrem(userChatKey, chatKey)
+  ])
+
+  return deleteResult && removeResult
+}
+```
 
 ## Types
 

@@ -15,6 +15,11 @@ interface Chat {
   sharePath?: string
 }
 
+interface RedisResult {
+  err: Error | null
+  result: any
+}
+
 function validateDate(dateStr: string): string {
   try {
     const date = new Date(dateStr)
@@ -166,30 +171,34 @@ export async function clearChats(
 }
 
 export async function saveChat(chat: Chat, userId: string = 'anonymous') {
+  console.log('[DEBUG] Starting chat save:', { chatId: chat.id, userId })
+  
   try {
     const redis = await getRedisClient()
-
+    const key = getUserChatKey(userId)
+    
+    // Ensure chat has required fields
     const chatToSave = {
       ...chat,
-      messages: JSON.stringify(chat.messages),
-      createdAt: validateDate(chat.createdAt)
+      id: chat.id || crypto.randomUUID(),
+      createdAt: validateDate(chat.createdAt || new Date().toISOString()),
+      userId
     }
-
+    
+    console.log('[DEBUG] Prepared chat for save:', { chatId: chatToSave.id, key })
+    
     // Save chat data
-    const saveResult = await redis.hmset(`chat:${chat.id}`, chatToSave)
-    if (!saveResult) {
-      throw new Error('Failed to save chat data')
-    }
-
-    // Add to user's chat list
-    const indexResult = await redis.zadd(getUserChatKey(userId), Date.now(), `chat:${chat.id}`)
-    if (!indexResult) {
-      throw new Error('Failed to index chat')
-    }
-
-    return true
+    const result = await redis.zadd(key, {
+      score: new Date(chatToSave.createdAt).getTime(),
+      member: JSON.stringify(chatToSave)
+    })
+    
+    console.log('[DEBUG] Chat save result:', { result, chatId: chatToSave.id })
+    
+    revalidatePath('/')
+    return chatToSave
   } catch (error) {
-    console.error('Error saving chat:', error)
+    console.error('[DEBUG] Error saving chat:', error)
     throw error
   }
 }

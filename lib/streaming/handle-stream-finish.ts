@@ -158,7 +158,7 @@ export async function handleStreamFinish({
         messages: [],
         createdAt: new Date(),
         userId: 'anonymous',
-        path: `/search/${chatId}`,
+        path: `/chat/${chatId}`,
         title: originalMessages[0].content,
         id: chatId
       }

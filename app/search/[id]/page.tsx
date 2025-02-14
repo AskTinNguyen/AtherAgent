@@ -1,7 +1,5 @@
-import { Chat } from '@/components/chat'
 import { getChat } from '@/lib/actions/chat'
-import { convertToUIMessages } from '@/lib/utils'
-import { notFound, redirect } from 'next/navigation'
+import { redirect } from 'next/navigation'
 
 export const maxDuration = 60
 
@@ -18,19 +16,6 @@ export async function generateMetadata(props: {
 export default async function SearchPage(props: {
   params: Promise<{ id: string }>
 }) {
-  const userId = 'anonymous'
   const { id } = await props.params
-  const chat = await getChat(id, userId)
-  // convertToUIMessages for useChat hook
-  const messages = convertToUIMessages(chat?.messages || [])
-
-  if (!chat) {
-    redirect('/')
-  }
-
-  if (chat?.userId !== userId) {
-    notFound()
-  }
-
-  return <Chat id={id} savedMessages={messages} />
+  redirect(`/chat/${id}`)
 }

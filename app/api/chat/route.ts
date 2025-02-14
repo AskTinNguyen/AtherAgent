@@ -1,3 +1,4 @@
+import { getChat, getChats } from '@/lib/actions/chat'
 import { createManualToolStreamResponse } from '@/lib/streaming/create-manual-tool-stream'
 import { createToolCallingStreamResponse } from '@/lib/streaming/create-tool-calling-stream'
 import { ChatChartMessage } from '@/lib/types/chart'
@@ -44,9 +45,37 @@ function processChartData(message: string | { content: string }): { content: str
   }
 }
 
+export async function GET() {
+  try {
+    const chats = await getChats('anonymous')
+    return Response.json(chats)
+  } catch (error) {
+    console.error('Error fetching chats:', error)
+    return Response.json([], { status: 500 })
+  }
+}
+
 export async function POST(req: Request) {
   try {
-    const { messages, id: chatId } = await req.json()
+    const json = await req.json()
+    const { messages, id } = json
+    console.log('[DEBUG] Chat POST request:', { id, messageCount: messages?.length })
+
+    // Ensure we have a valid chat ID
+    if (!id) {
+      console.error('[DEBUG] Missing chat ID in request')
+      return new Response('Missing chat ID', { status: 400 })
+    }
+
+    // Get existing chat or create new one
+    try {
+      const chat = await getChat(id)
+      console.log('[DEBUG] Retrieved existing chat:', { id, exists: !!chat })
+    } catch (error) {
+      console.error('[DEBUG] Error getting chat:', error)
+      // Continue with new chat creation
+    }
+
     const referer = req.headers.get('referer')
     const isSharePage = referer?.includes('/share/')
 
@@ -75,13 +104,13 @@ export async function POST(req: Request) {
       ? await createToolCallingStreamResponse({
           messages,
           model,
-          chatId,
+          chatId: id,
           searchMode
         })
       : await createManualToolStreamResponse({
           messages,
           model,
-          chatId,
+          chatId: id,
           searchMode
         })
 

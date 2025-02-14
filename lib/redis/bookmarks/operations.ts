@@ -1,11 +1,12 @@
 import { nanoid } from 'nanoid'
 import { getRedisClient } from '../config'
 import {
-    BOOKMARK_REDIS_KEYS,
-    BookmarkMetadata,
-    BookmarkRedisSchema,
-    BookmarkType,
-    EnhancedBookmark
+  BOOKMARK_REDIS_KEYS,
+  BookmarkMetadata,
+  BookmarkPermission,
+  BookmarkRedisSchema,
+  BookmarkType,
+  EnhancedBookmark
 } from '../types/bookmarks'
 
 const CURRENT_SCHEMA_VERSION = '1.0.0'
@@ -52,7 +53,13 @@ function createDefaultBookmarkProperties(
           tags: metadata?.data?.tags ?? [],
           queryContext: (metadata as any)?.data?.queryContext ?? '',
           searchScore: (metadata as any)?.data?.searchScore ?? 0,
-          resultRank: (metadata as any)?.data?.resultRank ?? 0
+          resultRank: (metadata as any)?.data?.resultRank ?? 0,
+          sourceQuality: (metadata as any)?.data?.sourceQuality ?? {
+            relevance: 0,
+            authority: 0,
+            freshness: 0,
+            coverage: 0
+          }
         }
       }
       break
@@ -128,6 +135,20 @@ function createDefaultBookmarkProperties(
  * Converts an EnhancedBookmark to Redis storage format
  */
 function bookmarkToRedisSchema(bookmark: EnhancedBookmark): BookmarkRedisSchema {
+  // Helper function to safely stringify objects/arrays
+  const safeStringify = (value: any): string => {
+    if (value === null || value === undefined) return ''
+    if (Array.isArray(value) || typeof value === 'object') {
+      try {
+        return JSON.stringify(value)
+      } catch (error) {
+        console.error('Error stringifying value:', error)
+        return Array.isArray(value) ? '[]' : '{}'
+      }
+    }
+    return String(value)
+  }
+
   return {
     core: {
       id: bookmark.id,
@@ -140,18 +161,19 @@ function bookmarkToRedisSchema(bookmark: EnhancedBookmark): BookmarkRedisSchema 
     metadata: {
       type: bookmark.metadata.type,
       sourceContext: bookmark.metadata.data.sourceContext,
-      tags: JSON.stringify(bookmark.metadata.data.tags || []),
+      tags: safeStringify(bookmark.metadata.data.tags),
       ...(bookmark.metadata.type === 'research_suggestion' && {
-        depthLevel: bookmark.metadata.data.depthLevel.toString(),
-        relevanceScore: bookmark.metadata.data.relevanceScore.toString(),
-        relatedTopics: JSON.stringify(bookmark.metadata.data.relatedTopics),
-        previousQueries: JSON.stringify(bookmark.metadata.data.previousQueries),
-        sourceQuality: JSON.stringify(bookmark.metadata.data.sourceQuality)
+        depthLevel: String(bookmark.metadata.data.depthLevel),
+        relevanceScore: String(bookmark.metadata.data.relevanceScore),
+        relatedTopics: safeStringify(bookmark.metadata.data.relatedTopics),
+        previousQueries: safeStringify(bookmark.metadata.data.previousQueries),
+        sourceQuality: safeStringify(bookmark.metadata.data.sourceQuality)
       }),
       ...(bookmark.metadata.type === 'search_result' && {
         queryContext: bookmark.metadata.data.queryContext,
-        searchScore: bookmark.metadata.data.searchScore.toString(),
-        resultRank: bookmark.metadata.data.resultRank.toString()
+        searchScore: String(bookmark.metadata.data.searchScore),
+        resultRank: String(bookmark.metadata.data.resultRank),
+        sourceQuality: safeStringify(bookmark.metadata.data.sourceQuality)
       }),
       ...(bookmark.metadata.type === 'chat_message' && {
         messageContext: bookmark.metadata.data.messageContext,
@@ -161,21 +183,21 @@ function bookmarkToRedisSchema(bookmark: EnhancedBookmark): BookmarkRedisSchema 
     },
     analytics: {
       lastAccessed: bookmark.analytics.lastAccessed,
-      useCount: bookmark.analytics.useCount.toString(),
-      effectiveness: bookmark.analytics.effectiveness.toString(),
-      pathProgress: bookmark.analytics.pathProgress?.toString() ?? '0',
-      sourceRelevance: bookmark.analytics.sourceRelevance?.toString() ?? '0'
+      useCount: String(bookmark.analytics.useCount),
+      effectiveness: String(bookmark.analytics.effectiveness),
+      pathProgress: bookmark.analytics.pathProgress ? String(bookmark.analytics.pathProgress) : '0',
+      sourceRelevance: bookmark.analytics.sourceRelevance ? String(bookmark.analytics.sourceRelevance) : '0'
     },
     organization: {
       category: bookmark.organization.category,
-      tags: JSON.stringify(bookmark.organization.tags),
+      tags: safeStringify(bookmark.organization.tags),
       folderId: bookmark.organization.folderId ?? '',
       collectionId: bookmark.organization.collectionId ?? '',
-      order: bookmark.organization.order?.toString() ?? '0'
+      order: bookmark.organization.order ? String(bookmark.organization.order) : '0'
     },
     sharing: {
-      isShared: bookmark.sharing.isShared.toString(),
-      sharedWith: JSON.stringify(bookmark.sharing.sharedWith),
+      isShared: String(bookmark.sharing.isShared),
+      sharedWith: safeStringify(bookmark.sharing.sharedWith),
       sharedAt: bookmark.sharing.sharedAt ?? '',
       lastAccessedBy: bookmark.sharing.lastAccessedBy ?? ''
     }
@@ -189,6 +211,17 @@ function redisSchemaToBookmark(
   schema: BookmarkRedisSchema,
   includeVersion = true
 ): EnhancedBookmark {
+  // Helper function to safely parse JSON with fallback
+  const safeJSONParse = <T>(jsonString: string | null | undefined, fallback: T): T => {
+    if (!jsonString) return fallback
+    try {
+      return JSON.parse(jsonString) as T
+    } catch (error) {
+      console.error('Error parsing JSON:', error)
+      return fallback
+    }
+  }
+
   let metadata: BookmarkMetadata
   
   switch (schema.metadata.type) {
@@ -196,13 +229,16 @@ function redisSchemaToBookmark(
       metadata = {
         type: 'research_suggestion',
         data: {
-          sourceContext: schema.metadata.sourceContext,
-          tags: JSON.parse(schema.metadata.tags || '[]'),
+          sourceContext: schema.metadata.sourceContext || '',
+          tags: safeJSONParse<string[]>(schema.metadata.tags, []),
           depthLevel: parseInt(schema.metadata.depthLevel || '0', 10),
           relevanceScore: parseFloat(schema.metadata.relevanceScore || '0'),
-          relatedTopics: JSON.parse(schema.metadata.relatedTopics || '[]'),
-          previousQueries: JSON.parse(schema.metadata.previousQueries || '[]'),
-          sourceQuality: JSON.parse(schema.metadata.sourceQuality || '{"relevance":0,"authority":0,"freshness":0,"coverage":0}')
+          relatedTopics: safeJSONParse<string[]>(schema.metadata.relatedTopics, []),
+          previousQueries: safeJSONParse<string[]>(schema.metadata.previousQueries, []),
+          sourceQuality: safeJSONParse(
+            schema.metadata.sourceQuality, 
+            { relevance: 0, authority: 0, freshness: 0, coverage: 0 }
+          )
         }
       }
       break
@@ -211,11 +247,15 @@ function redisSchemaToBookmark(
       metadata = {
         type: 'search_result',
         data: {
-          sourceContext: schema.metadata.sourceContext,
-          tags: JSON.parse(schema.metadata.tags || '[]'),
+          sourceContext: schema.metadata.sourceContext || '',
+          tags: safeJSONParse<string[]>(schema.metadata.tags, []),
           queryContext: schema.metadata.queryContext || '',
           searchScore: parseFloat(schema.metadata.searchScore || '0'),
-          resultRank: parseInt(schema.metadata.resultRank || '0', 10)
+          resultRank: parseInt(schema.metadata.resultRank || '0', 10),
+          sourceQuality: safeJSONParse(
+            schema.metadata.sourceQuality,
+            { relevance: 0, authority: 0, freshness: 0, coverage: 0 }
+          )
         }
       }
       break
@@ -224,8 +264,8 @@ function redisSchemaToBookmark(
       metadata = {
         type: 'chat_message',
         data: {
-          sourceContext: schema.metadata.sourceContext,
-          tags: JSON.parse(schema.metadata.tags || '[]'),
+          sourceContext: schema.metadata.sourceContext || '',
+          tags: safeJSONParse<string[]>(schema.metadata.tags, []),
           messageContext: schema.metadata.messageContext || '',
           conversationId: schema.metadata.conversationId || '',
           timestamp: schema.metadata.timestamp || new Date().toISOString()
@@ -237,8 +277,8 @@ function redisSchemaToBookmark(
       metadata = {
         type: 'research_suggestion',
         data: {
-          sourceContext: schema.metadata.sourceContext,
-          tags: JSON.parse(schema.metadata.tags || '[]'),
+          sourceContext: schema.metadata.sourceContext || '',
+          tags: safeJSONParse<string[]>(schema.metadata.tags, []),
           depthLevel: 0,
           relevanceScore: 0,
           relatedTopics: [],
@@ -257,21 +297,24 @@ function redisSchemaToBookmark(
     analytics: {
       createdAt: schema.core.createdAt,
       lastAccessed: schema.analytics.lastAccessed,
-      useCount: parseInt(schema.analytics.useCount, 10),
-      effectiveness: parseFloat(schema.analytics.effectiveness),
+      useCount: parseInt(schema.analytics.useCount || '0', 10),
+      effectiveness: parseFloat(schema.analytics.effectiveness || '0'),
       pathProgress: schema.analytics.pathProgress ? parseFloat(schema.analytics.pathProgress) : undefined,
       sourceRelevance: schema.analytics.sourceRelevance ? parseFloat(schema.analytics.sourceRelevance) : undefined
     },
     organization: {
-      category: schema.organization.category,
-      tags: JSON.parse(schema.organization.tags),
+      category: schema.organization.category || 'uncategorized',
+      tags: safeJSONParse<string[]>(schema.organization.tags, []),
       folderId: schema.organization.folderId || undefined,
       collectionId: schema.organization.collectionId || undefined,
       order: schema.organization.order ? parseInt(schema.organization.order, 10) : undefined
     },
     sharing: {
       isShared: schema.sharing.isShared === 'true',
-      sharedWith: JSON.parse(schema.sharing.sharedWith),
+      sharedWith: safeJSONParse<Array<{ userId: string; permission: BookmarkPermission }>>(
+        schema.sharing.sharedWith,
+        []
+      ),
       sharedAt: schema.sharing.sharedAt || undefined,
       lastAccessedBy: schema.sharing.lastAccessedBy || undefined
     },

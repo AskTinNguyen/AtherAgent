@@ -1,26 +1,33 @@
-import { cleanupOldBookmarkData } from '@/lib/redis/utils/bookmark-cleanup'
+import { cleanupBookmarkData, verifyCleanup } from '@/lib/redis/utils/bookmark-cleanup'
 import { NextRequest, NextResponse } from 'next/server'
 
 // POST /api/bookmarks/cleanup
 export async function POST(request: NextRequest) {
   try {
-    const result = await cleanupOldBookmarkData()
+    // Perform cleanup
+    const { deletedKeys, success } = await cleanupBookmarkData()
     
-    if (result.error) {
+    if (!success) {
       return NextResponse.json(
-        { error: result.error },
+        { error: 'Failed to cleanup bookmark data' },
         { status: 500 }
       )
     }
 
+    // Verify cleanup
+    const { remainingKeys, isClean } = await verifyCleanup()
+    
     return NextResponse.json({
-      message: 'Successfully cleaned up old bookmark data',
-      deletedKeys: result.deletedKeys
+      success: true,
+      deletedKeysCount: deletedKeys.length,
+      deletedKeys,
+      isClean,
+      remainingKeys
     })
   } catch (error) {
-    console.error('Failed to clean up bookmarks:', error)
+    console.error('Error in bookmark cleanup endpoint:', error)
     return NextResponse.json(
-      { error: 'Failed to clean up bookmarks' },
+      { error: 'Failed to process cleanup request' },
       { status: 500 }
     )
   }
