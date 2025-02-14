@@ -1,18 +1,19 @@
 import {
-    createFolder,
-    deleteFolder,
-    getFolderTree,
-    updateFolder
+  createFolder,
+  deleteFolder,
+  getFolderTree,
+  updateFolder
 } from '@/lib/redis/operations/folders'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const tree = await getFolderTree()
-    return NextResponse.json(tree)
+    const folderTree = await getFolderTree()
+    return NextResponse.json(folderTree)
   } catch (error: any) {
+    console.error('Error in GET /api/folders:', error)
     return NextResponse.json(
-      { error: error?.message || 'Failed to get folders' },
+      { error: error?.message || 'Failed to fetch folders' },
       { status: 500 }
     )
   }

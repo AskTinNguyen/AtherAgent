@@ -30,6 +30,7 @@ export interface FolderTree {
 export interface FolderOperationResult {
   success: boolean
   error?: string
+  details?: string
   folder?: Folder
   chat?: Chat
 }

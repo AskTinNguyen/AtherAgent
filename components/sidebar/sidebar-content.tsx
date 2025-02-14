@@ -3,8 +3,8 @@
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { menuItems } from '@/lib/config/menu-items'
 import { useSidebarContext } from '@/lib/contexts/sidebar-context'
+import { type FolderTree } from '@/lib/redis/types/folders'
 import { type Chat } from '@/lib/types/index'
 import { Plus } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
@@ -16,15 +16,21 @@ export function SidebarContent() {
   const router = useRouter()
   const pathname = usePathname()
   const { isExpanded, activeFolder } = useSidebarContext()
-  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({})
   const [chats, setChats] = useState<Chat[]>([])
+  const [folders, setFolders] = useState<FolderTree>({})
   const enableSaveChatHistory = process.env.NEXT_PUBLIC_ENABLE_SAVE_CHAT_HISTORY === 'true'
 
   const toggleFolder = (folderId: string) => {
-    setExpandedFolders(prev => ({
-      ...prev,
-      [folderId]: !prev[folderId]
-    }))
+    console.log('Toggling folder:', folderId)
+    setOpenFolders(prev => {
+      const newState = {
+        ...prev,
+        [folderId]: !prev[folderId]
+      }
+      console.log('New folder state:', newState)
+      return newState
+    })
   }
 
   const handleItemClick = (path?: string) => {
@@ -70,11 +76,32 @@ export function SidebarContent() {
       }
 
       router.refresh()
+      // Open the folder when a chat is added
+      setOpenFolders(prev => ({
+        ...prev,
+        [folderId]: true
+      }))
     } catch (error) {
       console.error('Error adding chat to folder:', error)
       throw error
     }
   }
+
+  // Fetch folders
+  const fetchFolders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/folders')
+      if (!res.ok) {
+        throw new Error('Failed to fetch folders')
+      }
+      const data = await res.json()
+      console.log('Fetched folders:', data)
+      setFolders(data || {})
+    } catch (err) {
+      console.error('Failed to fetch folders:', err)
+      setFolders({})
+    }
+  }, [])
 
   // Fetch chats with refresh handling
   const fetchChats = useCallback(async () => {
@@ -96,7 +123,8 @@ export function SidebarContent() {
   // Initial fetch and refresh on pathname changes
   useEffect(() => {
     fetchChats()
-  }, [fetchChats, pathname])
+    fetchFolders()
+  }, [fetchChats, fetchFolders, pathname])
 
   return (
     <ScrollArea className="flex-1 px-2">
@@ -111,23 +139,44 @@ export function SidebarContent() {
             )}
           </div>
           <div className="mt-2 space-y-1">
-            {menuItems.map((folder) => (
-              <FolderItem
-                key={folder.id}
-                folder={{
-                  id: folder.id,
-                  name: folder.name,
-                  order: 0,
-                  createdAt: Date.now(),
-                  updatedAt: Date.now(),
-                  chats: []
-                }}
-                isActive={activeFolder === folder.id}
-                isExpanded={isExpanded}
-                onToggle={() => toggleFolder(folder.id)}
-                onDrop={(chatId) => handleAddChatToFolder(folder.id, chatId)}
-              />
-            ))}
+            {/* Default folders */}
+            {Object.values(folders).map(({ folder }) => {
+              const isDefaultFolder = folder.name.toLowerCase() === 'personal' || 
+                                    folder.name.toLowerCase() === 'work projects'
+              
+              if (!isDefaultFolder) return null
+              
+              return (
+                <FolderItem
+                  key={folder.id}
+                  folder={folder}
+                  isActive={activeFolder === folder.id}
+                  isExpanded={isExpanded}
+                  isOpen={openFolders[folder.id]}
+                  onToggle={() => toggleFolder(folder.id)}
+                  onDrop={(chatId) => handleAddChatToFolder(folder.id, chatId)}
+                />
+              )
+            })}
+            
+            {/* Custom folders */}
+            {Object.values(folders)
+              .filter(({ folder }) => 
+                folder.name.toLowerCase() !== 'personal' && 
+                folder.name.toLowerCase() !== 'work projects'
+              )
+              .map(({ folder }) => (
+                <FolderItem
+                  key={folder.id}
+                  folder={folder}
+                  isActive={activeFolder === folder.id}
+                  isExpanded={isExpanded}
+                  isOpen={openFolders[folder.id]}
+                  onToggle={() => toggleFolder(folder.id)}
+                  onDrop={(chatId) => handleAddChatToFolder(folder.id, chatId)}
+                />
+              ))
+            }
           </div>
         </div>
 
