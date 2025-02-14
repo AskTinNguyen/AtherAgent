@@ -73,6 +73,38 @@ I'll help you fix the export order in the `research-sources-context.tsx` file to
 
 ---
 
+_****_
+
+
+
+---
+
+_****_
+
+
+
+I notice that the file content is already correctly ordered with `SourcesProvider` defined and exported before `useSources`. The issue was only in the import order in `search-results.tsx`, which has already been fixed.
+
+To summarize the current state:
+
+1. In `lib/contexts/research-sources-context.tsx`:
+   - The exports are already in the correct order:
+     - `export function SourcesProvider` comes first
+     - `export function useSources` comes second
+   - This is the correct pattern as the provider should be defined before the hook that uses it
+
+2. In `components/search-results.tsx`:
+   - We fixed the import order to match:
+     ```typescript
+     import { SourcesProvider, useSources } from '@/lib/contexts/research-sources-context'
+     ```
+
+The code is now consistent in both files, with the provider being listed before the hook in both the implementation file and where it's imported. No further changes are needed.
+
+Is there anything else you'd like me to help you with?
+
+---
+
 
 
 ---

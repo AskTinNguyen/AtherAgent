@@ -2013,13 +2013,149 @@ I'll help you modify the sidebar to completely hide when toggled, leaving only t
 
 _****_
 
-
+```diff
+  import { SidebarFooter } from './sidebar/sidebar-footer'
+  import { SidebarHeader } from './sidebar/sidebar-header'
++ import { IconLogo } from './ui/icons'
+  
+  export function Sidebar() {
+        <aside 
+          className={cn(
+-           "fixed top-0 left-0 z-30 h-screen border-r bg-background transition-all duration-300 hidden lg:block",
+-           isExpanded ? "w-[400px]" : "w-16"
++           "fixed top-0 left-0 z-30 h-screen border-r bg-background transition-all duration-300 hidden lg:flex",
++           isExpanded ? "w-[400px]" : "w-0 border-0"
+          )}
+          aria-label="Navigation Sidebar"
+        >
+-         <div className="flex flex-col h-full">
++         <div className="flex flex-col h-full w-full">
+            <SidebarHeader />
+            <div className="flex-1 overflow-hidden">
+-             {isExpanded ? (
++             {isExpanded && (
+                <div className="h-full flex flex-col">
+                  <SidebarContent />
+                  </div>
+                </div>
+-             ) : (
+-               <SidebarContent />
+              )}
+            </div>
+            <SidebarFooter />
+          </div>
+        </aside>
++ 
++       {/* Toggle Button when Sidebar is Hidden */}
++       {!isExpanded && (
++         <Button
++           variant="ghost"
++           size="icon"
++           onClick={() => useSidebarContext().toggleSidebar()}
++           className="fixed top-4 left-4 z-30 hidden lg:flex bg-transparent hover:bg-accent/50"
++           aria-label="Expand sidebar"
++         >
++           <IconLogo className="h-5 w-5" />
++         </Button>
++       )}
+  
+        {/* Mobile Sidebar */}
+```
 
 ---
 
 _****_
 
 
+
+Let me fix the linter error by properly using the context:
+
+---
+
+_****_
+
+```diff
+  
+  export function Sidebar() {
+-   const { isExpanded } = useSidebarContext()
++   const { isExpanded, toggleSidebar } = useSidebarContext()
+  
+    return (
+            variant="ghost"
+            size="icon"
+-           onClick={() => useSidebarContext().toggleSidebar()}
++           onClick={toggleSidebar}
+            className="fixed top-4 left-4 z-30 hidden lg:flex bg-transparent hover:bg-accent/50"
+            aria-label="Expand sidebar"
+```
+
+---
+
+_****_
+
+
+
+Now let me update the `SidebarHeader` to remove its toggle button since we're handling that separately:
+
+---
+
+_****_
+
+```diff
+  import { useSidebarContext } from '@/lib/contexts/sidebar-context'
+  import { generateId } from 'ai'
+- import { ChevronLeft, ChevronRight, PlusCircle, Search } from 'lucide-react'
++ import { PlusCircle, Search } from 'lucide-react'
+  import { useRouter } from 'next/navigation'
+  import { useCallback } from 'react'
+  
+  export function SidebarHeader() {
+    const router = useRouter()
+-   const { isExpanded, toggleSidebar, updateSearchQuery } = useSidebarContext()
++   const { isExpanded, updateSearchQuery } = useSidebarContext()
+  
+    const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        <div className="px-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+-           <Button
+-             variant="ghost"
+-             size="icon"
+-             onClick={toggleSidebar}
+-             className="lg:flex hidden"
+-             aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+-           >
+-             {isExpanded ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+-           </Button>
+            {isExpanded && <span className="font-bold">AtherAgent</span>}
+          </div>
+```
+
+---
+
+_****_
+
+
+
+I've made the following changes to implement the sidebar toggle behavior you requested:
+
+1. Updated the `Sidebar` component to:
+   - Completely hide the sidebar when collapsed (`w-0 border-0`)
+   - Show only the `IconLogo` button when collapsed
+   - Fixed the hook usage in the toggle button
+   - Added proper hover effects and styling to the toggle button
+
+2. Updated the `SidebarHeader` component to:
+   - Remove the toggle button since we're handling it separately
+   - Keep the title, new chat button, and search functionality
+   - Clean up unused imports and variables
+
+Now when you collapse the sidebar:
+1. The sidebar will completely disappear
+2. Only the `IconLogo` button will remain in the top-left corner
+3. Clicking the `IconLogo` will expand the sidebar again
+4. The transition is smooth with a proper animation
+
+Would you like me to make any adjustments to this implementation?
 
 ---
 

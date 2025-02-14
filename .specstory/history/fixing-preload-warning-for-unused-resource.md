@@ -168,13 +168,59 @@ I notice that the changes weren't exactly what I intended. Let me fix this with 
 
 _****_
 
-
+```diff
+            fill
+            priority
++           sizes="100vw"
++           quality={90}
+            className="object-cover"
+-           id="wallpaper-image"
+          />
+        </motion.div>
+                  }
+                }}
++               className="absolute"
+                style={{
+-                 position: 'absolute',
+                  width: particle.size,
+                  height: particle.size,
+                  maskImage: 'radial-gradient(circle, white 100%, transparent 100%)',
+                  WebkitMaskImage: 'radial-gradient(circle, white 100%, transparent 100%)',
+-                 backgroundImage: 'url(#wallpaper-image)',
+-                 backgroundSize: 'cover',
++                 backgroundImage: 'url(/wallpaper-bw.png)',
++                 backgroundSize: '100vw auto',
+                  backgroundPosition: `${-particle.x}px ${-particle.y}px`,
+                  pointerEvents: 'none',
+-                 willChange: 'transform, opacity, filter',
+-                 boxShadow: '0 0 10px rgba(255,255,255,0.3)'
++                 willChange: 'transform, opacity, filter'
+                }}
+              />
+```
 
 ---
 
 _****_
 
 
+
+I've made several optimizations to fix the preload warning:
+
+1. Removed the duplicate `Image` component that was being used as a hidden source for particles
+2. Added proper `sizes` attribute to the main Image component to help with responsive loading
+3. Set an appropriate `quality` value for the image
+4. Optimized the particle backgrounds to use a more efficient background size setting
+5. Removed unnecessary styles and improved the CSS class usage
+6. Kept the `priority` flag only on the main image since it's above the fold
+
+These changes should resolve the preload warning because:
+1. We're now loading the image only once with proper Next.js Image optimization
+2. The image is being used immediately on page load (it's above the fold)
+3. We've properly configured the Image component with sizes and quality attributes
+4. The particles now reference the same image resource instead of loading it again
+
+The warning should now be resolved since we're properly using the preloaded resource and have eliminated redundant loading. The image will be loaded once and efficiently used both for the main background and particle effects.
 
 ---
 

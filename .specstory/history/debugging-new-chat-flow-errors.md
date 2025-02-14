@@ -514,7 +514,50 @@ please fix
 
 _**Assistant**_
 
+I'll fix this by removing the `AvatarImage` component and using just the `AvatarFallback` with the logo, since that's cleaner and doesn't require adding new assets.
 
+---
+
+_****_
+
+```diff
+  'use client'
+  
+- import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
++ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+  import { Button } from '@/components/ui/button'
+  import { Separator } from '@/components/ui/separator'
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-6 w-6">
+-                   <AvatarImage src="/avatar.png" alt="User" />
+                    <AvatarFallback>
+                      <IconLogo className="w-4 h-4" />
+              <div className="flex flex-col items-center gap-2">
+                <Avatar className="h-8 w-8">
+-                 <AvatarImage src="/avatar.png" alt="User" />
+                  <AvatarFallback>
+                    <IconLogo className="w-5 h-5" />
+```
+
+---
+
+_****_
+
+
+
+I've made the following changes to fix the avatar issue:
+
+1. Removed the import of `AvatarImage` since we're not using it anymore
+2. Removed both instances of `<AvatarImage src="/avatar.png" alt="User" />`
+3. Kept only the `AvatarFallback` with the `IconLogo` component, which will now be shown by default
+
+This change:
+- Eliminates the 404 error for `/avatar.png`
+- Maintains a consistent look with the app's branding by using the logo
+- Works in both expanded and collapsed sidebar states
+- Keeps the avatar component's functionality for user representation
+
+The error should now be resolved. Would you like me to check anything else related to this issue?
 
 ---
 

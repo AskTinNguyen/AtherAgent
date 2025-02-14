@@ -969,6 +969,28 @@ _****_
 
 
 
+I've updated the background component to create a reverse disintegration effect when returning to the home page. Here are the key changes:
+
+1. Added `wasActive` state to track session state changes
+2. Modified the particle generation to trigger on any session state change (both activation and deactivation)
+3. Updated particle animations to have two different behaviors:
+   - When session starts (black to wallpaper):
+     - Initial: Particles start scattered and invisible
+     - Animate: Particles come together to form the wallpaper
+     - Ease: "easeIn" for a gathering effect
+   - When session ends (wallpaper to black):
+     - Initial: Particles start as part of the wallpaper
+     - Animate: Particles scatter and fade
+     - Ease: "easeOut" for a dispersing effect
+
+Now the behavior will be:
+1. Home page, no session: Shows wallpaper
+2. Starting session: Wallpaper disintegrates to black
+3. During session: Maintains black background
+4. Ending session/returning home: Black disintegrates to reveal wallpaper
+
+The particles will now animate in both directions, creating a smooth transition whether you're starting or ending a session. Would you like me to adjust any of the animation parameters (speed, particle count, scatter distance, etc.)?
+
 ---
 
 
