@@ -1,9 +1,4 @@
-export interface Model {
-  id: string
-  name: string
-  provider: string
-  providerId: string
-}
+import { Model } from '../types/types.model'
 
 export const models: Model[] = [
   {
@@ -97,3 +92,21 @@ export const models: Model[] = [
     providerId: 'openai-compatible'
   }
 ]
+
+// Model capabilities configuration
+export const modelCapabilities = {
+  'claude-3-5-sonnet-latest': {
+    supportsStreaming: true,
+    supportsImages: true,
+    supportsVision: true,
+    supportsToolCalls: true,
+    maxContextLength: 200000
+  },
+  'claude-3-5-haiku-20241022': {
+    supportsStreaming: true,
+    supportsImages: true,
+    supportsVision: true,
+    supportsToolCalls: true,
+    maxContextLength: 150000
+  }
+} as const 

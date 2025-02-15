@@ -1,401 +1,199 @@
-# Master Project Tracker
+## Master Project Tracker
 
-## Project Overview
-Central tracking system for project progress, daily activities, and git commits. Updated at the start and end of each coding session.
+A centralized system for tracking overall project progress, daily activities, and git commits. Updated at the start and end of each coding session.
 
-## Core Systems Status (As of Feb 13, 2025)
+**1. Project Overview**
 
-### 1. Deep Research System
-**Status**: 🔄 In Progress
-- ✅ Quality Gates System
-  - Initial Overview
-  - Deep Research
-  - Final Verification
-  - Gate evaluation logic
-  - Research stage tracking
-  - Tool usage metrics
+*   Purpose: Monitor project progress, code sessions, and git commits.
+*   Update Frequency: At session start and end.
 
-- ✅ Research State Management
-  - Activity tracking
-  - Source management
-  - Depth configuration
-  - Gate status tracking
-  - Iteration metrics
-  - Progress monitoring
-  - ✅ Fixed suggestions state management
-  - ✅ Improved type safety across contexts
+**2. Core Systems (Status as of Feb 13, 2025)**
 
-- ✅ Research Analysis
-  - Enhanced topic extraction
-  - Improved cross-validation
-  - Added semantic similarity analysis
-  - Enhanced feedback generation
+**A. Deep Research System (In Progress)**
 
-- ⏳ Testing Implementation
-  - ✅ Research loop tests
-  - ✅ Research analysis tests
-  - ⚠️ Need tests for quality gates
-  - ⚠️ Need API documentation
-  - ⚠️ Need usage examples
+*   Quality Gates System
+    *   Implemented: Initial overview, deep research, and final verification stages.
+    *   In Progress: Gate evaluation logic, research stage tracking, tool usage metrics.
+*   Research State Management
+    *   Completed: Activity tracking, source management, depth configuration.
+    *   Enhanced: Gate status tracking, iteration metrics, progress monitoring.
+    *   Fixed: Suggestions state management and type safety improvements.
+*   Research Analysis
+    *   Enhanced: Topic extraction, cross-validation, semantic similarity analysis, and feedback generation.
+*   Testing
+    *   Complete: Research loop tests and research analysis tests.
+    *   Pending: Quality gates tests, API documentation, and usage examples.
 
-### 2. Vercel AI SDK Integration
-**Status**: 🔄 In Progress
-- ✅ Stream Protocol Alignment
-  - Stream Writer Enhancement
-  - Protocol message types
-  - Multi-part messages
-  - Error handling and propagation
+**B. Vercel AI SDK Integration (In Progress)**
 
-- ✅ Authentication & Session Management
-  - SessionProvider implementation
-  - React Context availability
-  - Next.js 13+ App Router integration
-  - NextAuth.js configuration
-  - ✅ Improved chat session persistence
-  - ✅ Enhanced ID management system
-  - ✅ Fixed page transition issues
+*   Stream Protocol Alignment
+    *   Updated: Stream writer enhancements, defined protocol message types, support for multi-part messages.
+    *   Improved: Error handling and propagation.
+*   Authentication & Session Management
+    *   Integrated: SessionProvider, React Context, Next.js 13+ App Router, and NextAuth.js.
+    *   Fixed: Chat session persistence, improved ID management, and resolved page transition issues.
+*   Token Usage Implementation (BLOCKED)
+    *   Partially Implemented: Basic token counting and Redis-based usage storage.
+    *   Pending/Blocked: Model-specific token counting, accurate tracking, and usage summary generation.
 
-- ⚠️ Token Usage Implementation (BLOCKED)
-  - ✅ Basic token counting
-  - ✅ Redis-based usage storage
-  - ⚠️ Model-specific token counting
-  - ⚠️ Accurate usage tracking
-  - ⚠️ Usage summary generation
+**C. UI/UX Components (In Progress)**
 
-### 3. UI/UX Components
-**Status**: 🔄 In Progress
-- ✅ Chat Panel Enhancements
-  - Text input with autosize
-  - File attachments with drag & drop
-  - Image and PDF previews
-  - Markdown preview toggle
-  - Full-size toggle mode
-  - Model selection
-  - Search mode toggle
-  - Research Panel toggle
-  - ✅ Fixed text content overflow issues
-    - Added proper overflow handling for containers
-    - Implemented word breaking for long content
-    - Added horizontal scrolling for code blocks
-    - Enhanced container boundaries
-  - ✅ Improved Chat Layout Structure
-    - Fixed sidebar clipping issues
-    - Enhanced responsive layout with proper spacing
-    - Implemented smooth transitions for sidebar toggle
-    - Added gradient background for chat panel
-    - Optimized z-index layering
-    - Fixed mobile responsiveness
+*   Chat Panel Enhancements
+    *   Features Added: Autosize text input, drag & drop file attachments, image/PDF previews, markdown preview toggle, full-size toggle mode, model selection, search mode toggle, and research panel toggle.
+    *   Fixed: Text content overflow, improved container boundaries, code block horizontal scroll, and mobile responsiveness.
+*   Background Animation System
+    *   Implemented: Dynamic wallpaper disintegration, particle-based transitions, CSS masking for performance, and memory optimizations.
+    *   Status: Smooth transitions achieved.
+*   Research Visualization Improvements
+    *   Completed: Fixing state initialization issues, activity tracking, research state management, error boundaries, and auto-collapse for inactive research.
+    *   Enhanced: Smooth transitions, component structure refactoring, and type safety for suggestions.
+    *   Pending: Additional features such as path branching visualization, interactive node exploration, and real-time updates optimization.
 
-- ✅ Background Animation System
-  - Implemented dynamic wallpaper disintegration effect
-  - Added particle-based transition animations
-  - Optimized performance with CSS masking
-  - Improved memory usage with single image instance
-  - Added smooth transitions between states
-  - Enhanced visual feedback for chat sessions
+**D. Sidebar System Implementation (In Progress)**
 
-- 🔄 Research Visualization Improvements
-  - ✅ Fixed state initialization issues
-  - ✅ Improved activity tracking synchronization
-  - ✅ Enhanced research state management
-  - ✅ Added proper error boundaries
-  - ✅ Implemented auto-collapse for inactive research
-  - ✅ Added Research Panel toggle in header
-  - ✅ Fixed Research Panel visibility and toggle functionality
-  - ✅ Added smooth transitions and animations
-  - ✅ Improved state synchronization between contexts
-  - ✅ Refactored visualization components structure
-  - ✅ Fixed component imports and type definitions
-  - ✅ Fixed research suggestions infinite re-render
-  - ✅ Improved suggestions state management
-  - ✅ Enhanced type safety for research suggestions
-  - ⚠️ Need to implement additional visualization features
-    - Path branching visualization
-    - Interactive node exploration
-    - Real-time updates optimization
+*   Core Structure & Integration
+    *   Implemented: Base sidebar container with responsive layout and basic state management.
+    *   Redis Schema: Set up for folder management.
+*   Integration Features
+    *   Incorporated: History chat panel, research visualization, new chat creation, and search functionality.
+*   Folder Management
+    *   Implemented: Create/Edit/Delete folders with collapsible submenu structure.
+*   Drag & Drop (DnD)
+    *   Status: Basic DnD functionality working (DnD context, folder reordering, chat-to-folder drag).
+    *   Pending: Drop zone indicators, drag animations, and mobile touch support.
+    *   Additional Pending Tasks: Bulk actions support and automatic folder sorting.
+*   Mobile Responsiveness
+    *   Implemented: Mobile sheet menu and touch-friendly interactions.
+*   Performance & Accessibility
+    *   Work in Progress: Virtual scrolling and keyboard navigation are pending improvements.
 
-### Sidebar System Implementation
-**Status**: 🔄 In Progress
-- ✅ Core Structure
-  - ✅ Base sidebar container
-  - ✅ Responsive layout
-  - ✅ Basic state management
-  - ✅ Redis schema setup
-- ✅ Integration Features
-  - ✅ History chat panel
-  - ✅ Research visualization
-  - ✅ New chat creation
-  - ✅ Search functionality
-- 🔄 Folder Management
-  - ✅ Create/Edit/Delete folders
-  - ✅ Folder structure
-  - ✅ Collapsible submenus
-  - 🔄 Drag and drop organization
-    - ✅ DnD context setup
-    - ✅ Folder reordering
-    - ✅ Chat-to-folder drag
-    - ✅ Base components (Draggable/Droppable)
-    - ✅ Redis operations for folder management
-    - ✅ Chat item component
-    - ✅ Folder item component
-    - ✅ TypeScript improvements
-    - ✅ Sidebar integration
-    - ✅ Delete functionality
-    - ✅ Basic drag and drop functionality working
-    - ⏳ Drop zone indicators
-    - ⏳ Drag animations
-    - ⏳ Mobile touch support
-  - ⚠️ Bulk actions support
-  - ⚠️ Automatic sorting
-- ✅ Mobile Responsiveness
-  - ✅ Sheet menu for mobile
-  - ✅ Responsive transitions
-  - ✅ Touch-friendly interactions
-- ✅ UI Components
-  - ✅ Retractable mini and wide sidebar
-  - ✅ Scrollable sidebar menu
-  - ✅ Grouped menu with labels
-  - ✅ Extracted menu items configuration
-  - ✅ Improved default state (starts collapsed)
-- 🔄 Performance & Accessibility
-  - ⚠️ Virtual scrolling
-  - ⚠️ Keyboard navigation
-  - ✅ ARIA implementation
-  - ✅ Focus management
+**3. Current Sprint Tasks (Feb 15, 2025)**
 
-### Current Sprint Tasks (February 15, 2025)
-1. ✅ Implement Redis Schema for Folders
-   - ✅ Design data structure
-   - ✅ Create CRUD operations
-   - ✅ Add persistence layer
-   - ✅ Implement caching strategy
+*   Redis Schema for Folders
+    *   Status: Completed.
+    *   Tasks: Data structure design, CRUD operations, persistence layer, caching strategy.
+*   Drag & Drop Implementation
+    *   Status: In progress.
+    *   Tasks: DnD context setup, drag zones, drop handlers, basic drag and drop working.
+    *   Pending: Drop zone indicators, drag animations, and mobile optimization.
+*   Performance Optimization
+    *   Focus Areas: Virtual scrolling, reducing re-renders, caching implementation, and adding keyboard shortcuts.
+    *   Status: Pending implementation.
+*   Type System Improvements
+    *   Status: Completed major refactoring.
+    *   Achievements:
+        *   Consolidated visualization types into a single file
+        *   Improved model and usage type organization
+        *   Enhanced research type structure with clear categorization
+        *   Fixed circular dependencies and import issues
+        *   Removed duplicate type definitions
+        *   Better separation of concerns between research and visualization types
+        *   Consolidated Redis types into types.redis.ts with proper wrapper implementations
+        *   Fixed import paths across the codebase to use new type locations
+        *   Improved type safety in Redis operations and tests
+    *   Next Steps:
+        *   Continue monitoring for type inconsistencies
+        *   Add comprehensive type documentation
+        *   Consider implementing strict type validation at runtime
 
-2. 🔄 Drag and Drop Implementation
-   - ✅ Set up DnD context
-   - ✅ Create drag zones
-   - ✅ Add drop handlers
-   - ✅ Implement basic drag and drop
-   - ⏳ Add drop zone indicators
-   - ⏳ Add animations
-   - ⏳ Mobile optimization
+**4. Technical Debt**
 
-3. ⚠️ Performance Optimization
-   - Add virtual scrolling
-   - Optimize re-renders
-   - Implement caching
-   - Add keyboard shortcuts
+*   Folder System
+    *   Improvements Needed: Better error handling for folder operations, validation for folder names, limits on folder counts, and folder sharing capabilities.
+*   Search System
+    *   Enhancements: Performance optimization, advanced filters, search history, and saved searches functionality.
+*   Mobile Experience
+    *   Improvements: Enhanced touch gestures, swipe actions, optimized mobile layout, and better transition effects.
+*   Testing & Documentation
+    *   Gaps: Missing quality gates tests, complete API documentation, and usage examples.
+*   Research Visualization
+    *   Pending: Performance optimization for large datasets and implementation of additional accessibility features.
+*   AI Streaming
+    *   Fixes Needed: Issues with tool call streaming, improving message continuity, optimizing stream state management, and resolving race conditions in chat creation.
+*   Sidebar Implementation
+    *   Pending: Full Redis integration, advanced drag & drop (with animations and mobile support), virtual scrolling, keyboard navigation, and overall performance optimizations.
 
-### Technical Debt
-1. Folder System
-   - Need proper error handling for folder operations
-   - Add validation for folder names
-   - Implement folder limits
-   - Add folder sharing capabilities
+**5. Next Steps**
 
-2. Search System
-   - Optimize search performance
-   - Add advanced filters
-   - Implement search history
-   - Add saved searches
+*   Testing & Documentation
+    *   Add quality gates tests.
+    *   Create comprehensive API documentation.
+    *   Provide usage examples.
+    *   Develop tests for chat session management.
+*   Research Visualization
+    *   Optimize performance (especially for large datasets).
+    *   Implement additional accessibility features.
+*   AI Streaming
+    *   Resolve tool call streaming issues.
+    *   Improve message continuity.
+    *   Optimize stream state management.
+*   Sidebar Implementation
+    *   Complete Redis integration.
+    *   Enhance drag & drop with animations and mobile support.
+    *   Implement virtual scrolling and keyboard navigation.
+    *   Optimize overall performance.
 
-3. Mobile Experience
-   - Improve touch gestures
-   - Add swipe actions
-   - Optimize mobile layout
-   - Enhance mobile transitions
+**6. Daily Progress (Feb 15, 2025)**
 
-## Current Priority Tasks
-From To Do lists.md:
-- [x] Remove Morphic from the project
-- [x] Fix default "depth_exploration" placeholder prompt
-- [x] UI Cleanup for Search Results & Research Views
-- [x] Clean up minor bugs
-- [x] Fix Research Visualization Issues
-- [x] Add Research Panel Toggle
-- [x] Fix Research Panel Visibility
-- [x] Fix Research Path Visualization Component Structure
-- [x] Fix Research Suggestions Component
-- [x] Fix Chat Session Management
-  - Implemented proper ID persistence
-  - Fixed page transition issues
-  - Added state synchronization
-  - Improved error handling
-- [ ] Fix API Statistics
-- [ ] Fix AI Streaming Issues
-- [ ] Fix the "Research" page
-- [ ] Fix the "Suggestions" page
-- [ ] Add the "Settings" page
-- [ ] Add External Links navigation for Bookmarked Articles
-- [ ] Add URL drag support for Bookmarked Articles
-- [ ] Add Deep Research creation from Bookmarked Articles
-- [ ] Add Deep Research creation from Chat
-- [ ] Add Deep Research creation from Suggestion
-- [ ] Fix Path Visualization
-- [ ] Add Research Updates cron job
-- [ ] Implement Sidebar System
-  - [ ] Phase 1: Core Structure (Week 1)
-  - [ ] Phase 2: Integration (Week 2)
-  - [ ] Phase 3: New Features (Week 3)
-  - [ ] Phase 4: Polish (Week 4)
+*   Morning Progress
+    *   Sidebar UX Improvements
+        *   Changes: Default state set to collapsed.
+        *   Enhancements: Smooth transition animations and preserved mobile responsiveness using the sheet component.
+        *   UI Adjustments: Proper z-indexing and positioning with the logo button clearly visible in the top-left when collapsed.
+*   Afternoon Progress
+    *   TypeScript & Type System Enhancements
+        *   Configuration: Updated tsconfig.json for stricter type checking.
+        *   Module Resolution: Added improved path mappings for better module resolution.
+        *   Organizational Improvements: Enhanced type isolation and organization, introduced explicit type exports, fixed linter errors across definitions, and consolidated duplicate types.
+        *   Core Systems: Improved type safety for Message interfaces, refined type organization across systems, and added clear type documentation.
+        *   Maintainability: Fixed conflicts in research and chat systems and improved type re-exports.
+        *   Type Consolidation: Consolidated overlapping types from usage.ts, chart.ts, deep-research.ts, and research-command-center.ts into their respective type definition files.
+        *   File Organization: Moved chart helper functions to utils directory and reorganized test files into appropriate __tests__ directories.
+        *   Redis Type System:
+            *   Created new types.redis.ts for Redis-related types
+            *   Implemented proper wrapper interfaces for Redis operations
+            *   Fixed import paths across Redis-dependent modules
+            *   Enhanced type safety in Redis operations and tests
+            *   Improved error handling and type checking in Redis wrappers
+        *   Additional Refactoring:
+            *   Consolidated message types into types.chat.ts for better cohesion
+            *   Created types.model.ts and models.config.ts to separate model types from configuration
+            *   Reorganized visualization types into types.visualization.ts with improved documentation
+            *   Improved research type organization with clear categorization
+            *   Fixed circular dependencies and import issues
+            *   Removed duplicate type definitions
+            *   Better separation of concerns between research and visualization types
 
-### February 13, 2025
-#### Morning Progress
-- [x] Fixed research suggestions infinite re-render issue
-- [x] Improved type safety across research contexts
-- [x] Enhanced suggestions state management
-- [x] Fixed type definitions and imports
-- [x] Added proper null checks for suggestions and depth
-- [x] Improved activity conversion from suggestions
-- [x] Enhanced error handling in suggestions component
-- [ ] Continue work on path visualization features
+**7. Status Summary**
 
-#### Afternoon Progress
-- [x] Set up Redis Commander for local development monitoring
-- [x] Optimized Node.js environment (downgraded to v20 LTS for better stability)
-- [x] Improved development tooling for Redis data visualization
-- [x] Verified Redis connection and data structure integrity
-- [x] Fixed Chat Panel CSS overflow issues
-  - Added proper container overflow handling
-  - Implemented word breaking for long content
-  - Enhanced code block display with horizontal scroll
-  - Improved overall text containment
-- [x] Implemented Background Animation System
-  - Created ChatSessionProvider for state management
-  - Added particle-based disintegration effect
-  - Optimized performance with CSS masking
-  - Implemented smooth transitions
-- [x] Fixed Bookmark System
-  - Implemented proper JSON stringification for Redis storage
-  - Added robust error handling for JSON parsing
-  - Created cleanup utility for corrupted data
-  - Added data structure validation
-  - Improved type safety for bookmark operations
-  - Added batch processing for large datasets
-  - Implemented verification system for data integrity
+*   What's Completed:
+    *   Redis schema design and basic folder management CRUD.
+    *   Basic DnD functionality for folder reordering.
+    *   Chat panel UI fixes (text overflow, code block scroll, mobile adjustments).
+    *   Background animation system implementation.
+    *   Sidebar core structure and mobile responsiveness.
+    *   Major TypeScript improvements and type safety fixes.
+    *   Research loop and analysis tests.
+    *   Redis type system refactoring and consolidation.
+*   What's Pending:
+    *   Deep Research System: Quality gates tests, API documentation, usage examples.
+    *   Vercel AI SDK Integration: Model-specific token counting and complete usage tracking (blocked).
+    *   UI/UX Components: Additional features in research visualization (path branching, interactive nodes, real-time updates).
+    *   Sidebar System: Advanced drag & drop (animations, mobile touch support), virtual scrolling, keyboard navigation, and full performance optimizations.
+    *   Performance: Virtual scrolling implementation and caching optimizations.
+    *   Technical Debt: Testing coverage, comprehensive documentation, and further mobile experience improvements.
+*   What's Blocked:
+    *   Token Usage Implementation: Blocked pending improvements for model-specific counting and accurate usage summary.
 
-#### Evening Progress
-- [x] Created comprehensive Sidebar implementation documentation
-- [x] Designed Redis schema for folder management
-- [x] Planned component architecture
-- [x] Defined TypeScript interfaces and types
-- [x] Implemented core sidebar structure
-- [x] Added mobile responsiveness with Sheet component
-- [x] Implemented collapsible folder system
-- [x] Added menu item configuration
-- [x] Fixed chat layout and sidebar clipping issues
-  - Improved main content area positioning
-  - Fixed chat panel z-index and positioning
-  - Enhanced responsive layout transitions
-  - Added proper spacing for sidebar integration
-  - Implemented gradient background for better visibility
-- [ ] Begin Redis integration
+**8. Overall Context for the AI Coding Agent**
 
-### February 14, 2025
-#### Morning Progress
-- [x] Implemented Redis data cleanup utility
-  - Created cleanup script for invalid chat entries
-  - Added handling for orphaned messages
-  - Removed corrupted Redis keys
-  - Added data validation checks
-- [x] Migrated chat data structure
-  - Migrated 719 chats to new format successfully
-  - Skipped 100 already migrated/invalid chats
-  - Zero migration failures
-  - Improved data structure consistency
-- [x] Fixed Known Issues:
-  - 404 "This page could not be found" error still occurs when creating new chat session -> change /search to /chat
-  - Need to investigate chat initialization process
-  - Potential race condition in chat creation flow
+The current master tracker gives a snapshot of the project with several systems in progress. While many core functionalities are in place, the focus is now on refining system integrations, enhancing performance, and completing testing/documentation.
 
-## Technical Debt
-1. **Testing Coverage**
-   - Quality gates tests missing
-   - API documentation needed
-   - Usage examples required
+*   Deep Research System is robust but needs final testing and documentation.
+*   Vercel AI SDK Integration is moving forward, though token usage remains blocked until model-specific logic is resolved.
+*   UI/UX Components have seen significant progress on chat and animation improvements, but research visualization enhancements and accessibility features are pending.
+*   Sidebar System has a solid core structure, yet advanced features (e.g., full drag & drop, virtual scrolling) and performance enhancements are still needed.
 
-2. **Research Visualization**
-   - ✅ State initialization fixed
-   - ✅ Activity tracking implemented
-   - ✅ Configuration integration completed
-   - ✅ Panel visibility and toggle functionality fixed
-   - ✅ Component structure and imports optimized
-   - ✅ Research suggestions component fixed
-   - ✅ Type safety improved
-   - ✅ Redis data monitoring tools implemented
-   - ⚠️ Need performance optimization for large datasets
-   - ⚠️ Need accessibility improvements
+This comprehensive context should allow the AI coding agent to understand which modules are ready for further development, which areas require additional testing or documentation, and where integration challenges (especially around token usage and advanced UI features) remain to be solved.
 
-3. **AI Streaming**
-   - Tool call streaming fixes needed
-   - Message continuity improvements required
-   - Stream state management optimization needed
-   - ✅ Chat session persistence implemented
-   - ✅ ID management system improved
-   - ⚠️ Chat initialization errors causing 404s
-   - ⚠️ Need to fix race conditions in chat creation
-
-4. **Sidebar Implementation**
-   - [x] Implement core structure
-   - [x] Integrate existing components
-   - [x] Add folder management
-   - [x] Implement search functionality
-   - [x] Add mobile responsiveness
-   - [x] Implement basic accessibility
-   - [ ] Add Redis integration
-   - [ ] Add drag and drop
-   - [ ] Add virtual scrolling
-   - [ ] Add keyboard navigation
-   - [ ] Add performance optimizations
-
-## Next Steps
-1. **Testing & Documentation**
-   - [ ] Add quality gates tests
-   - [ ] Create API documentation
-   - [ ] Add usage examples
-   - [ ] Add chat session management tests
-
-2. **Research Visualization**
-   - [x] Fix state initialization
-   - [x] Implement activity tracking
-   - [x] Integrate configuration properly
-   - [x] Fix research suggestions component
-   - [ ] Add performance optimizations
-   - [ ] Implement accessibility features
-
-3. **AI Streaming**
-   - [x] Implement chat session persistence
-   - [x] Fix ID management system
-   - [ ] Fix tool call streaming
-   - [ ] Improve message continuity
-   - [ ] Optimize stream state management
-
-4. **Sidebar Implementation**
-   - [x] Implement core structure
-   - [x] Integrate existing components
-   - [x] Add folder management
-   - [x] Implement search functionality
-   - [x] Add mobile responsiveness
-   - [x] Implement basic accessibility
-   - [ ] Add Redis integration
-   - [ ] Add drag and drop
-   - [ ] Add virtual scrolling
-   - [ ] Add keyboard navigation
-   - [ ] Add performance optimizations
-
-## Notes
-- Last Updated: February 14, 2025
-- Next Review: February 15, 2025 
-- Recent Updates:
-  - Completed Redis data structure migration (719 chats)
-  - Implemented cleanup utility for invalid entries
-  - Known issue: 404 errors on new chat creation persist
-  - Improved Redis data consistency and validation 
-
-### February 15, 2025
-#### Morning Progress
-- [x] Improved sidebar UX
-  - Changed default state to start collapsed
-  - Maintained smooth transition animations
-  - Preserved mobile responsiveness with sheet component
-  - Kept proper z-indexing and positioning
-  - Logo button visible in top-left when collapsed 
+Last Updated: Feb 15, 2025

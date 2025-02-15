@@ -44,6 +44,7 @@ Key Conventions
 
 Naming Conventions
 - Booleans: Use auxiliary verbs such as 'does', 'has', 'is', and 'should' (e.g., isDisabled, hasError).
+- Types Files: make sure to have a 'types-' prefix to all types files to. example: types-fileName.ts
 - Filenames: Use lowercase with dash separators (e.g., auth-wizard.tsx).
 - File extensions: Use .config.ts, .test.ts, .context.tsx, .type.ts, .hook.ts as appropriate.
 

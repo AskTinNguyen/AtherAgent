@@ -1,6 +1,6 @@
 import { ChatOperations } from '@/lib/redis/chat'
-import { LocalRedisWrapper } from '@/lib/redis/types'
-import { Message, MessageType } from '@/lib/types/chat'
+import { Message, MessageType } from '@/lib/types/types.chat'
+import { LocalRedisWrapper } from '@/lib/types/types.redis'
 import { randomUUID } from 'crypto'
 
 jest.mock('@/lib/redis/config', () => ({

@@ -50,13 +50,22 @@ export async function getFolder(id: string): Promise<Folder | null> {
     }
     
     try {
-      // Safely parse the chats array with fallback to empty array
-      let parsedChats: string[]
+      // Safely parse the chats array
+      let parsedChats: string[] = []
       try {
-        const chatsData = JSON.parse(folder.chats || '[]')
-        parsedChats = Array.isArray(chatsData) ? chatsData : []
-      } catch {
-        console.warn(`[getFolder] Invalid chats array for folder ${id}, using empty array`)
+        // Handle both string array and stringified array
+        if (folder.chats) {
+          if (Array.isArray(folder.chats)) {
+            parsedChats = folder.chats
+          } else {
+            const parsed = JSON.parse(folder.chats)
+            parsedChats = Array.isArray(parsed) ? parsed : []
+          }
+        }
+      } catch (parseError) {
+        console.warn(`[getFolder] Invalid chats array for folder ${id}, resetting to empty array`)
+        // Reset the chats array in Redis
+        await redis.hmset(`${FOLDER_PREFIX}${id}`, { chats: '[]' })
         parsedChats = []
       }
 
@@ -64,7 +73,7 @@ export async function getFolder(id: string): Promise<Folder | null> {
       const parsedFolder: Folder = {
         id: folder.id || id,
         name: folder.name || 'Unnamed Folder',
-        parentId: folder.parentId,
+        parentId: folder.parentId === 'null' ? undefined : folder.parentId,
         order: parseInt(folder.order) || Date.now(),
         createdAt: parseInt(folder.createdAt) || Date.now(),
         updatedAt: parseInt(folder.updatedAt) || Date.now(),
@@ -82,7 +91,7 @@ export async function getFolder(id: string): Promise<Folder | null> {
       return {
         id: folder.id || id,
         name: folder.name || 'Unnamed Folder',
-        parentId: folder.parentId,
+        parentId: folder.parentId === 'null' ? undefined : folder.parentId,
         order: parseInt(folder.order) || Date.now(),
         createdAt: parseInt(folder.createdAt) || Date.now(),
         updatedAt: parseInt(folder.updatedAt) || Date.now(),
@@ -195,6 +204,33 @@ export async function deleteFolder(id: string): Promise<FolderOperationResult> {
   }
 }
 
+async function syncFolderChats(folderId: string): Promise<string[]> {
+  const redis = await getRedisClient()
+  const chatKeys = await redis.keys(`${CHAT_PREFIX}*`)
+  const chats: string[] = []
+
+  for (const key of chatKeys) {
+    const chat = await redis.hgetall<Record<string, string>>(key)
+    if (chat && chat.folderId === folderId) {
+      chats.push(key.replace(CHAT_PREFIX, ''))
+    }
+  }
+
+  // Update the folder's chats array
+  const folderKey = `${FOLDER_PREFIX}${folderId}`
+  const folder = await redis.hgetall<Record<string, string>>(folderKey)
+  
+  if (folder) {
+    await redis.hmset(folderKey, {
+      ...folder,
+      chats: JSON.stringify(chats),
+      updatedAt: Date.now().toString()
+    })
+  }
+
+  return chats
+}
+
 export async function addChatToFolder(
   folderId: string,
   chatId: string
@@ -206,6 +242,7 @@ export async function addChatToFolder(
     console.log(`[addChatToFolder] Params:`, { chatId, folderId })
     
     // Check if folder exists
+    const folderKey = `${FOLDER_PREFIX}${folderId}`
     const folder = await getFolder(folderId)
     console.log(`[addChatToFolder] Folder lookup result:`, {
       found: !!folder,
@@ -231,58 +268,64 @@ export async function addChatToFolder(
       return { success: false, error: "Chat not found" }
     }
 
-    // If chat is already in this folder, return success
+    // If chat is already in this folder, sync the folder's chats and return
     if (chat.folderId === folderId) {
-      return { success: true, folder }
+      const syncedChats = await syncFolderChats(folderId)
+      return { 
+        success: true, 
+        folder: {
+          ...folder,
+          chats: syncedChats
+        }
+      }
     }
 
-    // Prepare the updates
-    const isNewChat = !folder.chats.includes(chatId)
-    console.log(`[addChatToFolder] Operation type:`, {
-      isNewChat,
-      currentFolderChats: folder.chats,
-      willAdd: isNewChat
-    })
-
-    // Update folder data
-    const updatedFolder = {
-      ...folder,
-      chats: isNewChat ? [...folder.chats, chatId] : folder.chats,
-      updatedAt: Date.now()
+    // Remove chat from its current folder if it has one
+    if (chat.folderId) {
+      const currentFolderChats = await syncFolderChats(chat.folderId)
+      console.log(`[addChatToFolder] Removed chat from current folder:`, {
+        folderId: chat.folderId,
+        remainingChats: currentFolderChats
+      })
     }
 
-    // Prepare chat update
+    // Prepare chat data for update
     const chatToUpdate = {
       ...chat,
       folderId,
-      updatedAt: Date.now().toString()
+      updatedAt: Date.now().toString(),
+      createdAt: chat.createdAt.includes('T') 
+        ? new Date(chat.createdAt).getTime().toString()
+        : chat.createdAt
     }
 
-    // Prepare stringified folder data
-    const stringifiedFolder = Object.entries(updatedFolder).reduce((acc, [key, value]) => ({
-      ...acc,
-      [key]: Array.isArray(value) ? JSON.stringify(value) : String(value)
-    }), {})
+    // Update the chat in Redis
+    const chatUpdateResult = await redis.hmset(chatKey, chatToUpdate)
+    if (!chatUpdateResult) {
+      throw new Error('Failed to update chat')
+    }
 
-    // Execute transaction
-    const folderKey = `${FOLDER_PREFIX}${folderId}`
-    const multi = redis.multi()
-    
-    // Update folder
-    multi.hmset(folderKey, stringifiedFolder)
-    
-    // Update chat
-    multi.hmset(chatKey, chatToUpdate)
+    // Update folder's chats array
+    const updatedChats = [...folder.chats]
+    if (!updatedChats.includes(chatId)) {
+      updatedChats.push(chatId)
+    }
 
-    const results = await multi.exec()
-    
-    if (!results || results.some(result => !result)) {
-      console.error(`[addChatToFolder] Transaction failed:`, {
-        results,
-        folderId,
-        chatId
-      })
-      throw new Error('Failed to update folder and chat')
+    // Update the folder in Redis
+    const folderUpdateResult = await redis.hmset(folderKey, {
+      ...folder,
+      chats: JSON.stringify(updatedChats),
+      updatedAt: Date.now().toString()
+    })
+
+    if (!folderUpdateResult) {
+      throw new Error('Failed to update folder')
+    }
+
+    const updatedFolder = {
+      ...folder,
+      chats: updatedChats,
+      updatedAt: Date.now()
     }
 
     console.log(`[addChatToFolder] ====== Operation Successful ======`)

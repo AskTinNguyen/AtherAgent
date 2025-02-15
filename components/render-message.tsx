@@ -1,5 +1,5 @@
-import type { ChatChartMessage } from '@/lib/types/chart'
-import { createChartMessage } from '@/lib/types/chart'
+import type { ChatChartMessage } from '@/lib/types/types.visualization'
+import { createChartMessage } from '@/lib/utils/chart-helpers'
 import { JSONValue, Message, ToolInvocation } from 'ai'
 import { useMemo } from 'react'
 import { AnswerSection } from './answer-section'

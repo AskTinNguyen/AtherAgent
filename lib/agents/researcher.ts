@@ -1,26 +1,39 @@
-import { SearchResultItem, SearchResults, ToolResultContent } from '@/lib/types'
-import { CoreMessage, smoothStream, streamText } from 'ai'
-import { ResearchContext } from '../ai/research-processor'
+import { type SearchResultItem, type SearchResults, type ToolResultContent } from '@/lib/types'
+import { type ResearchContext } from '../ai/research-processor'
 import { retrieveTool } from '../tools/retrieve'
 import { searchTool } from '../tools/search'
 import { videoSearchTool } from '../tools/video-search'
-import { getModel } from '../utils/registry'
-import { checkDiminishingReturns, executeResearchTools, refineQuery } from '../utils/research-loop'
 
-// Define interfaces for tool configuration
+// Define message types
+interface AssistantMessage {
+  role: 'assistant'
+  content: string
+  data?: ToolResultContent[]
+}
+
+// Define research tools type
 interface ResearchTools {
   search: typeof searchTool
   retrieve: typeof retrieveTool
   videoSearch: typeof videoSearchTool
-  [key: string]: any  // Add index signature to match ToolSet type
 }
 
-// Add search tool parameter interfaces
-interface SearchToolParams {
-  query: string
-  search_depth: 'basic' | 'advanced'
-  include_domains: string[]
-  exclude_domains: string[]
+// Define researcher function types
+interface ResearcherParams {
+  messages: AssistantMessage[]
+  model: string
+  searchMode: boolean
+  context?: ResearchContext
+  maxIterations?: number
+}
+
+interface ResearcherResult {
+  messages: AssistantMessage[]
+  model: string
+  tools?: ResearchTools
+  toolChoice?: { type: 'single'; tool: keyof ResearchTools }
+  maxSteps?: number
+  experimental_transform?: unknown
 }
 
 // Define available tools as a constant
@@ -31,33 +44,19 @@ const AVAILABLE_TOOLS: ResearchTools = {
       if (!result || !result.results) {
         return [{ type: 'text', text: 'No results found.' }]
       }
-      return [
-        {
-          type: 'text',
-          text: result.results
-            .map((r: SearchResultItem, i: number) => 
-              `[${i + 1}] ${r.title}\n${r.content}\nURL: ${r.url}`
-            )
-            .join('\n\n')
-        }
-      ]
+      return [{
+        type: 'text',
+        text: result.results
+          .map((r: SearchResultItem, i: number) => 
+            `[${i + 1}] ${r.title}\n${r.content}\nURL: ${r.url}`
+          )
+          .join('\n\n')
+      }]
     }
   },
   retrieve: retrieveTool,
   videoSearch: videoSearchTool
 } as const
-
-// Type for valid tool names
-type ToolName = keyof typeof AVAILABLE_TOOLS
-
-// Define researcher config interface
-interface ResearcherConfig {
-  messages: CoreMessage[]
-  model: string
-  searchMode: boolean
-  context?: ResearchContext
-  maxIterations?: number
-}
 
 const SYSTEM_PROMPT = `
 Instructions:
@@ -219,108 +218,38 @@ Search tool is disabled, You must answer the user's request using the other rele
 
 `
 
-// Define researcher return interface
-type ResearcherReturn = Parameters<typeof streamText>[0]
+export function researcher(params: ResearcherParams): ResearcherResult {
+  const { messages, model, searchMode, maxIterations = 5 } = params
 
-// Track research iterations
-interface ResearchState {
-  iterations: {
-    query: string
-    results: any[]
-    timestamp: number
-  }[]
-  currentDepth: number
-  maxDepth: number
-  recentFindings: string[]
-}
-
-export function researcher({
-  messages,
-  model,
-  searchMode,
-  context,
-  maxIterations = 5
-}: ResearcherConfig): ResearcherReturn {
   try {
     const currentDate = new Date().toLocaleString()
-    const researchState: ResearchState = {
-      iterations: [],
-      currentDepth: context?.currentDepth || 1,
-      maxDepth: context?.maxDepth || 3,
-      recentFindings: context?.recentFindings || []
-    }
-
-    // Enhanced tool execution with the research loop
-    const enhancedTools = {
-      ...AVAILABLE_TOOLS,
-      search: {
-        ...AVAILABLE_TOOLS.search,
-        execute: async (params: SearchToolParams) => {
-          const { query } = params
-          
-          // Execute initial search
-          const results = await executeResearchTools(query, { search: true })
-          researchState.iterations.push({
-            query,
-            results,
-            timestamp: Date.now()
-          })
-
-          // Check if we need to refine and search again
-          if (
-            !checkDiminishingReturns(results, researchState.iterations) && 
-            researchState.iterations.length < maxIterations
-          ) {
-            const refinedQuery = refineQuery(
-              query,
-              researchState.iterations,
-              {
-                currentQuery: query,
-                previousQueries: researchState.iterations.map(i => i.query),
-                currentDepth: researchState.currentDepth,
-                maxDepth: researchState.maxDepth,
-                recentFindings: researchState.recentFindings
-              }
-            )
-
-            if (refinedQuery !== query) {
-              const refinedResults = await executeResearchTools(refinedQuery, { search: true })
-              researchState.iterations.push({
-                query: refinedQuery,
-                results: refinedResults,
-                timestamp: Date.now()
-              })
-
-              // Combine results
-              return {
-                results: [
-                  ...results.flatMap((r: any) => r.data?.results || []),
-                  ...refinedResults.flatMap((r: any) => r.data?.results || [])
-                ]
-              }
-            }
-          }
-
-          return {
-            results: results.flatMap((r: any) => r.data?.results || [])
-          }
-        }
-      }
-    }
+    const enhancedTools = { ...AVAILABLE_TOOLS }
+    const systemPrompt = searchMode ? SEARCH_ENABLED_PROMPT : SEARCH_DISABLED_PROMPT
 
     return {
-      model: getModel(model),
-      system: `${SYSTEM_PROMPT}\nCurrent date and time: ${currentDate}`,
-      messages,
-      tools: enhancedTools,
-      experimental_activeTools: searchMode
-        ? Object.keys(enhancedTools)
-        : [],
+      messages: [{
+        role: 'assistant',
+        content: `${systemPrompt}\nCurrent date and time: ${currentDate}`,
+        data: [{ type: 'text', text: 'I am ready to assist you with your research.' }]
+      }],
+      model: model,
+      tools: searchMode ? enhancedTools : undefined,
+      toolChoice: searchMode ? {
+        type: 'single',
+        tool: 'search'
+      } : undefined,
       maxSteps: searchMode ? maxIterations : 1,
-      experimental_transform: smoothStream({ chunking: 'word' })
+      experimental_transform: { chunking: 'word' }
     }
-  } catch (error) {
-    console.error('Error in researcher:', error instanceof Error ? error.message : 'Unknown error')
-    throw new Error('Failed to initialize researcher chat', { cause: error })
+  } catch (error: unknown) {
+    console.error('Error in researcher:', error)
+    return {
+      messages: [{
+        role: 'assistant',
+        content: 'I encountered an error while processing your request. Please try again.',
+        data: [{ type: 'text', text: error instanceof Error ? error.message : 'Unknown error' }]
+      }],
+      model: model
+    }
   }
 }

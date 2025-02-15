@@ -1,6 +1,6 @@
 'use client'
 
-import { ResearchSourceMetrics, type ResearchSuggestion } from '@/lib/types/research'
+import { type ResearchState } from '@/lib/types/types.research'
 import { calculateSourceMetrics, optimizeDepthStrategy, shouldIncreaseDepth } from '@/lib/utils/research-depth'
 import { createContext, useCallback, useContext, useReducer, type ReactNode } from 'react'
 
@@ -26,33 +26,6 @@ export interface ResearchSource {
     sourceAuthority: number
     timeRelevance: number
   }
-}
-
-export interface ResearchState {
-  // Core state
-  isActive: boolean
-  searchEnabled: boolean
-  
-  // Depth management
-  depth: {
-    current: number
-    max: number
-    config: {
-      minRelevanceScore: number
-      adaptiveThreshold: number
-      depthScores: Record<number, number>
-    }
-  }
-  
-  // Research data
-  activity: ResearchActivity[]
-  sources: ResearchSource[]
-  sourceMetrics: ResearchSourceMetrics[]
-  suggestions: ResearchSuggestion[]
-  
-  // Progress tracking
-  completedSteps: number
-  totalExpectedSteps: number
 }
 
 // Actions

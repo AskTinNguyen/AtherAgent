@@ -1,4 +1,4 @@
-import { SearchResult } from '@/lib/types'
+import { type SearchResult } from '@/lib/types'
 
 export type DiffType = 'unchanged' | 'added' | 'refined' | 'removed'
 
@@ -53,7 +53,6 @@ export interface DiffHighlight {
   }
 }
 
-// Configuration for diff visualization
 export interface DiffViewConfig {
   showInlineChanges: boolean
   showMetrics: boolean

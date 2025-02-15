@@ -1,6 +1,6 @@
+import { LocalRedisWrapper, RedisWrapper, UpstashRedisWrapper } from '@/lib/types/types.redis'
 import { Redis } from '@upstash/redis'
 import { createClient } from 'redis'
-import { LocalRedisWrapper, RedisWrapper, UpstashRedisWrapper } from './types'
 
 const MAX_RETRIES = 3
 const RETRY_DELAY = 1000 // 1 second

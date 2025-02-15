@@ -1,40 +1,8 @@
 import { searchSchema, searchSchemaWithDefaults } from '@/lib/schema/search'
-import { SearchResult } from '@/lib/types'
+import { type SearchResultImage, type SearchResultItem, type SearchResults, type SearXNGResponse, type SearXNGResult } from '@/lib/types/types.search'
 import { sanitizeUrl } from '@/lib/utils'
 import { tool } from 'ai'
 import Exa from 'exa-js'
-
-// Define interfaces for search results
-interface SearchImage {
-  url: string
-  description?: string
-}
-
-interface SearchResults {
-  results: Array<{
-    title: string
-    url: string
-    content: string
-    relevance?: number
-    depth?: number
-  }>
-  query: string
-  images: SearchImage[]
-  number_of_results: number
-}
-
-interface SearXNGResult {
-  url: string
-  title: string
-  content: string
-  img_src?: string
-}
-
-interface SearXNGResponse {
-  query: string
-  results: SearXNGResult[]
-  number_of_results?: number
-}
 
 export const searchTool = tool({
   description: 'Search the web for information',
@@ -179,21 +147,21 @@ async function tavilySearch(
   }
 
   const data = await response.json()
-  const processedImages = includeImageDescriptions
+  const processedImages: SearchResultImage[] = includeImageDescriptions
     ? data.images
         .map(({ url, description }: { url: string; description: string }) => ({
           url: sanitizeUrl(url),
-          description
+          title: description
         }))
         .filter(
-          (image: { url: string; description?: string }): image is SearchImage & { description: string } =>
+          (image: SearchResultImage): image is SearchResultImage =>
             typeof image === 'object' &&
-            image.description !== undefined &&
-            image.description !== ''
+            image.title !== undefined &&
+            image.title !== ''
         )
     : data.images.map((url: string) => ({ url: sanitizeUrl(url) }))
 
-  const results = data.results.map((result: SearXNGResult) => ({
+  const results: SearchResultItem[] = data.results.map((result: SearXNGResult) => ({
     title: result.title || '',
     url: result.url || '',
     content: result.content || '',
@@ -206,7 +174,7 @@ async function tavilySearch(
     query,
     images: processedImages,
     number_of_results: results.length
-  } satisfies SearchResults
+  }
 }
 
 async function exaSearch(
@@ -229,15 +197,18 @@ async function exaSearch(
     excludeDomains
   })
 
+  const results: SearchResultItem[] = exaResults.results.map((result: any) => ({
+    title: result.title,
+    url: result.url,
+    content: result.highlight || result.text,
+    relevance: 1
+  }))
+
   return {
-    results: exaResults.results.map((result: any) => ({
-      title: result.title,
-      url: result.url,
-      content: result.highlight || result.text
-    })),
+    results,
     query,
     images: [],
-    number_of_results: exaResults.results.length
+    number_of_results: results.length
   }
 }
 
@@ -248,75 +219,46 @@ async function searxngSearch(
   includeDomains: string[] = [],
   excludeDomains: string[] = []
 ): Promise<SearchResults> {
-  const apiUrl = process.env.SEARXNG_API_URL
-  if (!apiUrl) {
-    throw new Error('SEARXNG_API_URL is not set in the environment variables')
+  const baseUrl = process.env.SEARXNG_URL
+  if (!baseUrl) {
+    throw new Error('SEARXNG_URL is not set in the environment variables')
   }
 
-  try {
-    // Construct the URL with query parameters
-    const url = new URL(`${apiUrl}/search`)
-    url.searchParams.append('q', query)
-    url.searchParams.append('format', 'json')
-    url.searchParams.append('categories', 'general,images')
-
-    // Apply search depth settings
-    if (searchDepth === 'advanced') {
-      url.searchParams.append('time_range', '')
-      url.searchParams.append('safesearch', '0')
-      url.searchParams.append('engines', 'google,bing,duckduckgo,wikipedia')
-    } else {
-      url.searchParams.append('time_range', 'year')
-      url.searchParams.append('safesearch', '1')
-      url.searchParams.append('engines', 'google,bing')
-    }
-
-    // Fetch results from SearXNG
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json'
-      }
+  const response = await fetch(`${baseUrl}/search`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      q: query,
+      format: 'json',
+      pageno: 1,
+      engines: ['google', 'bing', 'duckduckgo'],
+      max_results: maxResults,
+      search_depth: searchDepth,
+      include_domains: includeDomains,
+      exclude_domains: excludeDomains
     })
+  })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`SearXNG API error (${response.status}):`, errorText)
-      throw new Error(
-        `SearXNG API error: ${response.status} ${response.statusText} - ${errorText}`
-      )
-    }
+  if (!response.ok) {
+    throw new Error(
+      `SearXNG API error: ${response.status} ${response.statusText}`
+    )
+  }
 
-    const data: SearXNGResponse = await response.json()
+  const data: SearXNGResponse = await response.json()
+  const results: SearchResultItem[] = data.results.map(result => ({
+    title: result.title,
+    url: result.url,
+    content: result.content,
+    relevance: 1
+  }))
 
-    // Separate general results and image results, and limit to maxResults
-    const generalResults = data.results
-      .filter(result => !result.img_src)
-      .slice(0, maxResults)
-    const imageResults = data.results
-      .filter(result => result.img_src)
-      .slice(0, maxResults)
-
-    // Format the results to match the expected SearchResults structure
-    return {
-      results: generalResults.map(
-        (result: SearXNGResult): SearchResult => ({
-          title: result.title,
-          url: result.url,
-          content: result.content
-        })
-      ),
-      query: data.query,
-      images: imageResults
-        .map(result => {
-          const imgSrc = result.img_src || ''
-          return imgSrc.startsWith('http') ? imgSrc : `${apiUrl}${imgSrc}`
-        })
-        .filter(Boolean),
-      number_of_results: data.number_of_results
-    }
-  } catch (error) {
-    console.error('SearXNG API error:', error)
-    throw error
+  return {
+    results,
+    query,
+    images: [],
+    number_of_results: data.number_of_results || results.length
   }
 }

@@ -1,28 +1,28 @@
 'use client'
 
-import { MessageType } from '@/lib/types/chat'
+import { MessageType } from '@/lib/types/types.chat'
 import { cn } from '@/lib/utils'
 import {
-    Action,
-    KBarAnimator,
-    KBarPortal,
-    KBarPositioner,
-    KBarSearch,
-    useKBar,
-    useRegisterActions
+  Action,
+  KBarAnimator,
+  KBarPortal,
+  KBarPositioner,
+  KBarSearch,
+  useKBar,
+  useRegisterActions
 } from 'kbar'
 import {
-    BookOpen,
-    Brain,
-    Code,
-    Download,
-    FileSearch,
-    Home,
-    PanelLeftClose,
-    Search,
-    Settings,
-    Sun,
-    Trash2
+  BookOpen,
+  Brain,
+  Code,
+  Download,
+  FileSearch,
+  Home,
+  PanelLeftClose,
+  Search,
+  Settings,
+  Sun,
+  Trash2
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useRouter } from 'next/navigation'

@@ -1,25 +1,5 @@
-import type { ChartData, ChartType } from 'chart.js'
-
-// Types for chat messages containing chart data
-export interface ChatChartData {
-  type: ChartType
-  title?: string
-  labels: string[]
-  datasets: Array<{
-    label: string
-    data: number[]
-    borderColor?: string
-    backgroundColor?: string
-    borderWidth?: number
-  }>
-}
-
-export interface ChatChartMessage {
-  type: 'chart'
-  role: 'assistant'
-  content: string
-  data: ChatChartData
-}
+import type { ChartData } from 'chart.js'
+import type { ChatChartData, ChatChartMessage, DatasetToValidate } from '../types/types.chart'
 
 // Helper function to convert ChatChartData to Chart.js ChartData
 export function convertToChartData(data: ChatChartData): ChartData {
@@ -65,12 +45,6 @@ export function createChartMessage(rawData: any): ChatChartMessage | null {
   }
 }
 
-// Type for dataset validation
-interface DatasetToValidate {
-  label: string
-  data: unknown[]
-}
-
 // Enhanced validation function
 export function validateChatChartData(data: any): data is ChatChartData {
   if (!data || 
@@ -83,4 +57,4 @@ export function validateChatChartData(data: any): data is ChatChartData {
     Array.isArray(dataset.data) &&
     dataset.data.every((value: unknown) => typeof value === 'number')
   )
-}
+} 

@@ -1,160 +1,45 @@
-import { CoreMessage, JSONValue, Message } from 'ai'
+import { CoreMessage, Message } from 'ai'
+import type { ResearchSource } from './types.research'
 
-// Search Result Types
-export type SearchResultItem = {
-  title: string
-  url: string
-  content: string
-  relevance: number
-  depth?: number
-}
+// Core type definitions
+export type {
+  FinishReason,
+  TokenUsage,
+  UsageInfo
+} from './types.core'
 
-export interface SearchResults {
-  results: SearchResultItem[]
-  images?: SearchResultImage[]
-  directUrls?: string[]
-  number_of_results?: number
-}
+export * from './types.storage'
+export * from './types.ui'
 
-// If enabled the include_images_description is true, the images will be an array of { url: string, description: string }
-// Otherwise, the images will be an array of strings
-export type SearchResultImage = {
-  url: string
-  title?: string
-  thumbnail?: string
-}
-
-// Tool Result Types
-export interface ToolResultContent {
-  type: 'text'
-  text: string
-}
-
-// Research Types
-export interface ResearchDepthConfig {
-  currentDepth: number
-  maxDepth: number
-  minRelevanceScore: number
-  adaptiveThreshold: number
-  depthScores: Record<number, number>
-}
-
-export interface ResearchSourceMetrics {
-  relevanceScore: number
-  depthLevel: number
-  contentQuality: number
-  timeRelevance: number
-  sourceAuthority: number
-  crossValidation?: number
-  coverage?: number
-}
-
-export interface ResearchDepthRules {
-  minRelevanceForNextDepth: number
-  maxSourcesPerDepth: number
-  depthTimeoutMs: number
-  qualityThreshold: number
-}
-
-export type ResearchStage = 'overview' | 'deep_research' | 'verification' | 'report'
+// Re-export chat types
+export type {
+  Chat, ChatMetadata,
+  ChatOperationResult, Message, MessageMetadata, MessageResearchData, MessageToolCall,
+  MessageToolResult, MessageType, SaveChatOptions
+} from './types.chat'
 
 // Re-export research types
-export * from './research'
+export type {
+  AutocompleteSuggestion, EnhancedResearchState, ExtendedResearchState, GateCriteria, GateDecision, GateEvaluation, QualityGate, ResearchActivity, ResearchActivityMetadata, ResearchActivityType, ResearchDepthConfig,
+  ResearchDepthRules, ResearchSource, ResearchSourceMetrics,
+  ResearchStage, ResearchSuggestion,
+  ResearchSuggestionMetadata, ToolResultContent
+} from './types.research'
 
-// Provider Types
-export type ExaSearchResults = {
-  results: ExaSearchResultItem[]
-}
+// Re-export search types
+export type {
+  ExaSearchResultItem, ExaSearchResults, SearchResultImage, SearchResultItem,
+  SearchResults, SearXNGImageResult, SearXNGResponse, SearXNGResult, SearXNGSearchResults, SerperSearchResultItem, SerperSearchResults
+} from './types.search'
 
-export type SerperSearchResults = {
-  searchParameters: {
-    q: string
-    type: string
-    engine: string
-  }
-  videos: SerperSearchResultItem[]
-}
-
-export type ExaSearchResultItem = {
-  score: number
-  title: string
-  id: string
-  url: string
-  publishedDate: Date
-  author: string
-}
-
-export type SerperSearchResultItem = {
-  title: string
-  link: string
-  snippet: string
-  imageUrl: string
-  duration: string
-  source: string
-  channel: string
-  date: string
-  position: number
-}
-
-// Chat Types
-export interface Chat {
-  id: string
-  title: string
-  path?: string
-  createdAt: number
-  updatedAt: number
-  order: number
-  lastMessage?: string
-  messageCount?: number
-  folderId?: string
-}
-
-export type ExtendedCoreMessage = Omit<CoreMessage, 'role' | 'content'> & {
-  role: CoreMessage['role'] | 'data'
-  content: CoreMessage['content'] | JSONValue
-}
-
-export type AIMessage = {
-  role: 'user' | 'assistant' | 'system' | 'function' | 'data' | 'tool'
-  content: string
-  id: string
-  name?: string
-  type?:
-    | 'answer'
-    | 'related'
-    | 'skip'
-    | 'inquiry'
-    | 'input'
-    | 'input_related'
-    | 'tool'
-    | 'followup'
-    | 'end'
-}
-
-// SearXNG Types
-export interface SearXNGResult {
-  title: string
-  url: string
-  content: string
-  img_src?: string
-  publishedDate?: string
-  score?: number
-}
-
-export interface SearXNGResponse {
-  query: string
-  number_of_results: number
-  results: SearXNGResult[]
-}
-
-export type SearXNGImageResult = string
-
-export type SearXNGSearchResults = {
-  images: SearXNGImageResult[]
-  results: SearchResultItem[]
-  number_of_results?: number
-  query: string
-}
+// Feature-specific implementations
+export * from './chart'
+export * from './deep-research'
+export * from './messages'
+export * from './models'
+export * from './research-command-center'
+export * from './usage'
+export * from './visualization'
 
 // Attachment Types
 export interface AttachmentFile {
@@ -167,25 +52,10 @@ export interface AttachmentFile {
   error?: string
 }
 
-// Research Source Types
-export interface ResearchSource {
-  id: string
-  url: string
-  title?: string
-  relevance?: number
-  snippet?: string
-}
-
+// Extended Message Types
 export interface MultimodalMessage extends Message {
   attachments?: AttachmentFile[]
   sources?: ResearchSource[]
-}
-
-export interface AutocompleteSuggestion {
-  id: string
-  text: string
-  confidence: number
-  source?: ResearchSource
 }
 
 export interface SearchSource {
@@ -200,3 +70,37 @@ export interface SearchSource {
 export interface ExtendedMessage extends Message {
   searchSources?: SearchSource[]
 }
+
+export type ExtendedCoreMessage = Omit<CoreMessage, 'role' | 'content'> & {
+  role: CoreMessage['role'] | 'data'
+  content: CoreMessage['content'] | JSONValue
+}
+
+// Utility types
+export type JSONValue = 
+  | string
+  | number
+  | boolean
+  | null
+  | JSONValue[]
+  | { [key: string]: JSONValue }
+
+// Type guards and type predicates
+export function isJSONValue(value: unknown): value is JSONValue {
+  if (value === null) return true
+  if (['string', 'number', 'boolean'].includes(typeof value)) return true
+  if (Array.isArray(value)) return value.every(isJSONValue)
+  if (typeof value === 'object') {
+    return Object.values(value as object).every(isJSONValue)
+  }
+  return false
+}
+
+// Type version for tracking breaking changes
+export const TYPE_VERSION = '1.0.0'
+
+export * from './types.diff'
+
+export * from './types.streaming'
+
+export * from './types.agent'

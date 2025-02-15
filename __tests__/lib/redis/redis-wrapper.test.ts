@@ -1,4 +1,4 @@
-import { LocalRedisWrapper, RedisWrapper } from '@/lib/redis/types'
+import { LocalRedisWrapper, RedisWrapper } from '@/lib/types/types.redis'
 
 jest.mock('redis', () => ({
   createClient: jest.fn()

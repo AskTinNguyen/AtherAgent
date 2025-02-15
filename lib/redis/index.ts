@@ -1,2 +1,3 @@
-export { getRedisClient as getRedis } from './config'
-export type { RedisWrapper } from './types'
+export type { RedisWrapper } from '@/lib/types/types.redis'
+export { getRedisClient } from './config'
+

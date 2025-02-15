@@ -1,56 +1,17 @@
 import { getRedisClient } from '@/lib/redis/config'
-import { FinishReason, TokenUsage, UsageInfo, UserUsage } from '../types/usage'
+import { type TokenUsage } from '@/lib/types/types.core'
+import {
+  type RedisUsageData,
+  type TimeRange,
+  type TrackUsageParams,
+  type UsageAnalytics,
+  type UsageInfo,
+  type UsageTracker,
+  type UsageTrackerConfig,
+  type UserUsage
+} from '@/lib/types/types.usage'
 
 const USER_USAGE_PREFIX = 'usage:'
-
-// Types and Interfaces
-export interface ModelTokenCounter {
-  countPromptTokens: (prompt: string) => number
-  countCompletionTokens: (completion: string) => number
-  validateTokenCount: (count: number) => boolean
-}
-
-export interface TimeRange {
-  start: number
-  end: number
-}
-
-export interface UsageAnalytics {
-  timeRange: TimeRange
-  totalUsage: TokenUsage
-  averageUsagePerChat: TokenUsage
-  modelBreakdown: Record<string, TokenUsage>
-  costEstimates?: {
-    totalCost: number
-    currency: string
-  }
-}
-
-export interface TrackUsageParams {
-  model: string
-  chatId: string
-  usage: TokenUsage
-  finishReason?: FinishReason
-}
-
-export interface UsageTrackerConfig {
-  userId: string
-  modelTokenCounter?: ModelTokenCounter
-}
-
-export interface UsageTracker {
-  trackUsage: (params: TrackUsageParams) => Promise<void>
-  getUserUsage: () => Promise<UserUsage>
-  getModelUsage: (model: string) => Promise<TokenUsage>
-  getAnalytics: (timeRange: TimeRange) => Promise<UsageAnalytics>
-}
-
-type RedisData = Record<string, string> & {
-  userId: string
-  totalUsage: string
-  modelUsage: string
-  lastUpdated: string
-}
 
 // Implementation
 export function createUsageTracker(config: UsageTrackerConfig): UsageTracker {
@@ -65,7 +26,7 @@ export function createUsageTracker(config: UsageTrackerConfig): UsageTracker {
     const userKey = getUserKey()
 
     try {
-      const data = await redis.hgetall<RedisData>(userKey)
+      const data = await redis.hgetall<RedisUsageData>(userKey)
 
       if (!data || !data.userId) {
         return {

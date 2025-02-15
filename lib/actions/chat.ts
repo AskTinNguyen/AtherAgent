@@ -6,7 +6,7 @@ import { JSONValue } from 'ai'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
-interface Chat {
+export interface Chat {
   id: string
   title: string
   messages: Message[]
@@ -141,13 +141,14 @@ export async function clearChats(
 ): Promise<{ error?: string }> {
   const redis = await getRedisClient()
   const userChatKey = getUserChatKey(userId)
-  const chats = await redis.zrange(userChatKey, 0, -1)
   
-  if (!chats.length) {
-    return { error: 'No chats to clear' }
-  }
-
   try {
+    const chats = await redis.zrange(userChatKey, 0, -1)
+    
+    if (!chats.length) {
+      return { error: 'No chats to clear' }
+    }
+
     // Delete all chats and their references in parallel
     const deleteResults = await Promise.all(
       chats.flatMap(chat => [
@@ -165,7 +166,7 @@ export async function clearChats(
     redirect('/')
     return {}
   } catch (error) {
-    console.error('Error clearing chats:', error)
+    console.error('Failed to clear chats:', error)
     return { error: 'Failed to clear chats' }
   }
 }
@@ -187,11 +188,10 @@ export async function saveChat(chat: Chat, userId: string = 'anonymous') {
     
     console.log('[DEBUG] Prepared chat for save:', { chatId: chatToSave.id, key })
     
-    // Save chat data
-    const result = await redis.zadd(key, {
-      score: new Date(chatToSave.createdAt).getTime(),
-      member: JSON.stringify(chatToSave)
-    })
+    // Save chat data with score and member
+    const score = new Date(chatToSave.createdAt).getTime()
+    const member = JSON.stringify(chatToSave)
+    const result = await redis.zadd(key, score, member)
     
     console.log('[DEBUG] Chat save result:', { result, chatId: chatToSave.id })
     
@@ -241,14 +241,15 @@ export async function deleteChat(
 ): Promise<{ error?: string }> {
   const redis = await getRedisClient()
   const userChatKey = getUserChatKey(userId)
-  const chats = await redis.zrange(userChatKey, 0, -1)
-  const chat = `chat:${chatId}`
-
-  if (!chats.includes(chat)) {
-    return { error: 'Unauthorized' }
-  }
-
+  
   try {
+    const chats = await redis.zrange(userChatKey, 0, -1)
+    const chat = `chat:${chatId}`
+
+    if (!chats.includes(chat)) {
+      return { error: 'Unauthorized' }
+    }
+
     // Delete chat data
     const deleteResult = await redis.del(chat)
     if (!deleteResult) {
@@ -261,10 +262,9 @@ export async function deleteChat(
       return { error: 'Failed to remove chat from user list' }
     }
 
-    revalidatePath('/')
     return {}
   } catch (error) {
-    console.error('Error deleting chat:', error)
+    console.error('Failed to delete chat:', error)
     return { error: 'Failed to delete chat' }
   }
 }
