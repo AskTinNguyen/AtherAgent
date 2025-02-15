@@ -3,6 +3,7 @@ import { type SearchResultImage, type SearchResultItem, type SearchResults, type
 import { sanitizeUrl } from '@/lib/utils'
 import { tool } from 'ai'
 import Exa from 'exa-js'
+import { API_PATHS } from '@/lib/config/api-paths'
 
 export const searchTool = tool({
   description: 'Search the web for information',
@@ -41,9 +42,7 @@ export const searchTool = tool({
     try {
       if (searchAPI === 'searxng' && effectiveSearchDepth === 'advanced') {
         // API route for advanced SearXNG search
-        const baseUrl =
-          process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-        const response = await fetch(`${baseUrl}/api/advanced-search`, {
+        const response = await fetch(API_PATHS.advancedSearch, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -260,5 +259,48 @@ async function searxngSearch(
     query,
     images: [],
     number_of_results: data.number_of_results || results.length
+  }
+}
+
+export async function performAdvancedSearch(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
+  try {
+    const response = await fetch(API_PATHS.advancedSearch, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query,
+        ...options
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error('Search request failed')
+    }
+    
+    const results = await response.json()
+    return results
+  } catch (error) {
+    console.error('Error performing advanced search:', error)
+    throw error
+  }
+}
+
+export async function searchWithFilters(query: string, filters: SearchFilters): Promise<SearchResult[]> {
+  try {
+    const queryParams = new URLSearchParams({
+      q: query,
+      ...filters
+    })
+    
+    const response = await fetch(`${API_PATHS.advancedSearch}?${queryParams}`)
+    if (!response.ok) {
+      throw new Error('Search request failed')
+    }
+    
+    const results = await response.json()
+    return results
+  } catch (error) {
+    console.error('Error performing filtered search:', error)
+    throw error
   }
 }

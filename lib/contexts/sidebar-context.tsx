@@ -2,19 +2,31 @@
 
 import { createContext, ReactNode, useCallback, useContext, useState } from 'react'
 
-interface SidebarContextType {
+export interface SidebarContextType {
   isExpanded: boolean
+  isCollapsed: boolean
   activeFolder: string | null
   searchQuery: string
   toggleSidebar: () => void
   setActiveFolder: (folderId: string | null) => void
   updateSearchQuery: (query: string) => void
+  setIsExpanded: (value: boolean) => void
 }
 
-const SidebarContext = createContext<SidebarContextType | undefined>(undefined)
+export const SidebarContext = createContext<SidebarContextType>({
+  isExpanded: false,
+  isCollapsed: false,
+  setIsExpanded: () => {},
+  activeFolder: null,
+  searchQuery: '',
+  toggleSidebar: () => {},
+  setActiveFolder: () => {},
+  updateSearchQuery: () => {}
+})
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const isCollapsed = !isExpanded
   const [activeFolder, setActiveFolder] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -30,6 +42,8 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     <SidebarContext.Provider
       value={{
         isExpanded,
+        isCollapsed,
+        setIsExpanded,
         activeFolder,
         searchQuery,
         toggleSidebar,
@@ -42,9 +56,9 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   )
 }
 
-export function useSidebarContext() {
+export const useSidebarContext = () => {
   const context = useContext(SidebarContext)
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useSidebarContext must be used within a SidebarProvider')
   }
   return context

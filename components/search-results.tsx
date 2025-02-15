@@ -9,6 +9,7 @@ import { compareSearchResults } from '@/lib/diff'
 import { DiffResult } from '@/lib/diff/types'
 import { SearchResult as BaseSearchResult } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { API_PATHS } from '@/lib/config/api-paths'
 import { Star } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
@@ -83,7 +84,7 @@ function SearchResultsContent({
     try {
       if (starredResults.has(result.url)) {
         // Remove bookmark
-        const response = await fetch(`/api/bookmarks?userId=${userId}&bookmarkId=${result.url}`, {
+        const response = await fetch(API_PATHS.bookmarks.get(userId, result.url), {
           method: 'DELETE'
         })
         
@@ -97,7 +98,7 @@ function SearchResultsContent({
         toast.success('Result removed from bookmarks')
       } else {
         // Add bookmark
-        const response = await fetch('/api/bookmarks', {
+        const response = await fetch(API_PATHS.bookmarks.base, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

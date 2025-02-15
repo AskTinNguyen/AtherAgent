@@ -3,36 +3,37 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { API_PATHS, createApiUrl } from '@/lib/config/api-paths'
 import {
-    BaseMetadata,
-    ChatMetadata,
-    EnhancedBookmark,
-    ResearchMetadata,
-    SearchMetadata
+  BaseMetadata,
+  ChatMetadata,
+  EnhancedBookmark,
+  ResearchMetadata,
+  SearchMetadata
 } from '@/lib/redis/types/bookmarks'
 import { cn } from '@/lib/utils'
+import { fetchWithRetry, withApiRetry } from '@/lib/utils/api-retry'
 import {
-    FolderOpen,
-    Search,
-    Tag,
-    Trash2
+  FolderOpen,
+  Search,
+  Tag,
+  Trash2
 } from 'lucide-react'
-import { useSession } from 'next-auth/react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -41,11 +42,10 @@ interface BookmarkManagerProps {
 }
 
 export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Element {
-  const { data: session } = useSession()
-  const userId = session?.user?.email || 'anonymous'
+  const [bookmarks, setBookmarks] = useState<EnhancedBookmark[]>([])
+  const userId = 'anonymous' // Simplified user identification
   const ITEMS_PER_PAGE = 10
 
-  const [bookmarks, setBookmarks] = useState<EnhancedBookmark[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
@@ -62,20 +62,19 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
   const [tags, setTags] = useState<Set<string>>(new Set())
 
   const fetchBookmarks = useCallback(async () => {
+    setIsLoading(true)
     try {
-      setIsLoading(true)
-      const offset = (page - 1) * ITEMS_PER_PAGE
       const queryParams = new URLSearchParams({
         userId,
         limit: ITEMS_PER_PAGE.toString(),
-        offset: offset.toString(),
+        offset: ((page - 1) * ITEMS_PER_PAGE).toString(),
         sortBy,
         ...(selectedCategory !== 'all' && { category: selectedCategory }),
         ...(selectedTag !== 'all' && { tag: selectedTag }),
         ...(selectedType !== 'all' && { type: selectedType })
       })
 
-      const response = await fetch(`/api/bookmarks?${queryParams}`)
+      const response = await fetchWithRetry(`${API_PATHS.bookmark.base}?${queryParams}`)
       
       if (!response.ok) throw new Error('Failed to fetch bookmarks')
       
@@ -93,7 +92,7 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
         if (bookmark.organization.category) {
           newCategories.add(bookmark.organization.category)
         }
-        bookmark.organization.tags.forEach(tag => newTags.add(tag))
+        bookmark.organization.tags.forEach((tag: string) => newTags.add(tag))
       })
       setCategories(newCategories)
       setTags(newTags)
@@ -107,22 +106,20 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
     }
   }, [userId, page, sortBy, selectedCategory, selectedTag, selectedType])
 
-  // Load bookmarks when filters change
+  // Load bookmarks when filters or session changes
   useEffect(() => {
     fetchBookmarks()
   }, [fetchBookmarks])
 
   // Manual refresh function
-  const refreshBookmarks = () => {
+  const refreshBookmarks = useCallback(() => {
     setPage(1)
     fetchBookmarks()
-  }
+  }, [fetchBookmarks])
 
-  const deleteBookmark = async (bookmarkId: string) => {
-    if (!userId) return
-
+  const deleteBookmark = withApiRetry(async (bookmarkId: string) => {
     try {
-      const response = await fetch(`/api/bookmarks?userId=${userId}&bookmarkId=${bookmarkId}`, {
+      const response = await fetchWithRetry(createApiUrl(API_PATHS.bookmark.byId(bookmarkId)), {
         method: 'DELETE'
       })
 
@@ -134,7 +131,7 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
       console.error('Error deleting bookmark:', error)
       toast.error('Failed to delete bookmark')
     }
-  }
+  })
 
   const filteredBookmarks = bookmarks.filter(bookmark => {
     const matchesSearch = searchTerm === '' || 
@@ -249,7 +246,7 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
                 <FolderOpen className="h-3 w-3 mr-1" />
                 {bookmark.organization.category}
               </Badge>
-              {bookmark.organization.tags.map(tag => (
+              {bookmark.organization.tags.map((tag: string) => (
                 <Badge key={tag} variant="outline">
                   <Tag className="h-3 w-3 mr-1" />
                   {tag}

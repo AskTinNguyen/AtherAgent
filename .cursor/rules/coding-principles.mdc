@@ -33,7 +33,7 @@ Key Conventions
 1. Rely on Next.js App Router for state changes and routing.
 2. Prioritize Web Vitals (LCP, CLS, FID).
 3. Minimize 'use client' usage:
-   - Prefer server components and Next.js SSR features.
+   - Prefer server components and Next.JS SSR features.
    - Use 'use client' only for Web API access in small components.
    - Avoid using 'use client' for data fetching or state management.
 4. Follow the monorepo structure:
@@ -44,7 +44,8 @@ Key Conventions
 
 Naming Conventions
 - Booleans: Use auxiliary verbs such as 'does', 'has', 'is', and 'should' (e.g., isDisabled, hasError).
-- Types Files: make sure to have a 'types-' prefix to all types files to. example: types-fileName.ts
+- Types Files: make sure to have a 'types-' prefix to all types files, for example: types-fileName.ts
+- Route Files: make sure to have a 'route-' prefix to all route files, for example: route-fileName.ts
 - Filenames: Use lowercase with dash separators (e.g., auth-wizard.tsx).
 - File extensions: Use .config.ts, .test.ts, .context.tsx, .type.ts, .hook.ts as appropriate.
 
@@ -55,27 +56,10 @@ Component Structure
 - Follow the order: component declaration, styled components (if any), TypeScript types.
 
 Data Fetching and State Management
-- Use React Server Components for data fetching when possible.
+- Use NextJS Serverless when possible.
 - Implement the preload pattern to prevent waterfalls.
 - Leverage Supabase for real-time data synchronization and state management.
-- Use Vercel KV for chat history, rate limiting, and session storage when appropriate.
 
 Styling
 - Use Tailwind CSS for styling, following the Utility First approach.
 - Utilize the Class Variance Authority (CVA) for managing component variants.
-
-Testing
-- Implement unit tests for utility functions and hooks.
-- Use integration tests for complex components and pages.
-- Implement end-to-end tests for critical user flows.
-- Use Supabase local development for testing database interactions.
-    
-Accessibility
-- Ensure interfaces are keyboard navigable.
-- Implement proper ARIA labels and roles for components.
-- Ensure color contrast ratios meet WCAG standards for readability.
-
-Documentation
-- Provide clear and concise comments for complex logic.
-- Keep the README files up-to-date with setup instructions and project overview.
-- Document Supabase schema, RLS policies, and Edge Functions when used.

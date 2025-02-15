@@ -2,9 +2,12 @@
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AISuggestion, TopicAnalysis } from '@/lib/ai/research-processor'
+import { API_PATHS, createApiUrl } from '@/lib/config/api-paths'
 import { useResearch } from '@/lib/contexts/research-context'
-import { type ResearchSuggestion } from '@/lib/types/research'
+import { ResearchState, ResearchSuggestion } from '@/lib/types/types.research'
 import { cn } from '@/lib/utils'
+import { researchCircuitBreaker, withCircuitBreaker } from '@/lib/utils/api-circuit-breakers'
+import { fetchWithRetry, withApiRetry } from '@/lib/utils/api-retry'
 import { motion } from 'framer-motion'
 import { AlertCircle, Lightbulb, Loader2, Star, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -116,19 +119,74 @@ function generateSuggestionContent(type: ResearchSuggestion['type'], context: {
 // Export the type for use in other files
 export type { ResearchSuggestion }
 
+const fetchResearchState = withApiRetry(async (chatId: string) => {
+  return withCircuitBreaker(researchCircuitBreaker, async () => {
+    const response = await fetchWithRetry(API_PATHS.research.byChat(chatId))
+    return await response.json() as ResearchState
+  })
+})
+
+const fetchSuggestions = withApiRetry(async (chatId: string, query: string) => {
+  return withCircuitBreaker(researchCircuitBreaker, async () => {
+    const response = await fetchWithRetry(API_PATHS.research.suggestions(chatId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query })
+    }, {
+      maxRetries: 4,
+      baseDelay: 2000,
+      maxDelay: 15000,
+      shouldRetry: (error) => {
+        if (researchCircuitBreaker.getState() === 'OPEN') {
+          return false
+        }
+        if (error.name === 'APIError') {
+          const statusCode = error.statusCode || 500
+          return statusCode === 503 || statusCode === 429
+        }
+        return error.name === 'TypeError' || error.name === 'NetworkError'
+      }
+    })
+    return await response.json()
+  })
+})
+
+const updateResearchState = withApiRetry(async (chatId: string, updates: any) => {
+  const response = await fetchWithRetry(API_PATHS.research.state(chatId), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates)
+  })
+  return await response.json()
+})
+
+// Update type guard to handle the comparison
+const isSuggestionType = (type: unknown): type is ResearchSuggestion['type'] => {
+  const validTypes = ['search', 'insight', 'followup', 'cross_reference', 'refinement', 'path'] as const
+  return typeof type === 'string' && validTypes.includes(type as ResearchSuggestion['type'])
+}
+
 export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', chatId }: ResearchSuggestionsProps) {
   const { state, addActivity } = useResearch()
+  const [suggestions, setSuggestions] = useState<ResearchSuggestion[]>([])
   const { activity } = state
-  const currentDepth = state.depth?.current ?? 1
-  const maxDepth = state.depth?.max ?? 7
-  const suggestions = state.suggestions ?? []
-  
+  const currentDepth = state.currentDepth || 0
+  const maxDepth = state.maxDepth || 3
   const [isLoading, setIsLoading] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<Error | null>(null)
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, boolean>>({})
   const [bookmarkedSuggestions, setBookmarkedSuggestions] = useState<Record<string, BookmarkedSuggestion>>({})
   const [hasAttemptedInitialLoad, setHasAttemptedInitialLoad] = useState(false)
+
+  // Helper function to generate unique ID
+  const generateUniqueId = () => {
+    const timestamp = Date.now()
+    return `${timestamp}-${Math.random().toString(36).substr(2, 9)}`
+  }
+  
+  // Helper function to get current timestamp
+  const getCurrentTimestamp = () => Date.now()
 
   // Function to convert suggestions to activities
   const convertSuggestionsToActivities = (suggestions: ResearchSuggestion[]) => {
@@ -143,36 +201,29 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
     }))
   }
 
-  // Load cached suggestions on mount
+  // Load cached suggestions
   useEffect(() => {
     const loadCachedSuggestions = async () => {
-      if (!chatId || hasAttemptedInitialLoad) return
-      
+      if (hasAttemptedInitialLoad) return
       setIsLoading(true)
       try {
-        const response = await fetch(`/api/research/suggestions/cache?userId=${userId}&chatId=${chatId}`)
-        if (!response.ok) {
-          await generateSuggestions(0, true)
-          return
-        }
+        const response = await fetchWithRetry(API_PATHS.research.suggestions(chatId))
+        if (!response.ok) return
         
         const cachedSuggestions = await response.json()
-        if (cachedSuggestions && cachedSuggestions.length > 0) {
-          const activities = convertSuggestionsToActivities(cachedSuggestions)
-          activities.forEach(activity => addActivity(activity))
-        } else {
-          await generateSuggestions(0, true)
+        if (cachedSuggestions) {
+          setSuggestions(cachedSuggestions)
         }
       } catch (error) {
         console.error('Failed to load cached suggestions:', error)
-        setError('Failed to load suggestions. Please try refreshing.')
+        setError(error as Error)
       } finally {
         setIsLoading(false)
         setHasAttemptedInitialLoad(true)
       }
     }
     loadCachedSuggestions()
-  }, [chatId, userId, addActivity, hasAttemptedInitialLoad, state.completedSteps, state.totalExpectedSteps])
+  }, [chatId, hasAttemptedInitialLoad])
 
   // Monitor activity changes to trigger suggestion updates
   useEffect(() => {
@@ -183,10 +234,7 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
 
   // Function to generate suggestions based on current research state
   const generateSuggestions = useCallback(async (retryCount = 0, forceRefresh = false) => {
-    // Skip if already loading or streaming
     if (isLoading || isStreaming) return
-    
-    // Skip if we have suggestions and this is not a forced refresh
     if (suggestions.length > 0 && !forceRefresh) return
     
     setIsLoading(true)
@@ -195,73 +243,37 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
     
     try {
       const newSuggestions: ResearchSuggestion[] = []
-      const now = Date.now()
-
-      // Helper function to generate unique ID
-      const generateUniqueId = () => `${now}-${Math.random().toString(36).substr(2, 9)}`
-
-      // Track unique topics to avoid duplicates
       const suggestedTopics = new Set<string>()
-
-      // Helper function to generate current query based on research state
-      const generateCurrentQuery = () => {
-        const recentActivities = activity.slice(-3) // Get last 3 activities
-        const searchQueries = recentActivities
-          .filter(item => item.type === 'search')
-          .map(item => item.message)
+      const now = getCurrentTimestamp()
+      
+      // Generate suggestions based on current depth
+      if (state.currentDepth < state.maxDepth) {
+        const aiSuggestion = await fetchSuggestions(chatId, JSON.stringify({
+          currentDepth: state.currentDepth,
+          maxDepth: state.maxDepth,
+          context: 'depth_exploration'
+        }))
         
-        if (searchQueries.length > 0) {
-          // Use the most recent search query as base
-          return searchQueries[searchQueries.length - 1]
+        if (aiSuggestion && isSuggestionType(aiSuggestion.type)) {
+          newSuggestions.push({
+            type: 'insight',
+            content: aiSuggestion.content,
+            confidence: aiSuggestion.confidence,
+            metadata: {
+              depthLevel: state.currentDepth,
+              category: 'synthesis',
+              relevanceScore: aiSuggestion.confidence,
+              timestamp: now,
+              relatedTopics: aiSuggestion.relatedTopics,
+              previousQueries: [],
+              suggestionId: generateUniqueId()
+            },
+            context: {
+              rationale: aiSuggestion.rationale,
+              nextSteps: aiSuggestion.nextSteps
+            }
+          })
         }
-        
-        // If no recent searches, use thought activities
-        const thoughtActivities = recentActivities
-          .filter(item => item.type === 'thought')
-          .map(item => item.message)
-        
-        if (thoughtActivities.length > 0) {
-          return thoughtActivities[thoughtActivities.length - 1]
-        }
-        
-        // Fallback to a generic exploration query
-        return `Research exploration at depth ${currentDepth}`
-      }
-
-      // Depth-based suggestions
-      if (currentDepth < maxDepth) {
-        const currentQuery = generateCurrentQuery()
-        const context = {
-          currentQuery,
-          previousQueries: [],
-          currentDepth,
-          maxDepth,
-          recentFindings: []
-        }
-
-        const aiSuggestion = await fetch('/api/research/suggestions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ context })
-        }).then(res => res.json()) as AISuggestion
-
-        newSuggestions.push({
-          type: 'depth',
-          content: aiSuggestion.content,
-          confidence: aiSuggestion.confidence,
-          metadata: {
-            depthLevel: currentDepth + 1,
-            category: 'depth_exploration',
-            relevanceScore: aiSuggestion.confidence,
-            timestamp: now,
-            relatedTopics: aiSuggestion.relatedTopics,
-            suggestionId: generateUniqueId()
-          },
-          context: {
-            rationale: aiSuggestion.rationale,
-            nextSteps: aiSuggestion.nextSteps
-          }
-        })
       }
 
       // Analyze recent activity for patterns and relationships
@@ -276,10 +288,8 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
         
         // Get topic analysis for both queries
         const [topic1Analysis, topic2Analysis] = await Promise.all([
-          fetch(`/api/research/suggestions?topic=${encodeURIComponent(latestQueries[0])}`)
-            .then(res => res.json()) as Promise<TopicAnalysis>,
-          fetch(`/api/research/suggestions?topic=${encodeURIComponent(latestQueries[1])}`)
-            .then(res => res.json()) as Promise<TopicAnalysis>
+          fetchSuggestions(chatId, latestQueries[0]),
+          fetchSuggestions(chatId, latestQueries[1])
         ])
 
         const context = {
@@ -293,11 +303,8 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
           ]
         }
 
-        const aiSuggestion = await fetch('/api/research/suggestions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ context })
-        }).then(res => res.json()) as AISuggestion
+        const aiSuggestion = await fetchSuggestions(chatId, JSON.stringify({ context }))
+        .then(res => res.json()) as AISuggestion
 
         newSuggestions.push({
           type: 'cross_reference',
@@ -321,11 +328,8 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
 
       // Generate refinement suggestions based on depth
       if (currentDepth >= 3) {
-        const currentQuery = generateCurrentQuery()
-        const recentQueries = activity
-          .slice(-5)
-          .filter(item => item.type === 'search')
-          .map(item => item.message)
+        const currentQuery = searchQueries[searchQueries.length - 1]
+        const recentQueries = searchQueries
 
         const context = {
           currentQuery,
@@ -335,11 +339,8 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
           recentFindings: recentQueries
         }
 
-        const aiSuggestion = await fetch('/api/research/suggestions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ context })
-        }).then(res => res.json()) as AISuggestion
+        const aiSuggestion = await fetchSuggestions(chatId, JSON.stringify({ context }))
+        .then(res => res.json()) as AISuggestion
 
         newSuggestions.push({
           type: 'refinement',
@@ -364,8 +365,8 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
       // Enhanced keyword-based suggestions
       for (const item of recentActivities) {
         if (item.type === 'search') {
-          const topicAnalysis = await fetch(`/api/research/suggestions?topic=${encodeURIComponent(item.message)}`)
-            .then(res => res.json()) as TopicAnalysis
+          const topicAnalysis = await fetchSuggestions(chatId, item.message)
+          .then(res => res.json()) as TopicAnalysis
 
           const context = {
             currentQuery: item.message,
@@ -375,11 +376,8 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
             recentFindings: topicAnalysis.mainTopics
           }
 
-          const aiSuggestion = await fetch('/api/research/suggestions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ context })
-          }).then(res => res.json()) as AISuggestion
+          const aiSuggestion = await fetchSuggestions(chatId, JSON.stringify({ context }))
+          .then(res => res.json()) as AISuggestion
 
           if (!suggestedTopics.has(aiSuggestion.content)) {
             suggestedTopics.add(aiSuggestion.content)
@@ -417,14 +415,10 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
       activities.forEach(activity => addActivity(activity))
 
       // Cache the new suggestions
-      await fetch('/api/research/suggestions/cache', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          chatId,
-          suggestions: sortedSuggestions
-        })
+      await updateResearchState(chatId, {
+        userId,
+        chatId,
+        suggestions: sortedSuggestions
       })
 
     } catch (error) {
@@ -437,7 +431,7 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
         return generateSuggestions(retryCount + 1)
       }
       
-      setError('Failed to generate suggestions. Please try again.')
+      setError(error as Error)
     } finally {
       setIsLoading(false)
       setIsStreaming(false)
@@ -466,7 +460,7 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
       if (bookmarkedSuggestions[suggestion.content]) {
         // Remove bookmark
         const bookmarkId = bookmarkedSuggestions[suggestion.content].id
-        const response = await fetch(`/api/bookmarks?userId=${userId}&bookmarkId=${bookmarkId}`, {
+        const response = await fetchWithRetry(createApiUrl(API_PATHS.bookmark.byId(bookmarkId)), {
           method: 'DELETE'
         })
         
@@ -480,7 +474,7 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
         toast.success('Suggestion removed from bookmarks')
       } else {
         // Add bookmark
-        const response = await fetch('/api/bookmarks', {
+        const response = await fetchWithRetry(createApiUrl(API_PATHS.bookmark.base), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -513,6 +507,11 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
       toast.error('Failed to update bookmark')
     }
   }
+
+  // Update the suggestion filtering
+  const filteredSuggestions = suggestions.filter(suggestion => 
+    suggestion.type && isSuggestionType(suggestion.type) && suggestion.confidence > 0.5
+  )
 
   if (suggestions.length === 0 && !isLoading && !error) {
     return null
@@ -548,7 +547,7 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
-            <span>{error}</span>
+            <span>{error.message}</span>
             <Button
               variant="outline"
               size="sm"
@@ -567,7 +566,7 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
         </div>
       ) : (
         <div className="space-y-3">
-          {suggestions.map((suggestion: ResearchSuggestion, index: number) => (
+          {filteredSuggestions.map((suggestion: ResearchSuggestion, index: number) => (
             <motion.div
               key={suggestion.metadata.suggestionId || `${suggestion.type}-${suggestion.metadata.timestamp}-${index}`}
               initial={{ opacity: 0, y: 10 }}
@@ -663,7 +662,7 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
                         <div className="mt-1">
                           <p className="font-medium mb-1">Next Steps:</p>
                           <ul className="list-disc list-inside space-y-0.5">
-                            {suggestion.context.nextSteps.map((step, idx) => (
+                            {suggestion.context.nextSteps.map((step: string, idx: number) => (
                               <li key={idx}>{step}</li>
                             ))}
                           </ul>
@@ -675,7 +674,7 @@ export function ResearchSuggestions({ onSuggestionSelect, userId = 'anonymous', 
                   {/* Related Topics */}
                   {suggestion.metadata.relatedTopics && suggestion.metadata.relatedTopics.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {suggestion.metadata.relatedTopics.map((topic, idx) => (
+                      {suggestion.metadata.relatedTopics.map((topic: string, idx: number) => (
                         <span
                           key={idx}
                           className="text-xs bg-accent/50 px-2 py-0.5 rounded-full"

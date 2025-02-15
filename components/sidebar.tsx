@@ -11,9 +11,21 @@ import { SidebarContent } from './sidebar/sidebar-content'
 import { SidebarFooter } from './sidebar/sidebar-footer'
 import { SidebarHeader } from './sidebar/sidebar-header'
 import { IconLogo } from './ui/icons'
+import { useState, useEffect } from 'react'
 
 export function Sidebar() {
   const { isExpanded, toggleSidebar } = useSidebarContext()
+  const [showBookmarks, setShowBookmarks] = useState(false)
+
+  // Delay showing bookmarks until sidebar is expanded
+  useEffect(() => {
+    if (isExpanded) {
+      const timer = setTimeout(() => setShowBookmarks(true), 100)
+      return () => clearTimeout(timer)
+    } else {
+      setShowBookmarks(false)
+    }
+  }, [isExpanded])
 
   return (
     <>
@@ -33,7 +45,7 @@ export function Sidebar() {
                 <div className="h-full flex flex-col">
                   <SidebarContent />
                   <div className="flex-1 overflow-hidden">
-                    <BookmarkManager className="h-full" />
+                    {showBookmarks && <BookmarkManager className="h-full" />}
                   </div>
                 </div>
               </DragDropProvider>
@@ -75,7 +87,7 @@ export function Sidebar() {
                 <div className="h-full flex flex-col">
                   <SidebarContent />
                   <div className="flex-1 overflow-hidden">
-                    <BookmarkManager className="h-full" />
+                    {showBookmarks && <BookmarkManager className="h-full" />}
                   </div>
                 </div>
               </DragDropProvider>

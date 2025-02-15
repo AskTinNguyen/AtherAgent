@@ -1,6 +1,26 @@
-import { ResearchSuggestion } from '@/components/research-suggestions'
+// import { ResearchSuggestion } from '@/components/research-suggestions'
 import { type ExtendedMessage } from './types.core'
 import { type VisualizationData } from './types.visualization'
+
+// Add ResearchSuggestion type definition
+export interface ResearchSuggestion {
+  type: 'search' | 'insight' | 'followup' | 'cross_reference' | 'refinement' | 'path'
+  content: string
+  confidence: number
+  metadata: {
+    depthLevel: number
+    category: string
+    relevanceScore: number
+    timestamp: number
+    relatedTopics?: string[]
+    previousQueries?: string[]
+    suggestionId: string
+  }
+  context?: {
+    rationale?: string
+    nextSteps?: string[]
+  }
+}
 
 // Core Research Types
 export type ResearchStage = 'overview' | 'deep-research' | 'verification'

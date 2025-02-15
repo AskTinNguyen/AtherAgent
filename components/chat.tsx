@@ -1,6 +1,8 @@
 'use client'
 
+import { API_PATHS } from '@/lib/config/api-paths'
 import type { ChatResearchState } from '@/lib/types/research'
+import { fetchWithRetry, withApiRetry } from '@/lib/utils/api-retry'
 import { Message, useChat } from 'ai/react'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
@@ -35,6 +37,7 @@ export function Chat({
   } = useChat({
     initialMessages: savedMessages,
     id,
+    api: '/api/v1/chat',
     body: {
       id,
       initialQuery: query
@@ -42,7 +45,7 @@ export function Chat({
     onFinish: async () => {
       console.log('[DEBUG] Chat finished, updating URL:', { id })
       try {
-        await fetch(`/api/chat/${id}/validate`, { method: 'POST' })
+        await validateChat(id)
         window.history.replaceState({}, '', `/chat/${id}`)
       } catch (error) {
         console.error('[DEBUG] Error validating chat:', error)
@@ -56,21 +59,35 @@ export function Chat({
     sendExtraMessageFields: true
   })
 
+  // Update research path to use v1 route
+  const researchPath = `/api/v1/chat/${id}/research`
   const { data: researchState, mutate: mutateResearch } = useSWR<ChatResearchState>(
-    `/api/chats/${id}/research`,
+    researchPath,
     async (url: string) => {
-      const res = await fetch(url)
-      if (!res.ok) throw new Error('Failed to fetch research state')
-      return res.json()
+      try {
+        const res = await fetch(url)
+        if (!res.ok) {
+          throw new Error('Failed to fetch research state')
+        }
+        return res.json()
+      } catch (error) {
+        console.error('[DEBUG] Research fetch error:', error)
+        return null
+      }
+    },
+    {
+      revalidateOnFocus: false,
+      shouldRetryOnError: false
     }
   )
 
   useEffect(() => {
-    const initializeChat = async () => {
+    const setupChat = async () => {
       console.log('[DEBUG] Initializing chat:', { id, messagesCount: messages.length })
+      
       try {
         if (savedMessages.length === 0) {
-          await fetch(`/api/chat/${id}/init`, { method: 'POST' })
+          await initializeChat(id)
         }
         setMessages(savedMessages)
       } catch (error) {
@@ -79,8 +96,13 @@ export function Chat({
       }
     }
 
-    initializeChat()
-  }, [id, savedMessages])
+    setupChat()
+  }, [id, savedMessages, messages.length])
+
+  // Conditionally render based on authentication
+  if (isLoading) {
+    return null // or a loading spinner if you prefer
+  }
 
   // Handle command bar events
   useEffect(() => {
@@ -138,7 +160,7 @@ export function Chat({
 
   const handleClearResearch = async (chatId: string, isCleared: boolean) => {
     try {
-      await fetch(`/api/chats/${chatId}/research`, {
+      await fetch(API_PATHS.chat.research(chatId), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isCleared })
@@ -151,7 +173,7 @@ export function Chat({
 
   const handleDepthChange = async (chatId: string, currentDepth: number, maxDepth: number) => {
     try {
-      await fetch(`/api/chats/${chatId}/research/depth`, {
+      await fetch(API_PATHS.chat.researchDepth(chatId), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentDepth, maxDepth })
@@ -161,6 +183,36 @@ export function Chat({
       console.error('Failed to update research depth:', error)
     }
   }
+
+  const validateChat = withApiRetry(async (chatId: string) => {
+    const response = await fetchWithRetry(API_PATHS.chat.validate(chatId))
+    return await response.json()
+  })
+
+  const initializeChat = withApiRetry(async (chatId: string) => {
+    const response = await fetchWithRetry(API_PATHS.chat.byId(chatId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [] })
+    })
+    return await response.json()
+  })
+
+  const streamChat = withApiRetry(async (chatId: string, messages: any[]) => {
+    const response = await fetchWithRetry(API_PATHS.chat.stream(chatId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages })
+    }, {
+      // Custom retry config for streaming
+      maxRetries: 2,
+      shouldRetry: (error) => {
+        // Only retry on network errors for streaming
+        return error.name === 'TypeError' || error.name === 'NetworkError'
+      }
+    })
+    return response
+  })
 
   return (
     <div className="flex min-h-screen">

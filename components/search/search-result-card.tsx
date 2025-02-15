@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { type SearchResultItem } from '@/types/search'
+import { API_PATHS, createApiUrl } from '@/lib/config/api-paths'
 import { motion } from 'framer-motion'
 import { Bookmark } from 'lucide-react'
 import * as React from 'react'
@@ -16,23 +17,56 @@ function SearchResultCardContent({ result, index }: SearchResultCardProps) {
   const [isBookmarked, setIsBookmarked] = React.useState(false)
   const [bookmarkId, setBookmarkId] = React.useState<string | null>(null)
 
+  const checkBookmark = async (url: string) => {
+    try {
+      const response = await fetch(API_PATHS.bookmark.check(url))
+      if (!response.ok) throw new Error('Failed to check bookmark')
+      return await response.json()
+    } catch (error) {
+      console.error('Error checking bookmark:', error)
+      return { exists: false }
+    }
+  }
+
+  const toggleBookmark = async (url: string, title: string, snippet: string) => {
+    try {
+      const { exists, bookmark } = await checkBookmark(url)
+      
+      if (exists && bookmark) {
+        const response = await fetch(API_PATHS.bookmark.byId(bookmark.id), {
+          method: 'DELETE'
+        })
+        if (!response.ok) throw new Error('Failed to remove bookmark')
+        return false
+      } else {
+        const response = await fetch(API_PATHS.bookmark.base, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url,
+            title,
+            snippet,
+            source: 'search'
+          })
+        })
+        if (!response.ok) throw new Error('Failed to add bookmark')
+        return true
+      }
+    } catch (error) {
+      console.error('Error toggling bookmark:', error)
+      return null
+    }
+  }
+
   // Check if the result is already bookmarked on mount
   React.useEffect(() => {
     const checkBookmarkStatus = async () => {
-      try {
-        const response = await fetch(`/api/bookmarks/check?url=${encodeURIComponent(result.url)}`)
-        if (response.ok) {
-          const data = await response.json()
-          setIsBookmarked(data.isBookmarked)
-          if (data.isBookmarked) {
-            setBookmarkId(data.bookmarkId)
-          }
-        }
-      } catch (error) {
-        console.error('Failed to check bookmark status:', error)
+      const { exists, bookmark } = await checkBookmark(result.url)
+      setIsBookmarked(exists)
+      if (exists) {
+        setBookmarkId(bookmark.id)
       }
     }
-    
     checkBookmarkStatus()
   }, [result.url])
 
@@ -49,85 +83,17 @@ function SearchResultCardContent({ result, index }: SearchResultCardProps) {
     transition: { delay: index * 0.1 }
   }), [index])
 
-  const handleBookmark = async (e: React.MouseEvent) => {
-    e.preventDefault() // Prevent the card click from triggering
-    e.stopPropagation()
-    
-    try {
-      if (isBookmarked && bookmarkId) {
-        // Remove bookmark using the generated bookmarkId
-        const response = await fetch(`/api/bookmarks?bookmarkId=${bookmarkId}`, {
-          method: 'DELETE'
-        })
-        
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error('Delete bookmark error:', errorText)
-          throw new Error('Failed to remove bookmark')
-        }
-        
-        // Verify bookmark removal
-        const verifyResponse = await fetch(`/api/bookmarks/verify?bookmarkId=${bookmarkId}`)
-        const verifyData = await verifyResponse.json()
-        
-        if (!verifyData.isFullyDeleted) {
-          console.error('Bookmark still exists in Redis after deletion')
-          throw new Error('Failed to remove bookmark completely')
-        }
-        
-        setBookmarkId(null)
-        setIsBookmarked(false)
-        toast.success('Bookmark removed')
+  const handleBookmarkToggle = async () => {
+    const newBookmarkStatus = await toggleBookmark(result.url, result.title, result.snippet)
+    if (newBookmarkStatus !== null) {
+      setIsBookmarked(newBookmarkStatus)
+      if (newBookmarkStatus) {
+        toast.success('Result added to bookmarks')
       } else {
-        // Add bookmark with proper schema
-        const bookmarkData = {
-          type: 'search_result',
-          content: result.title || result.content,
-          metadata: {
-            type: 'search_result',
-            data: {
-              sourceContext: result.content,
-              tags: [],
-              queryContext: '',
-              searchScore: result.relevance || 0,
-              resultRank: result.depth || 0,
-              sourceQuality: {
-                relevance: 0,
-                authority: 0,
-                freshness: 0,
-                coverage: 0
-              }
-            }
-          }
-        }
-
-        const response = await fetch('/api/bookmarks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(bookmarkData)
-        })
-        
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error('Add bookmark error:', errorText)
-          throw new Error('Failed to add bookmark')
-        }
-        
-        const data = await response.json()
-        setBookmarkId(data.id)
-        setIsBookmarked(true)
-        toast.success('Bookmark added')
+        toast.success('Result removed from bookmarks')
       }
-    } catch (error) {
-      console.error('Bookmark operation failed:', error)
+    } else {
       toast.error('Failed to update bookmark')
-      // Reset states on error by checking current status
-      const checkResponse = await fetch(`/api/bookmarks/check?url=${encodeURIComponent(result.url)}`)
-      if (checkResponse.ok) {
-        const data = await checkResponse.json()
-        setIsBookmarked(data.isBookmarked)
-        setBookmarkId(data.isBookmarked ? data.bookmarkId : null)
-      }
     }
   }
 
@@ -140,7 +106,7 @@ function SearchResultCardContent({ result, index }: SearchResultCardProps) {
         size="icon"
         variant="ghost"
         className="absolute top-2 right-2 z-10"
-        onClick={handleBookmark}
+        onClick={handleBookmarkToggle}
       >
         <Bookmark 
           className={`h-4 w-4 ${isBookmarked ? 'fill-current' : ''}`} 

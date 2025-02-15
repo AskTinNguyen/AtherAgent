@@ -4,8 +4,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { useSidebarContext } from '@/lib/contexts/sidebar-context'
-import { BarChart2, LogOut, Settings } from 'lucide-react'
-import { signIn, signOut, useSession } from 'next-auth/react'
+import { BarChart2, Settings } from 'lucide-react'
 import { useState } from 'react'
 import { DarkModeToggle } from '../mode-toggle'
 import { IconLogo } from '../ui/icons'
@@ -14,7 +13,6 @@ import { UsageStats } from '../usage-stats'
 export function SidebarFooter() {
   const { isExpanded } = useSidebarContext()
   const [showUsage, setShowUsage] = useState(false)
-  const { data: session } = useSession()
 
   return (
     <div className="mt-auto">
@@ -30,21 +28,8 @@ export function SidebarFooter() {
                   </AvatarFallback>
                 </Avatar>
                 <div className="space-y-1 leading-none">
-                  {session ? (
-                    <>
-                      <p className="text-sm font-medium">{session.user?.name || 'User'}</p>
-                      <p className="text-xs text-muted-foreground">{session.user?.email}</p>
-                    </>
-                  ) : (
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => signIn()}
-                      className="bg-transparent hover:bg-accent/50"
-                    >
-                      Sign In
-                    </Button>
-                  )}
+                  <p className="text-sm font-medium">Guest User</p>
+                  <p className="text-xs text-muted-foreground">Local Session</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -68,18 +53,6 @@ export function SidebarFooter() {
                   <Settings className="h-5 w-5" />
                   <span className="sr-only">Settings</span>
                 </Button>
-                {session && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => signOut()}
-                    title="Sign Out"
-                  >
-                    <LogOut className="h-5 w-5" />
-                    <span className="sr-only">Sign Out</span>
-                  </Button>
-                )}
               </div>
             </>
           ) : (
@@ -89,27 +62,6 @@ export function SidebarFooter() {
                   <IconLogo className="w-5 h-5" />
                 </AvatarFallback>
               </Avatar>
-              {!session ? (
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => signIn()}
-                  className="bg-transparent hover:bg-accent/50"
-                  title="Sign In"
-                >
-                  <IconLogo className="w-4 h-4" />
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={() => signOut()}
-                  title="Sign Out"
-                >
-                  <LogOut className="h-5 w-5" />
-                </Button>
-              )}
               <DarkModeToggle />
               <Button
                 variant="ghost"

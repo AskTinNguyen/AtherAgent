@@ -3,6 +3,8 @@ import { formatNumber } from '@/lib/utils'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
+import { API_PATHS } from '@/lib/config/api-paths'
+import { toast } from 'sonner'
 
 interface Props {
   open: boolean
@@ -15,25 +17,26 @@ export function UsageStats({ open, onOpenChange }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    const fetchUsage = async () => {
+      setLoading(true)
+      try {
+        const response = await fetch(API_PATHS.usage)
+        if (!response.ok) throw new Error('Failed to fetch usage stats')
+        
+        const data = await response.json()
+        setUsage(data)
+      } catch (err) {
+        console.error('Error fetching usage stats:', err)
+        toast.error('Failed to load usage statistics')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
     if (open) {
       fetchUsage()
     }
   }, [open])
-
-  const fetchUsage = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const response = await fetch('/api/usage')
-      if (!response.ok) throw new Error('Failed to fetch usage data')
-      const data = await response.json()
-      setUsage(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -128,4 +131,4 @@ export function UsageStats({ open, onOpenChange }: Props) {
       </DialogContent>
     </Dialog>
   )
-} 
+}

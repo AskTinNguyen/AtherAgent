@@ -1,7 +1,6 @@
 import { Background } from '@/components/background'
 import Footer from '@/components/footer'
 import { CommandProviderWrapper } from '@/components/providers/command-provider-wrapper'
-import { SessionProvider } from '@/components/providers/session-provider'
 import { Sidebar } from '@/components/sidebar'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
@@ -63,36 +62,52 @@ export default function RootLayout({
 }>) {
   const enableSaveChatHistory =
     process.env.NEXT_PUBLIC_ENABLE_SAVE_CHAT_HISTORY === 'true'
+
+  console.debug('[RootLayout] Rendering with enableSaveChatHistory:', enableSaveChatHistory)
+
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.addEventListener('error', function(e) {
+                if (e.message.includes('ethereum') || e.message.includes('web3')) {
+                  e.preventDefault();
+                  console.debug('Prevented Web3 wallet injection error');
+                }
+                console.debug('[RootLayout] Error:', e.message);
+              });
+            `
+          }}
+        />
+      </head>
       <body className={cn(
         'font-sans antialiased',
         fontSans.variable,
         poppins.variable,
         playfair.variable
       )}>
-        <SessionProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <ResearchProvider>
-              <ChatSessionProvider>
-                <SidebarProvider>
-                  <CommandProviderWrapper>
-                    <Background />
-                    {children}
-                    {enableSaveChatHistory && <Sidebar />}
-                    <Footer />
-                    <Toaster />
-                  </CommandProviderWrapper>
-                </SidebarProvider>
-              </ChatSessionProvider>
-            </ResearchProvider>
-          </ThemeProvider>
-        </SessionProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <ResearchProvider>
+            <ChatSessionProvider>
+              <SidebarProvider>
+                <CommandProviderWrapper>
+                  <Background />
+                  {children}
+                  {enableSaveChatHistory && <Sidebar />}
+                  <Footer />
+                  <Toaster />
+                </CommandProviderWrapper>
+              </SidebarProvider>
+            </ChatSessionProvider>
+          </ResearchProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

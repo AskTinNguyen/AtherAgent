@@ -1,4 +1,6 @@
-export async function uploadFile(file: File, onProgress?: (progress: number) => void) {
+import { API_PATHS } from '@/lib/config/api-paths'
+
+export async function uploadFile(file: File, onProgress?: (progress: number) => void): Promise<string> {
   try {
     const formData = new FormData()
     formData.append('file', file)
@@ -15,13 +17,13 @@ export async function uploadFile(file: File, onProgress?: (progress: number) => 
     }
 
     return new Promise((resolve, reject) => {
-      xhr.open('POST', '/api/upload')
+      xhr.open('POST', API_PATHS.upload)
       
       xhr.onload = () => {
         if (xhr.status === 200) {
           try {
             const response = JSON.parse(xhr.responseText)
-            resolve(response)
+            resolve(response.url)
           } catch (error) {
             reject(new Error('Invalid response format'))
           }
@@ -30,13 +32,13 @@ export async function uploadFile(file: File, onProgress?: (progress: number) => 
             const error = JSON.parse(xhr.responseText)
             reject(new Error(error.error || 'Upload failed'))
           } catch {
-            reject(new Error('Upload failed'))
+            reject(new Error(`Upload failed with status ${xhr.status}`))
           }
         }
       }
 
       xhr.onerror = () => {
-        reject(new Error('Network error'))
+        reject(new Error('Network error occurred during upload'))
       }
 
       xhr.send(formData)
@@ -66,4 +68,4 @@ export function validateFile(file: File) {
   if (!allowedTypes.includes(file.type)) {
     throw new Error('File type not supported')
   }
-} 
+}
