@@ -69,34 +69,89 @@ export function ChatContent({
       id,
       searchMode: researchState.searchEnabled
     },
+    onResponse: async (response) => {
+      // This is called when the API response starts streaming
+      if (userId) {
+        try {
+          console.log('Saving initial assistant message')
+          const { error } = await supabase.from('chat_messages').insert({
+            chat_id: id,
+            content: '', // Will be updated with full content when streaming ends
+            role: 'assistant',
+            user_id: userId
+          })
+          if (error) {
+            console.error('Failed to save initial assistant message:', error)
+          }
+        } catch (error) {
+          console.error('Error saving initial assistant message:', error)
+        }
+      }
+    },
     onFinish: async (message) => {
       window.history.replaceState({}, '', `/search/${id}`)
       
-      // Save assistant message to Supabase
+      // Save or update assistant message in Supabase
       if (userId) {
         try {
-          console.log('Attempting to save assistant message:', {
+          console.log('Saving final assistant message:', {
             chat_id: id,
             content: message.content,
             role: message.role,
             user_id: userId
           })
-          const { data, error } = await supabase.from('chat_messages').insert({
-            chat_id: id,
-            content: message.content,
-            role: message.role,
-            user_id: userId
-          }).select()
-          
-          if (error) {
-            console.error('Supabase error:', error)
-            toast.error(`Failed to save message: ${error.message}`)
+
+          // First try to find if we already have a message for this response
+          const { data: existingMessages, error: searchError } = await supabase
+            .from('chat_messages')
+            .select('id')
+            .match({ 
+              chat_id: id,
+              role: 'assistant',
+              content: ''
+            })
+            .order('created_at', { ascending: false })
+            .limit(1)
+
+          if (searchError) {
+            console.error('Error searching for existing message:', searchError)
+            return
+          }
+
+          if (existingMessages && existingMessages.length > 0) {
+            // Update the existing empty message with the complete content
+            const { error: updateError } = await supabase
+              .from('chat_messages')
+              .update({ content: message.content })
+              .eq('id', existingMessages[0].id)
+
+            if (updateError) {
+              console.error('Failed to update assistant message:', updateError)
+              toast.error(`Failed to save AI response: ${updateError.message}`)
+            } else {
+              console.log('Successfully updated assistant message')
+            }
           } else {
-            console.log('Successfully saved assistant message:', data)
+            // Insert new message if no empty message was found
+            const { error: insertError } = await supabase
+              .from('chat_messages')
+              .insert({
+                chat_id: id,
+                content: message.content,
+                role: message.role,
+                user_id: userId
+              })
+
+            if (insertError) {
+              console.error('Failed to save new assistant message:', insertError)
+              toast.error(`Failed to save AI response: ${insertError.message}`)
+            } else {
+              console.log('Successfully saved new assistant message')
+            }
           }
         } catch (error) {
           console.error('Failed to save message to Supabase:', error)
-          toast.error('Failed to save message')
+          toast.error('Failed to save AI response')
         }
       } else {
         console.log('No user ID found:', { session })

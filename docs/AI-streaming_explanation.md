@@ -117,19 +117,21 @@ useEffect(() => {
 - Proper handling of multi-step tool calls
 - Better user experience with real-time updates
 
-How to Fix AI Streaming Issues:
+## Fixing AI Streaming Issues: Updating `chat-messages.tsx`
 
-I'll help you update the chat-messages.tsx with the simplified streaming approach. Here's what we need to modify:
-First, let's update the StreamState interface to be simpler:
+### 1. Update the `StreamState` Interface:
 
+```typescript
 interface StreamState {
   isStreaming: boolean
   currentMessageId: string | null
   streamedContent: string
 }
+```
 
-Then, let's modify the main streaming effect:
+### 2. Modify the Main Streaming Effect:
 
+```typescript
 // In chat-messages.tsx
 useEffect(() => {
   let mounted = true
@@ -183,9 +185,11 @@ useEffect(() => {
     mounted = false
   }
 }, [data, setMessages])
+```
 
-Add a final message check effect:
+### 3. Add a Final Message Check Effect:
 
+```typescript
 const ensureFinalMessage = useCallback(() => {
   const lastMessage = messages[messages.length - 1]
   if (lastMessage?.role === 'assistant' && streamState.streamedContent) {
@@ -205,9 +209,11 @@ useEffect(() => {
     ensureFinalMessage()
   }
 }, [streamState.isStreaming, ensureFinalMessage])
+```
 
-Update the chat reset logic:
+### 4. Update the Chat Reset Logic:
 
+```typescript
 // Reset state when chatId changes
 useEffect(() => {
   setOpenStates({})
@@ -218,17 +224,21 @@ useEffect(() => {
   })
   setMessages([]) // Clear messages when chatId changes
 }, [chatId, setMessages])
+```
 
-Simplify the loading state:
+### 5. Simplify the Loading State:
 
+```typescript
 // Show loading when:
 // 1. Initial loading state is true and last message is from user
 // 2. We're actively streaming content
 const showLoading = (isLoading && messages[messages.length - 1]?.role === 'user') || 
                    streamState.isStreaming
+```
 
-Update the tool call handling:
+### 6. Update the Tool Call Handling:
 
+```typescript
 const lastToolData = useMemo(() => {
   if (!data || !Array.isArray(data) || data.length === 0) return null
 
@@ -274,11 +284,15 @@ const lastToolData = useMemo(() => {
       )}
     </div>
   ))}
+```
+
+### Summary:
 
 This simplified approach:
-Properly handles stream cleanup with mounted flag
-Always processes message updates
-Ensures final message completeness
-Maintains proper loading states
-Handles tool calls without complex state tracking
-Uses React's built-in cleanup mechanisms
+
+*   Properly handles stream cleanup with mounted flag
+*   Always processes message updates
+*   Ensures final message completeness
+*   Maintains proper loading states
+*   Handles tool calls without complex state tracking
+*   Uses React's built-in cleanup mechanisms

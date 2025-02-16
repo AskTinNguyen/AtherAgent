@@ -1,0 +1,502 @@
+## Supabase Schema for AI Research Automation & Gamification Platform
+
+This schema uses PostgreSQL (Supabase) to organize users, content, and logs in a way that supports real-time collaboration, search, and analytics. It is structured for a small-to-medium studio but can scale up to enterprise use. Key design elements include role-based access control, content collections for sharing, detailed logging for AI interactions, and optimized indexing for search and retrieval.
+
+### User Roles & Permissions
+
+**Tables and Relationships:**
+
+| Table Name       | Description                                                                                                                                                     | Columns                                                                                                                                                                                             |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `users`          | Stores user profiles, typically linked to Supabase Auth.                                                                                                       | `id`, `name`, `email`, *other profile fields*, *`is_admin` (or `default_role`)*                                                                                                                    |
+| `roles`          | Defines roles like Admin, Editor, Viewer.                                                                                                                     | `id`, `name`, `description`                                                                                                                                                                         |
+| `user_roles`     | Join table linking users to roles, with optional scope for collections.                                                                                     | `user_id`, `role_id`, *`collection_id` (nullable)*.  Unique constraint on `(user_id, collection_id)` to ensure one role per user per collection.                                                     |
+
+**Access Control:**
+
+*   Using Postgres Row-Level Security (RLS), we enforce that users can only see or modify data according to their role.
+*   An RLS policy can check that auth.uid() (the logged-in user) matches a record’s owner or is listed in user\_roles with sufficient permission.
+*   Admins (global role) bypass normal restrictions, while Editors/Viewers have limited rights (Editors can create/edit content in their collections, Viewers read-only, etc.).
+*   The schema is ready for more granular permissions: a future permissions table could map roles to specific actions (similar to the Slack clone example, which enumerated permissions for each role).
+
+### Collections for Solo & Shared Content
+
+**Tables and Relationships:**
+
+| Table Name          | Description                                                                                                                                                  | Columns                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `collections`       | Represents a workspace or project where content is grouped.                                                                                                 | `id` (primary key), `name`, `description`, `created_by` (owner user id), *`scope`*, *`type`*             |
+| `collection_members` | Lists which users have access to a collection and their role in that collection. (Alternatively, reuse `user_roles` with `collection_id` as described.) | `user_id`, `collection_id`, `role reference` (or `role enum` like Admin/Editor/Viewer)                 |
+
+**Content Organization:**
+
+*   Every piece of content is linked to a collection.
+*   For solo work, the content’s collection might be a private one where only the owner is a member.
+*   For shared projects, the collection has multiple members.
+*   This design ensures a user can work individually and also share selected content with others by moving it into a shared collection or inviting others to the collection.
+
+**Permission Enforcement:**
+
+*   Foreign keys tie content tables to collections, and RLS policies use the membership table to grant access.
+*   Example policy on a content table: `USING (EXISTS (SELECT 1 FROM collection_members cm WHERE cm.collection_id = content.collection_id AND cm.user_id = auth.uid() AND cm.role IN ('Admin','Editor','Viewer')))`
+*   Only members of a collection can see its content.
+*   Roles in `collection_members` further refine actions each member can take (Admins can delete, Editors can add/edit, Viewers can only select).
+*   The schema is flexible: new collections can be created and custom roles could be introduced per collection if needed later (e.g., a “Guest” role only for a specific project).
+
+
+### Chat Sessions & Conversation Data
+
+## Data Structure Organization
+
+### Tables
+
+| Table Name    | Description                                                                                                                                                    |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chat_sessions` | Represents an AI chat or research session. Contains information about the session itself.                                                                    |
+| `chat_messages` | Stores individual messages within a chat session. Contains the content of each message and metadata.                                                          |
+| `documents`     | Stores long-form notes or code files.                                                                                                                      |
+| `media_files`   | Stores metadata about media files (images, videos, etc.) stored in external storage (e.g., Supabase Storage). Doesn't store the binary data itself. |
+
+### `chat_sessions` Table Details
+
+| Column        | Description                                                                                                                                           |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`           | Primary key.  Unique identifier for the chat session.                                                                                                |
+| `collection_id` | Foreign key to `collections`.  Links the session to a specific collection for sharing and permissions.                                               |
+| `created_by`   | User ID who started the session.                                                                                                                       |
+| `title`        | Optional title or topic of the chat session.                                                                                                          |
+| `timestamps`   | Timestamps for creation and modification.                                                                                                             |
+
+### `chat_messages` Table Details
+
+| Column          | Description                                                                                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`             | Primary Key. Unique identifier for the message.                                                                                                                                                      |
+| `session_id`     | Foreign key to `chat_sessions`, cascade on delete. Links the message to its parent session.                                                                                                          |
+| `sender_type`    | Indicates the type of sender (e.g., 'user', 'assistant', 'system').                                                                                                                               |
+| `sender_id`      | If `sender_type` is 'user', links to `users.id`; null for AI or system messages.                                                                                                                     |
+| `content`        | Text of the message, could be markdown or code.                                                                                                                                                    |
+| `created_at`     | Timestamp.                                                                                                                                                                                          |
+| `embedding`      | Vector for semantic search on message content (e.g., 1536 dimensions for OpenAI's ada-002).                                                                                                        |
+| `content_fts`    | tsvector that indexes the message text (and code) for full-text search.                                                                                                                            |
+| `Metadata`        | e.g., `tokens_used` (for AI responses), `response_time_ms` (for AI responses). Used for analytics.                                                                                              |
+
+### `documents` Table Details
+
+| Column          | Description                                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `id`             | Primary Key.                                                                                                           |
+| `collection_id` | Foreign key.                                                                                                           |
+| `created_by`     | User who created the document.                                                                                           |
+| `title`        | Document title.                                                                                                        |
+| `content`        | Text content (markdown, code, etc.).                                                                                    |
+| `created_at`     | Timestamp.                                                                                                             |
+| `updated_at`     | Timestamp.                                                                                                             |
+| `embedding`      | Vector for semantic search of documents.                                                                               |
+| `content_fts`    | tsvector for full-text indexing of document text. GIN index added on content\_fts for fast text queries.                     |
+
+### `media_files` Table Details
+
+| Column         | Description                                                                                               |
+| -------------- | --------------------------------------------------------------------------------------------------------- |
+| `id`            | Primary Key.                                                                                            |
+| `collection_id` | Foreign key. Files are shared within collections.                                                        |
+| `uploaded_by`   | User ID who uploaded the file.                                                                         |
+| `file_path`   | String. URL to where media is stored.                                                                                                   |
+| `file_type`    | e.g., 'image/png', 'video/mp4'.                                                                           |
+| `size_bytes`   | File size.                                                                                              |
+| `timestamps`    | Timestamps.                                                                                             |
+| `description`   | Short description or alt\_text for search purposes.                                                      |
+
+### Data Relationships & Permissions
+
+*   All chat messages link back to their session and collection, inheriting permissions and sharing from the collection.
+*   Sharing a chat session is done by sharing its `collection_id`.
+
+### Multimedia Handling
+
+*   Images and other media are handled via references in `chat_messages` (URLs or markup).
+*   Files are managed using Supabase Storage, with metadata stored in the `media_files` table.  Supabase Storage enforces RLS on buckets using the same auth system.
+
+
+### Content Tagging & Linking Structure
+
+**1. Tags**
+
+*   Purpose: Keywords or categories for content organization.
+*   Table: `tags`
+*   Columns:
+    *   `id`
+    *   `name`
+
+**2. Tag Join Tables**
+
+*   Purpose: Linking tags to different content types.
+*   Tables:
+    *   `document_tags`
+    *   `file_tags`
+    *   `session_tags`
+*   Indexing: Efficient GIN indexing on tags can be achieved via a junction table or by storing an array of tag IDs on content (and indexing that).
+
+**3. Content Links**
+
+*   Purpose: Representing relationships between content pieces.
+*   Table: `content_links`
+*   Columns:
+    *   `id`
+    *   `from_type` (e.g., 'document', 'message')
+    *   `from_id`
+    *   `to_type`
+    *   `to_id`
+    *   `relation_type` (text describing the link, e.g., "references", "follows up", "duplicates")
+
+**4. Considerations for Content Links**
+
+*   Foreign Key Enforcement:
+    *   Option 1: Not enforce strictly (with app logic ensuring the IDs are valid).
+    *   Option 2: Use a single universal content table approach.
+*   Alternative: Separate link tables per type (e.g., document\_links, message\_links).
+
+**5. General Notes on Content Tables**
+
+*   `collection_id` and `created_by` fields for permissions.
+*   Foreign key relations (e.g., `chat_messages.session_id -> chat_sessions.id`) with `ON DELETE CASCADE` for data cleanup.
+*   Cascading foreign keys simplify data cleanup.
+​
+
+
+## Interaction Logging and API Call Tracking
+
+This document outlines the structure for logging user actions and external API calls within the application.
+
+### Activity Log (User Actions & Commands)
+
+*   **Purpose:** Records user actions, commands, and other notable events.
+*   **Table Name:** `activity_log`
+*   **Fields:**
+
+    *   `id` (PK)
+    *   `user_id` (who performed the action, FK to `users`)
+    *   `collection_id` (if the action is within a specific collection context, FK to `collections`, can be null for global actions)
+    *   `event_type` (text or enum, e.g., 'COMMAND', 'CONTENT_VIEW', 'CONTENT_EDIT', 'LOGIN', etc.)
+    *   `description` (text description of the event, or a short message)
+    *   `details` (JSONB for flexible data – e.g., could store `{target_document: 42, command: "summarize", params: {...}}` for a command event)
+    *   `created_at` (timestamp)
+*   **Examples:**
+
+    *   User runs a custom command: `event_type` = 'COMMAND'
+    *   User opens a document or completes a quest: `event_type` = 'CONTENT_VIEW' or 'ACHIEVEMENT_UNLOCK'
+*   **Indexing:**
+    *   `created_at` (for chronological queries)
+    *   Possibly `user_id` or `collection_id` (for filtering by user or project)
+*   **Realtime:** Supabase Realtime can be enabled to stream these events to the client as they happen (e.g., to show a live activity feed).
+*   **Integration with Analytics:**
+    *   Each log has a reference to what it was targeting (through the JSON details or a foreign key).
+    *   Used to reconstruct user sessions, measure feature usage, and detect engagement.
+
+### External API Call Tracking
+
+*   **Purpose:** Logs all calls to external APIs (OpenAI, other AI models, or third-party tools like an “MCP” service) to capture performance and cost data.
+*   **Table Name:** `api_calls`
+*   **Fields:**
+
+    *   `id` (PK)
+    *   `user_id` (who initiated the call, if applicable)
+    *   `collection_id` (context of the call if tied to a project or session)
+    *   `service` (text – e.g., 'OpenAI', 'StabilityAI', 'MCP')
+    *   `endpoint` or `operation` (text – e.g., 'ChatCompletion', 'ImageGeneration', or specific tool function name)
+    *   `request_payload` (JSONB – could store prompt or parameters, or a reference ID to a prompts table if storing full text is sensitive)
+    *   `response_summary` (JSONB or text – store key info from the response, e.g. the message id of the AI reply, or error message if failed; could also store token counts)
+    *   `status` (enum or text – 'success', 'error', etc.)
+    *   `error_message` (text, nullable)
+    *   `prompt_tokens` (integers)
+    *   `completion_tokens` (integers)
+    *   `total_tokens` (integers)
+    *   `cost_usd` (numeric)
+    *   `duration_ms` (integer – how long the API call took)
+    *   `created_at` (timestamp of call)
+
+## AI Performance Metadata Schema
+
+This schema is designed to capture all relevant metadata needed for evaluating AI performance, aligning with open-source observability tools and platforms like Langfuse.
+
+### Key Data Points
+
+*   All prompts/completions
+*   Latencies
+*   API Errors
+*   Model usage (tokens)
+*   Cost (USD)
+
+### Purpose
+
+*   To feed data into Langfuse or a custom analytics pipeline for:
+    *   Analyzing model performance
+    *   Analyzing error rates
+    *   Analyzing usage patterns
+
+### Relationships
+
+*   `api_calls` are linked to other entities when possible.
+    *   Example: If an API call is part of responding to a chat message, `chat_message_id` is recorded in `api_calls` (or stored in `request_payload`/`response_summary`).
+    *   This enables traceability from chat messages to underlying API calls (useful for multi-step AI workflows).
+*   Foreign keys use `ON DELETE CASCADE` or `SET NULL` to maintain data integrity on deletions.
+
+### Indexing
+
+*   `created_at`: For querying calls over time.
+*   `service`: For filtering by provider.
+*   Composite indexes (e.g., `user_id`, `service`): For querying usage per user per provider.
+
+### Vector Search (Optional)
+
+*   Prompts can be embedded and stored as vectors for vector search (if needed).
+*   However, text search can be used as an alternative to find past prompts.
+
+
+
+
+## Analytics & Evaluation
+
+*   **User Behavior Analytics:**
+    *   Leverage `activity_log` to analyze:
+        *   Content engagement (views, edits)
+        *   Feature usage frequency
+        *   Overall session lengths
+    *   Create materialized views or use external BI tools to gain insights:
+        *   Daily active users
+        *   Most used commands
+        *   Funnel analysis of research sessions
+
+*   **AI Performance Evaluation:**
+    *   Use `api_calls` table to calculate:
+        *   Success rates
+        *   Average response times
+        *   Cost tracking
+    *   Aggregate by service and endpoint to see average latency or total tokens used per day.
+    *   Integration with Langfuse:
+        *   Export data to Langfuse
+        *   Use Langfuse’s SDK to automatically populate it (for UI tracing prompts and responses).
+
+*   **Content Quality & Feedback:**
+    *   Implement a feedback mechanism (e.g., a feedback table):
+        *   `(id, user_id, message_id or document_id, rating (1-5), comments, created_at)`
+    *   Join feedback with `api_calls`/`chat_messages` to:
+        *   Evaluate model quality over time
+        *   Compare different prompt strategies.
+    *   Integrate open-source eval tools or Langfuse’s evaluation hooks (store eval scores per prompt).
+
+*   **Gamification Metrics:**
+    *   Track points or achievements.
+    *   Options:
+        *   Use `activity_log` (e.g., an event for challenge completion).
+        *   `achievements` table: `(user_id, achievement, date_awarded)`
+    *   Schema is flexible to add such tables.
+
+*   All analytics needs are met without altering the core schema.
+*   Raw data is in normalized tables that can be queried directly or exported.
+*   Schema ensures the use of external analytics.
+*   Timestamps are in a standard format.
+*   All relevant IDs are recorded for joining data across tables.
+*   JSON in logs provides flexibility for new metrics.
+
+*   **Evaluating AI Models:**
+    *   Query `api_calls` to compute metrics:
+        *   Average tokens per prompt
+        *   Success vs. error counts
+    *   Langfuse Integration:
+        *   Log schema aligns well (expects prompt/response, latency, token info).
+        *   Push `api_calls` records to Langfuse’s database/API for analysis.
+
+## Search (Full-Text, Code, and Vector)
+
+*   Implement hybrid search: PostgreSQL full-text search and pgvector.
+
+*   **Full-Text Search:**
+    *   Key text columns have associated `tsvector`.
+        *   `chat_messages.content_fts`
+        *   `documents.content_fts`
+    *   Use appropriate text search configurations:
+        *   Natural language fields: English dictionary (or multiple for multi-language support)
+        *   Code fields: Treat as simple text or use a specialized config.
+    *   Create GIN indexes on `tsvector` columns.
+    *   Query using `to_tsquery` on user input.
+    *   Support prefix or fuzzy searches with `pg_trgm`.
+    *   Consider a materialized view or a search-specific table for consolidating content.
+    *   For KBar integration:
+        *   Create a Postgres view `all_content_search` (UNION ALL from documents, chat sessions, etc.)
+        *   Common schema: `(id, type, title, snippet)`
+        *   Aggregated `tsvector`
+        *   Index view with a GIN (on the combined `tsvector`).
+
+*   **Vector Similarity Search:**
+    *   Use embedding vectors for messages and documents.
+    *   Add a vector index for each vector column.
+        *   Example:
+            ```sql
+            CREATE INDEX ON documents 
+            USING ivfflat (embedding vector_cosine_ops) WITH (lists=100);
+            ```
+    *   Create an index for cosine similarity (OpenAI embeddings) to improve query speed.
+    *   `chat_messages.embedding` gets an index.
+    *   Use a Postgres function that takes an embedding of the query and returns the top matches.
+    *   Use Supabase's pgvector support via their client libraries.
+
+*   **Code Search:**
+    *   Full-text search will catch identifiers.
+    *   Implement a more direct search on code fields (if needed).
+    *   Use the `pg_trgm` extension to do ILIKE or regex searches efficiently on code.
+    *   Add a trigram index on the content field of a document where `type='code'`.
+
+*   **Metadata Search:**
+    *   Search by tags or title.
+    *   Include `documents.title` and tags in search.
+    *   Concatenate the title and tags along with the body text in the `content_fts` column.
+    *   Index the `tags.name` in a separate `tsvector` and join in queries.
+
+
+### Efficient Tagging & Content Linking
+
+*   Tags and join tables (document_tags, etc.) facilitate many-to-many keyword assignment.
+    *   `tags.name` is indexed.
+    *   A TSVECTOR of tag names per content may be maintained or joined/filtered.
+*   `content_links` table (or equivalent) is indexed by `from_id` and `to_id`.
+    *   Speeds up retrieving links for content.
+    *   Index on `relation_type` helps find specific link types.
+*   Flexible linking allows building knowledge graphs.
+    *   Example: AI answer (chat_message) linked to supporting evidence (document/external link).
+*   Tagging/linking maintains schema efficiency.
+*   Foreign keys enable cascade deletes for clean database maintenance.
+
+### Database Indexes & Relationships
+
+*   Normalization and Keys:
+    *   Schema is fully normalized.
+    *   Primary keys (UUID/bigserial) and foreign keys.
+    *   Foreign key constraints with `ON DELETE CASCADE` maintain referential integrity.
+    *   `ON DELETE SET NULL` or `restrict` used when cascade is too aggressive.
+*   Indexes:
+    *   All foreign key columns are indexed.
+    *   Compound indexes for frequent query patterns.
+        *   Example: `activity_log (user_id, created_at)`
+        *   Example: `api_calls (service, created_at)`
+    *   Full-text and vector indexes for fast search.
+    *   Unique indexes:
+        *   Example: `user_roles` to prevent duplicate role assignments.
+        *   Example: `collections (name, owner)` to prevent duplicate project names per user.
+*   Relationships:
+    *   Join tables and foreign keys define clear, traversable relationships.
+    *   PostgREST leverages relationships for deep fetching.
+    *   Example: `/collections?select=*,documents(*),chat_sessions(*)`
+    *   Well-related tables allow clients to request nested data/filter with query parameters.
+    *   Heavy relationships are paginated/limited, but schema supports large volumes.
+
+### API Integration & KBar Support
+
+*   Schema is API-friendly.
+*   Tables/relationships accessible via Supabase's REST and client libraries.
+*   Straightforward integration with tools like KBar.
+*   Unified Search Endpoint:
+    *   RPC (remote procedure call) or view for KBar to query for all content.
+    *   Example: `search_all(term text)` with full-text query across documents, messages, tags.
+    *   Database handles heavy lifting using indexes/vectors.
+*   Simplified Filtering:
+    *   Easy to query schema for specific documents or commands.
+    *   Example: KBar queries `/documents?ilike(title,"%term%")` or full-text search.
+*   Security via RLS:
+    *   API respects RLS policies.
+    *   Filters implicitly to user's data.
+*   No custom proxy layer needed.
+*   API-first design allows external developer integrations.
+
+#### KBar Integration Example
+
+*   User types query in KBar.
+*   Endpoint called (Supabase RPC/REST) searches documents by title/content.
+*   Query is efficient due to GIN/IVFFlat indexes.
+*   Results include chat session suggestion, document, command.
+*   User selects item, and KBar uses ID to navigate.
+*   API fetches full record or related info using stable primary keys.
+
+
+### Data Cleanup & Retention Policies
+
+*   **User-controlled Deletion:**
+    *   Users can delete content they own (e.g., chat sessions, documents).
+    *   Implemented as either a hard delete or soft delete.
+    *   RLS policies allow DELETE on content tables only if `auth.uid() = created_by` (or the user is an Admin).
+    *   Foreign key cascades prevent orphan records.
+
+*   **Admin Cleanup:**
+    *   Admins can manually cleanup data (e.g., remove inappropriate content, purge old records).
+    *   An Admin (with a global Admin role) can override RLS or is excepted by policy to delete anything.
+    *   Admins can delete entire collections (cascades down) or specific user accounts and cascade all their data.
+    *   Convenience functions or Supabase's Dashboard (with cascade delete) may be used.
+    *   Ownership transfer of shared content is possible by updating `created_by` or membership.
+
+*   **Retention Policies:**
+    *   **Activity Logs & API Calls:** Periodically archive or prune.
+        *   Logs older than X days can be moved to separate archive table or external storage.
+        *   An admin script can truncate or archive tables beyond a certain date if detailed traces are not needed.
+    *   **Content Retention:** Automate auto-deletion of content in inactive workspaces or provide export then delete.
+    *   **Langfuse Integration:** Comply with Langfuse retention settings.
+        *   Blank out `request_payload` fields after a certain period (e.g., 30 days).
+        *   Prompts/responses in separate tables allow deletion while keeping `api_calls` summary.
+    *   **Auditability:** Log all deletion events in an admin-only accessible log (`activity_log` or Postgres audit extension).
+
+### Scalability & Future Expansion
+
+*   **Scalable to Large Studios:**
+    *   Can accommodate hundreds of users and many collections/projects.
+    *   Possible introduction of an `organizations` table to link collections and users to organizations.
+    *   Indexed critical fields (e.g., `collection_id`) to maintain query efficiency.
+    *   Partitioning can be applied to log tables if needed (e.g., `api_calls` by month or service).
+
+*   **Performance:**
+    *   Leverages database strengths: indexes, constraints, RLS.
+    *   Generated columns and indexes for search.
+    *   Transactions are local (no external service calls for auth or search).
+
+*   **New Content Types:**
+    *   Can add new tables or extend existing ones (e.g., `storyboards`).
+    *   Generic user/collection/permission system allows easy integration of new tables.
+
+*   **Extensibility of Roles/Perms:**
+    *   Custom per-collection permissions can be implemented (e.g., adding a `permissions` table and UI).
+    *   Schema's separation of roles and membership enables new role insertion and policy adjustments.
+
+*   **High Throughput Logging:**
+    *   Can scale by offloading older data or using PG Boss/Background workers.
+    *   Simplicity of schema allows easy sharding or buffering.
+    *   `api_calls` can be sharded by service or year by moving to a partitioned table if performance demands.
+
+*   **Integration and API Scaling:**
+    *   Supabase’s auto-API is scalable.
+    *   Create read-optimized views or caching for frequently accessed data (e.g., materialized views).
+    *   Option to use any Postgres-compatible tool in the future.
+    *   pgvector extension ensures scalable AI-related features within the database.
+
+
+Sources:
+
+Supabase RBAC example – user roles table and role enum​
+https://supabase.com/docs/guides/database/postgres/custom-claims-and-role-based-access-control-rbac#:~:text=id%20bigint%20generated%20by%20default,as%20identity%20primary%20key
+
+​
+PostgreSQL full-text search with generated tsvector and GIN index​
+https://supabase.com/docs/guides/database/full-text-search#:~:text=_%2010
+
+Storing and indexing vector embeddings (pgvector)​
+https://supabase.com/blog/openai-embeddings-postgres-vector#:~:text=,that%20for%20our%20vector%20size
+
+Langfuse logging targets (prompts, latencies, errors, tokens, cost)​
+https://langfuse.com/docs/integrations/openai#:~:text=Langfuse%20automatically%20tracks%3A
+
+Supabase auto-generated REST API from schema​
+https://supabase.com/docs/guides/api#:~:text=Supabase%20auto,interface%2C%20directly%20from%20the%20browser
+
+Cascade delete behavior for referential integrity​
+https://supabase.com/docs/guides/database/postgres/cascade-deletes#:~:text=1,it%20also%20has%20the%20option
+
+Supabase AI/Vector search documentation​
+https://supabase.com/docs/guides/ai#:~:text=Supabase%20provides%20an%20open%20source,your%20vector%20embeddings%20at%20scale

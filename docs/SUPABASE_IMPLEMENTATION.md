@@ -162,3 +162,73 @@ For issues or questions:
 1. Check Supabase status: http://127.0.0.1:54323
 2. View logs: `supabase logs`
 3. Reset environment: `supabase db reset` 
+
+
+
+## Problem: Incorrect User ID Causing Save Failures
+
+The system was failing to save messages to Supabase due to a mismatch between the accessed user ID and the actual user ID structure within the authentication setup.
+
+## Authentication Setup
+
+*   **NextAuth.js:** Used for general session management.
+*   **Supabase Auth:** Used for database access and row-level security (RLS).
+
+## Attempts to Fix the Issue
+
+*   **First Attempt:**
+
+    *   Code: `const userId = session?.user?.id`
+    *   Result: Failed because the session structure was different than expected.
+*   **Second Attempt:**
+
+    *   Code: `const userId = (session as any)?.session?.userId || (session as any)?.userId`
+    *   Result: Failed because the user ID was not located in the NextAuth session.
+
+## Final Working Solution
+
+*   Implementation:
+
+    ```javascript
+    const [userId, setUserId] = useState<string | null>(null)
+    
+    useEffect(() => {
+        if (supabase) {
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session?.user?.id) {
+                    setUserId(session.user.id)
+                }
+            })
+        }
+    }, [supabase])
+    ```
+
+## Why the Final Solution Works
+
+*   **Direct Supabase Session Access:** Retrieves the user ID directly from the Supabase session.
+*   **State Management:** Uses `useState` to track the user ID and trigger re-renders when available.
+*   **Proper Timing:** The `useEffect` hook ensures the Supabase session is fetched after the Supabase client is initialized.
+*   **Clean Error Handling:** Saves messages only when a valid user ID is available, with proper error logging.
+
+## Database Side (Row Level Security - RLS)
+
+*   RLS Policies Configuration:
+    *   Allow authenticated users to insert their own messages.
+    *   Allow users to read messages from their chats.
+    *   Verify that the user ID from the Supabase session matches the `user_id` in the records.
+
+## Key Learnings
+
+*   Crucial to use the appropriate authentication session for the intended purpose when integrating multiple authentication systems.
+*   Supabase RLS policies rely on the Supabase's authentication system, therefore requiring the Supabase user ID.
+*   Debugging logs are essential for understanding session structures and identifying the location of the user ID.
+*   React's state management is important for handling the asynchronous nature of session initialization.
+
+## Outcomes
+
+The implemented solution provides:
+
+*   Secure user identification.
+*   Message saving with the correct user ID.
+*   Proper database access control via RLS.
+*   Graceful handling of edge cases and errors.

@@ -2,8 +2,6 @@
 
 An AI-powered search engine with a generative UI and advanced research capabilities.
 
-
-
 ## 🗂️ Overview
 
 - 🛠 [Features](#-features)
@@ -111,8 +109,31 @@ An AI-powered search engine with a generative UI and advanced research capabilit
 
 ### Data Storage
 
-- [Upstash](https://upstash.com/) - Serverless Redis
+- [Supabase](https://supabase.com/) - Primary database (PostgreSQL)
+  - Row Level Security (RLS)
+  - Real-time subscriptions
+  - JSONB support
+  - Complex relationships
+<!-- - [Upstash](https://upstash.com/) - Serverless Redis -->
 - [Redis](https://redis.io/) - Local Redis option
+
+### Database Features
+
+- Comprehensive data model with:
+  - User profiles and preferences
+  - Project organization
+  - Research session tracking
+  - Chat message history
+  - Source management
+  - Research state tracking
+- Real-time updates via Supabase
+- Row Level Security for data protection
+- Complex relationships and constraints
+- Performance-optimized indexes
+- JSONB for flexible metadata
+- Automated timestamps and sequences
+- Team collaboration support
+- Activity tracking and metrics
 
 ### UI & Styling
 
@@ -233,11 +254,11 @@ This will allow you to use AtherAgent as your default search engine in the brows
 - Anthropic
   - Claude 3.5 Sonnet
   - Claude 3.5 Hike
-- Ollama
+<!-- - Ollama
   - qwen2.5
-  - deepseek-r1
-- Groq
-  - deepseek-r1-distill-llama-70b
+  - deepseek-r1 -->
+<!-- - Groq
+  - deepseek-r1-distill-llama-70b -->
 - DeepSeek
   - DeepSeek V3
   - DeepSeek R1
@@ -336,14 +357,14 @@ For detailed documentation on chat components and features, see [Chat Components
 ## File Upload
 
 Supports:
-- Images (JPEG, PNG, GIF)
+- Images (JPEG, PNG, GIF) //TODO: Add support for other image formats
 - Documents (PDF)
-- Size limit: 5MB per file
+- Size limit: //TODO
 - Drag & drop interface
 - Progress tracking
 - Preview generation
 
-## Research Integration
+## Research Integration //TODO
 
 - Source management
 - Relevance scoring
@@ -351,7 +372,7 @@ Supports:
 - Context preservation
 - Search mode integration
 
-## Accessibility
+## Accessibility //TODO
 
 - Keyboard navigation
 - Screen reader support
@@ -398,7 +419,4 @@ AtherAgent supports dynamic chart generation with real-time data visualization c
 Charts can be generated through:
 - Natural language queries
 - Data analysis results
-- Research visualizations
-- Custom data input
-
-For chart configuration and customization, see [CHART_CONFIGURATION.md](./docs/CHART_CONFIGURATION.md)
+- Custom data input as JSON or any other data format
