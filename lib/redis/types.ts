@@ -13,6 +13,8 @@ export interface RedisWrapper {
   close(): Promise<void>
   ping(): Promise<string>
   keys(pattern: string): Promise<string[]>
+  set(key: string, value: string, options?: { ex?: number }): Promise<string | null>
+  get(key: string): Promise<string | null>
 }
 
 export interface PipelineWrapper {
@@ -122,6 +124,15 @@ export class LocalRedisWrapper implements RedisWrapper {
   async keys(pattern: string): Promise<string[]> {
     return this.client.keys(pattern)
   }
+
+  async set(key: string, value: string, options?: { ex?: number }): Promise<string | null> {
+    const result = await this.client.set(key, value, { EX: options?.ex })
+    return result
+  }
+
+  async get(key: string): Promise<string | null> {
+    return this.client.get(key)
+  }
 }
 
 export class UpstashRedisWrapper implements RedisWrapper {
@@ -205,5 +216,14 @@ export class UpstashRedisWrapper implements RedisWrapper {
 
   async keys(pattern: string): Promise<string[]> {
     return this.client.keys(pattern)
+  }
+
+  async set(key: string, value: string, options?: { ex?: number }): Promise<string | null> {
+    const result = await this.client.set(key, value, options?.ex ? { ex: options.ex } : undefined)
+    return result
+  }
+
+  async get(key: string): Promise<string | null> {
+    return this.client.get(key)
   }
 } 

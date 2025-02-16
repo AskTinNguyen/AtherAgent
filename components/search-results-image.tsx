@@ -3,20 +3,20 @@
 
 import { Card, CardContent } from '@/components/ui/card'
 import {
-  Carousel,
-  type CarouselApi,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious
+    Carousel,
+    type CarouselApi,
+    CarouselContent,
+    CarouselItem,
+    CarouselNext,
+    CarouselPrevious
 } from '@/components/ui/carousel'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger
 } from '@/components/ui/dialog'
 import { PlusCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -74,7 +74,7 @@ export function SearchResultsImageSection({ images, query, isLoading = false }: 
   return (
     <div className="flex flex-wrap gap-2">
       {convertedImages.slice(0, 4).map((image, index) => (
-        <Dialog key={index}>
+        <Dialog key={`${image.url}-${index}`}>
           <DialogTrigger asChild>
             <div
               className="w-[calc(50%-0.5rem)] md:w-[calc(25%-0.5rem)] aspect-video cursor-pointer relative"
@@ -115,7 +115,7 @@ export function SearchResultsImageSection({ images, query, isLoading = false }: 
               >
                 <CarouselContent>
                   {convertedImages.map((img, idx) => (
-                    <CarouselItem key={idx}>
+                    <CarouselItem key={`${img.url}-${idx}`}>
                       <div className="p-1 flex items-center justify-center h-full">
                         <img
                           src={img.url}

@@ -4,6 +4,7 @@ import { ResearchSourceMetrics } from '@/lib/types/research'
 import { calculateSourceMetrics } from '@/lib/utils/research-depth'
 import { createContext, useContext, useReducer, type ReactNode } from 'react'
 
+
 // Types
 interface SourceQuality {
   contentQuality: number
@@ -138,11 +139,33 @@ export function SourcesProvider({ children }: { children: ReactNode }) {
   )
 }
 
-// Hook
-export function useSources() {
-  const context = useContext(SourcesContext)
-  if (!context) {
-    throw new Error('useSources must be used within a SourcesProvider')
+// Custom error class for better error handling
+class SourcesContextError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'SourcesContextError'
   }
+}
+
+// Hook with improved error handling
+export function useSources(): SourcesContextType {
+  const context = useContext(SourcesContext)
+
+  // Guard clause for undefined context
+  if (context === undefined) {
+    throw new SourcesContextError(
+      'useSources hook must be used within a SourcesProvider component. ' +
+      'Please wrap your component with <SourcesProvider>.</SourcesProvider>'
+    )
+  }
+
+  // Guard clause for null context
+  if (context === null) {
+    throw new SourcesContextError(
+      'SourcesContext has not been properly initialized. ' +
+      'Ensure SourcesProvider is configured correctly.'
+    )
+  }
+
   return context
 } 

@@ -3,6 +3,9 @@
 import { ResearchSourceMetrics, type ResearchSuggestion } from '@/lib/types/research'
 import { calculateSourceMetrics, optimizeDepthStrategy, shouldIncreaseDepth } from '@/lib/utils/research-depth'
 import { createContext, useCallback, useContext, useReducer, type ReactNode } from 'react'
+import { ResearchActivityProvider } from './research-activity-context'
+import { DepthProvider } from './research-depth-context'
+import { SourcesProvider } from './research-sources-context'
 
 // Types
 export interface ResearchActivity {
@@ -307,7 +310,13 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
         clearState
       }}
     >
-      {children}
+      <ResearchActivityProvider>
+        <DepthProvider>
+          <SourcesProvider>
+            {children}
+          </SourcesProvider>
+        </DepthProvider>
+      </ResearchActivityProvider>
     </ResearchContext.Provider>
   )
 }

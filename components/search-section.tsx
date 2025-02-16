@@ -3,11 +3,13 @@
 import { SearchHeader } from '@/components/search/search-header'
 import { SearchResultsGrid } from '@/components/search/search-results-grid'
 import { useActivity, useDepth, useSources } from '@/lib/contexts/research-provider'
+import { searchTool } from '@/lib/tools/search'
 import { ResearchDiffSystem, type VisualizationData } from '@/lib/utils/research-diff'
 import { extractSearchSources } from '@/lib/utils/search'
 import { type SearchResultItem, type SearchSource, type SearchResults as TypeSearchResults } from '@/types/search'
 import { type Message } from 'ai'
 import { BarChart, Grid2X2, Image as ImageIcon } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import * as React from 'react'
 import { CollapsibleMessage } from './collapsible-message'
 import { RankedSearchResults } from './ranked-search-results'
@@ -42,6 +44,8 @@ interface SearchSectionProps {
   chatId: string
 }
 
+const STORAGE_KEY = 'search_results'
+
 export function SearchSection({
   tool,
   isOpen,
@@ -50,6 +54,9 @@ export function SearchSection({
   setMessages,
   chatId
 }: SearchSectionProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  
   const isLoading = tool.state === 'call'
   const searchResults = tool.state === 'result' ? tool.result : undefined
   const query = tool.args?.query
@@ -65,25 +72,260 @@ export function SearchSection({
   const [previousResults, setPreviousResults] = React.useState<SearchResultItem[]>([])
   const diffSystemRef = React.useRef<ResearchDiffSystem>(new ResearchDiffSystem())
   const [diffVisualization, setDiffVisualization] = React.useState<VisualizationData | null>(null)
+  const sourcesProcessedRef = React.useRef<{[key: string]: boolean}>({})
 
   const includeDomainsString = React.useMemo(() => 
     includeDomains ? ` [${includeDomains.join(', ')}]` : '', 
     [includeDomains]
   )
 
-  // Memoized helper functions
-  const extractAndProcessSources = React.useCallback((searchResults: TypeSearchResults | undefined, messages: ExtendedMessage[], toolCallId: string | undefined) => {
-    if (!searchResults?.results || searchResults.results.length === 0) return null
-    
-    const sources = extractSearchSources(searchResults.results)
-    const message = messages.find(m => m.id === toolCallId)
-    
-    return { sources, message }
-  }, [])
+  // Split into separate effects for different concerns
+  
+  // 1. Process search results and update messages
+  React.useEffect(() => {
+    if (!searchResults?.results || !tool.toolCallId) return
+    if (sourcesProcessedRef.current[tool.toolCallId]) return
 
-  // Local state
-  const { currentDepth, maxDepth } = depthState
-  const sourcesProcessedRef = React.useRef<{[key: string]: boolean}>({})
+    const sources = extractSearchSources(searchResults.results)
+    const message = messages.find(m => m.id === tool.toolCallId)
+    if (!message) return
+
+    sourcesProcessedRef.current[tool.toolCallId] = true
+
+    setMessages(messages.map(msg => 
+      msg.id === message.id 
+        ? { ...msg, searchSources: sources }
+        : msg
+    ))
+  }, [searchResults, tool.toolCallId, messages, setMessages])
+
+  // 2. Update sources context
+  React.useEffect(() => {
+    if (!searchResults?.results || !tool.toolCallId) return
+    if (!sourcesProcessedRef.current[tool.toolCallId]) return
+
+    const sources = extractSearchSources(searchResults.results)
+    sources.forEach(source => {
+      const searchResult = searchResults.results.find(r => r.url === source.url)
+      if (searchResult) {
+        addSource({
+          url: source.url,
+          title: source.title,
+          relevance: searchResult.relevance || 0,
+          content: source.content,
+          query: query,
+          publishedDate: source.publishedDate
+        })
+      }
+    })
+  }, [searchResults, tool.toolCallId, query, addSource])
+
+  // 3. Handle diff visualization
+  React.useEffect(() => {
+    if (!searchResults?.results) return
+
+    const diffs = diffSystemRef.current.compareResults(previousResults, searchResults.results)
+    const visualization = diffSystemRef.current.visualizeDiffs(diffs)
+    
+    setDiffVisualization(visualization)
+    setPreviousResults(searchResults.results)
+  }, [searchResults, previousResults])
+
+  // 4. Handle metrics and depth optimization
+  const { currentDepth } = depthState
+  React.useEffect(() => {
+    if (!searchResults?.results) return
+
+    const metrics = diffSystemRef.current.trackChanges(searchResults.results)
+
+    if (metrics.newInsights > 0 || metrics.refinements > 0) {
+      addActivity({
+        type: 'analyze',
+        status: 'complete',
+        message: `Found ${metrics.newInsights} new insights and ${metrics.refinements} refinements`,
+        timestamp: new Date().toISOString(),
+        depth: currentDepth
+      })
+    }
+
+    // Debounce depth optimization
+    const timeoutId = setTimeout(() => {
+      optimizeDepth(sourcesState.sourceMetrics)
+    }, 1000)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchResults, currentDepth, addActivity, optimizeDepth, sourcesState.sourceMetrics])
+
+  // Store search results in Redis when they change
+  React.useEffect(() => {
+    if (searchResults?.results && query) {
+      const payload = {
+        query,
+        results: {
+          ...searchResults,
+          results: searchResults.results.map(result => ({
+            ...result,
+            content: result.content || '',
+            title: result.title || '',
+            url: result.url || '',
+            relevance: result.relevance || 0,
+            depth: result.depth || 1,
+            domain: result.domain || '',
+            favicon: result.favicon || '',
+            publishedDate: result.publishedDate || null
+          }))
+        }
+      }
+
+      fetch(`/api/search/${chatId}/results`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      }).catch(error => {
+        console.error('Error storing search results:', error)
+      })
+    }
+  }, [searchResults, query, chatId])
+
+  // Restore search results from Redis on mount or when URL parameters change
+  React.useEffect(() => {
+    const urlQuery = searchParams.get('q')
+    if (urlQuery && !searchResults) {
+      fetch(`/api/search/${chatId}/results?q=${encodeURIComponent(urlQuery)}`)
+        .then(async response => {
+          if (!response.ok) {
+            const errorText = await response.text()
+            throw new Error(`Failed to restore search results: ${errorText}`)
+          }
+          return response.json()
+        })
+        .then(data => {
+          if (data && data.results) {
+            // Create a synthetic tool invocation with the correct type
+            const syntheticTool = {
+              state: 'result' as const,
+              toolName: 'search' as const,
+              toolCallId: 'restored-search',
+              args: {
+                query: urlQuery,
+                includeDomains: searchParams.get('domains')?.split(',').filter(Boolean)
+              },
+              result: data
+            }
+            
+            // Update the tool state
+            if (setMessages && messages) {
+              const newMessage: ExtendedMessage = {
+                id: 'restored-search',
+                role: 'assistant',
+                content: `Restored search results for: ${urlQuery}`,
+                toolInvocations: [syntheticTool]
+              }
+              setMessages([...messages, newMessage])
+            }
+          }
+        })
+        .catch(error => {
+          console.error('Error restoring search results:', error)
+        })
+    }
+  }, [searchParams, searchResults, chatId, setMessages, messages])
+
+  // Clear stored results when chat changes
+  React.useEffect(() => {
+    return () => {
+      fetch(`/api/search/${chatId}/results`, {
+        method: 'DELETE'
+      }).catch(error => {
+        console.error('Error clearing stored search results:', error)
+      })
+    }
+  }, [chatId])
+
+  // Persist search state in URL
+  React.useEffect(() => {
+    if (searchResults?.results && query) {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set('q', query)
+      if (includeDomains?.length) {
+        params.set('domains', includeDomains.join(','))
+      }
+      router.push(`?${params.toString()}`, { scroll: false })
+    }
+  }, [searchResults, query, includeDomains, router, searchParams])
+
+  // Recover search from URL parameters
+  const recoverSearch = React.useCallback(async (query: string, domains?: string[]) => {
+    try {
+      const results = await searchTool.execute({
+        query,
+        search_depth: 'basic',
+        include_domains: domains || [],
+        exclude_domains: [],
+        topic: 'general',
+        time_range: 'year',
+        include_answer: false,
+        include_images: false,
+        include_image_descriptions: false,
+        include_raw_content: false,
+        max_results: 10,
+        days: 365
+      }, {
+        toolCallId: 'recover-search',
+        messages: []
+      })
+
+      if (results.results?.length) {
+        // Update the search results in the parent component's state
+        if (setMessages && messages) {
+          const newMessage = {
+            id: 'recover-search',
+            role: 'assistant' as const,
+            content: `Recovered search results for: ${query}`,
+            searchSources: extractSearchSources(results.results)
+          }
+          setMessages([...messages, newMessage])
+        }
+      }
+    } catch (error) {
+      console.error('Failed to recover search:', error)
+    }
+  }, [setMessages, messages])
+
+  // Restore search state from URL on mount
+  React.useEffect(() => {
+    const urlQuery = searchParams.get('q')
+    const urlDomains = searchParams.get('domains')?.split(',').filter(Boolean)
+    
+    if (urlQuery && !searchResults) {
+      recoverSearch(urlQuery, urlDomains)
+    }
+  }, [searchParams, searchResults, recoverSearch])
+
+  // Load results from local storage on mount
+  React.useEffect(() => {
+    const storedResults = localStorage.getItem(STORAGE_KEY)
+    if (storedResults && !searchResults) {
+      const parsed = JSON.parse(storedResults)
+      if (parsed.chatId === chatId) {
+        // Only restore if it's for the same chat session
+        setPreviousResults(parsed.results)
+      }
+    }
+  }, [chatId, searchResults])
+
+  // Save results to local storage when they change
+  React.useEffect(() => {
+    if (searchResults?.results) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        chatId,
+        results: searchResults.results,
+        timestamp: Date.now()
+      }))
+    }
+  }, [searchResults, chatId])
 
   // Memoized values
   const isToolLoading = React.useMemo(() => tool.state === 'call', [tool.state])
@@ -96,70 +338,6 @@ export function SearchSection({
   const handleOpenChange = React.useCallback((open: boolean) => {
     onOpenChange(open)
   }, [onOpenChange])
-
-  // Process search results and update sources
-  React.useEffect(() => {
-    if (!searchResults) return
-
-    const result = extractAndProcessSources(searchResults, messages, tool.toolCallId)
-    if (!result) return
-    
-    const { sources, message } = result
-    
-    if (message && !sourcesProcessedRef.current[message.id]) {
-      sourcesProcessedRef.current[message.id] = true
-
-      // Create new messages array with updated message
-      const updatedMessages: ExtendedMessage[] = messages.map(msg => {
-        if (msg.id === message.id) {
-          return {
-            ...msg,
-            searchSources: sources
-          }
-        }
-        return msg
-      })
-
-      setMessages(updatedMessages)
-
-      // Add sources to context
-      sources.forEach(source => {
-        const searchResult = searchResults.results.find(r => r.url === source.url)
-        if (searchResult) {
-          addSource({
-            url: source.url,
-            title: source.title,
-            relevance: searchResult.relevance || 0,
-            content: source.content,
-            query: query,
-            publishedDate: source.publishedDate
-          })
-        }
-      })
-    }
-
-    // Track changes and update visualization
-    const metrics = diffSystemRef.current.trackChanges(searchResults.results)
-    const diffs = diffSystemRef.current.compareResults(previousResults, searchResults.results)
-    const visualization = diffSystemRef.current.visualizeDiffs(diffs)
-    
-    setDiffVisualization(visualization)
-    setPreviousResults(searchResults.results)
-
-    // Add activity for significant changes
-    if (metrics.newInsights > 0 || metrics.refinements > 0) {
-      addActivity({
-        type: 'analyze',
-        status: 'complete',
-        message: `Found ${metrics.newInsights} new insights and ${metrics.refinements} refinements`,
-        timestamp: new Date().toISOString(),
-        depth: currentDepth
-      })
-    }
-
-    // Optimize depth based on new metrics
-    optimizeDepth(sourcesState.sourceMetrics)
-  }, [searchResults, messages, tool.toolCallId, query, addSource, currentDepth, addActivity, optimizeDepth, sourcesState.sourceMetrics, previousResults, extractAndProcessSources])
 
   return (
     <CollapsibleMessage

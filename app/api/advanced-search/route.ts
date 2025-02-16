@@ -1,15 +1,9 @@
-import { NextResponse } from 'next/server'
+import { type SearchResultItem, type SearchResults } from '@/types/search'
+import { Redis } from '@upstash/redis'
 import http from 'http'
 import https from 'https'
 import { JSDOM, VirtualConsole } from 'jsdom'
-import {
-  SearXNGSearchResults,
-  SearXNGResponse,
-  SearXNGResult,
-  SearchResultItem
-} from '@/lib/types'
-import { Agent } from 'http'
-import { Redis } from '@upstash/redis'
+import { NextResponse } from 'next/server'
 import { createClient } from 'redis'
 
 /**
@@ -53,10 +47,20 @@ async function initializeRedisClient() {
   return redisClient
 }
 
-// Function to get cached results
+// Function to normalize cache key to avoid special characters
+function normalizeCacheKey(query: string, maxResults: number, searchDepth: string, includeDomains: string[], excludeDomains: string[]): string {
+  const normalizedQuery = query.toLowerCase().trim()
+  const domains = {
+    include: Array.isArray(includeDomains) ? includeDomains.join(',') : '',
+    exclude: Array.isArray(excludeDomains) ? excludeDomains.join(',') : ''
+  }
+  return `search:${normalizedQuery}:${maxResults}:${searchDepth}:${domains.include}:${domains.exclude}`
+}
+
+// Function to get cached results with error handling
 async function getCachedResults(
   cacheKey: string
-): Promise<SearXNGSearchResults | null> {
+): Promise<SearchResults | null> {
   try {
     const client = await initializeRedisClient()
     if (!client) return null
@@ -84,18 +88,24 @@ async function getCachedResults(
 // Function to set cached results with error handling and logging
 async function setCachedResults(
   cacheKey: string,
-  results: SearXNGSearchResults
+  results: SearchResults
 ): Promise<void> {
   try {
     const client = await initializeRedisClient()
     if (!client) return
 
     const serializedResults = JSON.stringify(results)
+    
+    // Store in Redis with TTL
     if (client instanceof Redis) {
       await client.set(cacheKey, serializedResults, { ex: CACHE_TTL })
+      // Also store in a set of all search keys for cleanup
+      await client.sadd('search:keys', cacheKey)
     } else {
       await client.set(cacheKey, serializedResults, { EX: CACHE_TTL })
+      await client.sAdd('search:keys', cacheKey)
     }
+    
     console.log(`Cached results for key: ${cacheKey}`)
   } catch (error) {
     console.error('Redis cache error:', error)
@@ -124,6 +134,23 @@ async function cleanupExpiredCache() {
 // Set up periodic cache cleanup
 setInterval(cleanupExpiredCache, CACHE_EXPIRATION_CHECK_INTERVAL)
 
+interface SearXNGResult {
+  url: string
+  title: string
+  content: string
+  img_src?: string
+  publishedDate?: string
+  score?: number
+  domain?: string
+  favicon?: string
+}
+
+interface SearXNGResponse {
+  query: string
+  results: SearXNGResult[]
+  number_of_results?: number
+}
+
 export async function POST(request: Request) {
   const { query, maxResults, searchDepth, includeDomains, excludeDomains } =
     await request.json()
@@ -131,9 +158,13 @@ export async function POST(request: Request) {
   const SEARXNG_DEFAULT_DEPTH = process.env.SEARXNG_DEFAULT_DEPTH || 'basic'
 
   try {
-    const cacheKey = `search:${query}:${maxResults}:${searchDepth}:${
-      Array.isArray(includeDomains) ? includeDomains.join(',') : ''
-    }:${Array.isArray(excludeDomains) ? excludeDomains.join(',') : ''}`
+    const cacheKey = normalizeCacheKey(
+      query,
+      maxResults,
+      searchDepth || SEARXNG_DEFAULT_DEPTH,
+      Array.isArray(includeDomains) ? includeDomains : [],
+      Array.isArray(excludeDomains) ? excludeDomains : []
+    )
 
     // Try to get cached results
     const cachedResults = await getCachedResults(cacheKey)
@@ -176,10 +207,10 @@ async function advancedSearchXNGSearch(
   searchDepth: 'basic' | 'advanced' = 'advanced',
   includeDomains: string[] = [],
   excludeDomains: string[] = []
-): Promise<SearXNGSearchResults> {
+): Promise<SearchResults> {
   const apiUrl = process.env.SEARXNG_API_URL
   if (!apiUrl) {
-    throw new Error('SEARXNG_API_URL is not set in the environment variables')
+    throw new Error('SEARXNG_API_URL is not set')
   }
 
   const SEARXNG_ENGINES =
@@ -211,17 +242,7 @@ async function advancedSearchXNGSearch(
 
     //console.log('SearXNG API URL:', url.toString()) // Log the full URL for debugging
 
-    const data:
-      | SearXNGResponse
-      | { error: string; status: number; data: string } =
-      await fetchJsonWithRetry(url.toString(), 3)
-
-    if ('error' in data) {
-      console.error('Invalid response from SearXNG:', data)
-      throw new Error(
-        `Invalid response from SearXNG: ${data.error}. Status: ${data.status}. Data: ${data.data}`
-      )
-    }
+    const data: SearXNGResponse = await fetchJsonWithRetry(url.toString(), 3)
 
     if (!data || !Array.isArray(data.results)) {
       console.error('Invalid response structure from SearXNG:', data)
@@ -275,28 +296,33 @@ async function advancedSearchXNGSearch(
     return {
       results: generalResults.map(
         (result: SearXNGResult): SearchResultItem => ({
-          title: result.title || '',
-          url: result.url || '',
-          content: result.content || ''
+          url: result.url,
+          title: result.title,
+          content: result.content,
+          relevance: result.score,
+          depth: 1,
+          domain: result.domain,
+          favicon: result.favicon,
+          publishedDate: result.publishedDate
         })
       ),
-      query: data.query || query,
+      totalResults: data.number_of_results || generalResults.length,
       images: imageResults
         .map((result: SearXNGResult) => {
           const imgSrc = result.img_src || ''
-          return imgSrc.startsWith('http') ? imgSrc : `${apiUrl}${imgSrc}`
+          return {
+            url: imgSrc.startsWith('http') ? imgSrc : `${apiUrl}${imgSrc}`,
+            title: result.title || '',
+            thumbnail: result.img_src
+          }
         })
         .filter(Boolean),
-      number_of_results: data.number_of_results || generalResults.length
-    }
+      provider: 'searxng',
+      searchTime: Date.now()
+    } satisfies SearchResults
   } catch (error) {
-    console.error('SearchXNG API error:', error)
-    return {
-      results: [],
-      query: query,
-      images: [],
-      number_of_results: 0
-    }
+    console.error('SearXNG API error:', error)
+    throw error
   }
 }
 

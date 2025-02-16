@@ -15,7 +15,7 @@ function SearchResultsGridContent({ results, isLoading = false }: SearchResultsG
   const gridItems = React.useMemo(() => 
     results.map((result, index) => (
       <SearchResultCard
-        key={result.url}
+        key={`${result.url}-${index}`}
         result={result}
         index={index}
       />
