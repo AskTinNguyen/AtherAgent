@@ -10,6 +10,13 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    if (!params.id) {
+      return NextResponse.json(
+        { error: 'Missing required parameter (id)' },
+        { status: 400 }
+      )
+    }
+
     const chatId = params.id
     const query = req.nextUrl.searchParams.get('q')
     if (!query) {
@@ -35,6 +42,13 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    if (!params.id) {
+      return NextResponse.json(
+        { error: 'Missing required parameter (id)' },
+        { status: 400 }
+      )
+    }
+
     const chatId = params.id
     const body = await req.json()
     

@@ -2,11 +2,12 @@
 
 import { ResearchActivityProvider } from '@/lib/contexts/research-activity-context'
 import { useResearch } from '@/lib/contexts/research-context'
+import { usePanelCollapse } from '@/lib/hooks/use-panel-collapse'
 import { cn } from '@/lib/utils'
-import { ChevronLeft } from 'lucide-react'
+import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { ErrorBoundary } from './shared/error-boundary'
-import { Button } from './ui/button'
+import { PanelControls } from './visualization/panel-controls'
 import { ResearchCommandCenter } from './visualization/research-command-center'
 
 interface DeepResearchVisualizationProps {
@@ -17,7 +18,7 @@ interface DeepResearchVisualizationProps {
   onSuggestionSelect?: (content: string) => void
 }
 
-export function DeepResearchVisualization({
+function DeepResearchVisualizationContent({
   location,
   chatId,
   initialClearedState = false,
@@ -25,40 +26,36 @@ export function DeepResearchVisualization({
   onSuggestionSelect
 }: DeepResearchVisualizationProps) {
   const { state, clearState } = useResearch()
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+  const pathname = usePathname()
 
-  // Handle initialization and state clearing
-  useEffect(() => {
-    if (!isInitialized) {
-      setIsInitialized(true)
-      
-      // Handle initial cleared state
-      if (initialClearedState && !state.isActive) {
-        clearState()
-      }
-    }
-  }, [clearState, initialClearedState, state.isActive, isInitialized])
+  const { isCollapsed, toggleCollapse } = usePanelCollapse({
+    chatId,
+    isActive: state.isActive
+  })
 
-  // Show panel when research becomes active
+  // Handle initialization and state clearing once on mount
   useEffect(() => {
-    if (state.isActive && isCollapsed) {
-      setIsCollapsed(false)
+    // Only run initialization once
+    if (initialClearedState && !state.isActive) {
+      clearState()
     }
-  }, [state.isActive, isCollapsed])
+    setIsInitialized(true)
+  }, []) // Empty deps since this should only run once on mount
 
   const handleSetActive = useCallback((active: boolean) => {
-    // Implementation depends on your needs
     console.log('Setting active state:', active)
   }, [])
 
   const handleInitProgress = useCallback((max: number, current: number) => {
-    // Implementation depends on your needs
     console.log('Initializing progress:', { max, current })
   }, [])
 
-  // Only hide if explicitly cleared
-  if (initialClearedState) {
+  // Check if we're in a chat session
+  const isInChatSession = pathname.startsWith('/search/') || chatId !== 'global'
+
+  // Only show in chat sessions and when not explicitly cleared
+  if (!isInChatSession || initialClearedState) {
     return null
   }
 
@@ -81,31 +78,20 @@ export function DeepResearchVisualization({
           }
         `}</style>
 
-        {/* Chevron Button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className={cn(
-            "fixed left-2 top-[calc(50vh-2rem)] rounded-full text-foreground/30 z-50",
-            !state.isActive && "opacity-50"
-          )}
-        >
-          <ChevronLeft 
-            size={32} 
-            className={cn(
-              "glow-effect",
-              isCollapsed && "rotate-180",
-              state.isActive && "text-primary"
-            )}
-          />
-        </Button>
+        <PanelControls
+          isActive={state.isActive}
+          isCollapsed={isCollapsed}
+          onToggle={toggleCollapse}
+        />
 
         {/* Panel Container */}
         <div className={cn(
           "fixed inset-y-0 left-0 z-40 transition-all duration-300 ease-in-out",
-          location === 'sidebar' ? 'hidden lg:block' : 'block lg:hidden',
-          isCollapsed ? "w-0 opacity-0" : "w-[440px] opacity-100"
+          // Desktop: Show panel and handle collapse
+          "hidden lg:block",
+          isCollapsed ? "lg:w-0 lg:opacity-0" : "lg:w-[440px] lg:opacity-100",
+          // Mobile: Full width when shown
+          "w-full md:w-[440px]"
         )}>
           <ResearchCommandCenter
             location={location}
@@ -123,4 +109,9 @@ export function DeepResearchVisualization({
       </ResearchActivityProvider>
     </ErrorBoundary>
   )
+}
+
+// Export a wrapped version that ensures ResearchProvider context is available
+export function DeepResearchVisualization(props: DeepResearchVisualizationProps) {
+  return <DeepResearchVisualizationContent {...props} />
 } 

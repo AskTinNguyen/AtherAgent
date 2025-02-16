@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { type ResearchState } from '../deep-research-provider'
 import { MetricsGrid } from './metrics-grid'
 import { ResearchContent } from './research-content'
@@ -21,6 +21,10 @@ interface ResearchCommandCenterProps {
   isCollapsed: boolean
 }
 
+// Constants
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000 // 5 minutes
+const CHECK_INTERVAL = 60000 // Check every minute
+
 export function ResearchCommandCenter({
   location,
   chatId,
@@ -34,11 +38,11 @@ export function ResearchCommandCenter({
   isCollapsed
 }: ResearchCommandCenterProps) {
   const [isFullScreen, setIsFullScreen] = useState(false)
-  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now())
+  const lastUpdateTimeRef = useRef(Date.now())
 
-  // Track state updates
+  // Track state updates with ref to avoid unnecessary re-renders
   useEffect(() => {
-    setLastUpdateTime(Date.now())
+    lastUpdateTimeRef.current = Date.now()
   }, [state])
 
   // Handle state clearing
@@ -52,28 +56,30 @@ export function ResearchCommandCenter({
 
   // Auto-collapse when inactive for too long
   useEffect(() => {
-    const inactivityTimeout = 5 * 60 * 1000 // 5 minutes
+    // Only set up inactivity check if state is active
+    if (!state.isActive) return
+
     const checkInactivity = () => {
       const now = Date.now()
-      if (now - lastUpdateTime > inactivityTimeout && !state.isActive) {
+      if (now - lastUpdateTimeRef.current > INACTIVITY_TIMEOUT) {
         onSetActive(false)
       }
     }
 
-    const interval = setInterval(checkInactivity, 60000) // Check every minute
+    const interval = setInterval(checkInactivity, CHECK_INTERVAL)
     return () => clearInterval(interval)
-  }, [lastUpdateTime, state.isActive, onSetActive])
+  }, [state.isActive, onSetActive])
 
   return (
     <div className={cn(
       "h-full bg-background transition-all duration-200 ease-in-out",
       !isCollapsed && "border-r shadow-lg",
       isFullScreen ? "w-full" : "w-[440px]",
-      isCollapsed ? "w-0 opacity-0" : "opacity-100"
+      isCollapsed ? "lg:w-0 lg:opacity-0" : "opacity-100"
     )}>
       <div className={cn(
         "flex flex-col h-full",
-        isCollapsed && "hidden"
+        isCollapsed && "lg:hidden"
       )}>
         <ResearchHeader 
           isActive={state.isActive}

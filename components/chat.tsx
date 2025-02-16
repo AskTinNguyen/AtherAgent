@@ -4,12 +4,14 @@ import { CHAT_ID } from '@/lib/constants'
 import { ResearchProvider, useResearch } from '@/lib/contexts/research-context'
 import type { ChatResearchState } from '@/lib/types/research'
 import { Message, useChat } from 'ai/react'
+import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import useSWR from 'swr'
 import { ChatMessages } from './chat-messages'
 import { ChatPanel } from './chat-panel'
 import { DeepResearchVisualization } from './deep-research-visualization'
+import { ResearchInitializer } from './research-initializer'
 
 export function ChatContent({
   id,
@@ -21,6 +23,8 @@ export function ChatContent({
   query?: string
 }) {
   const { state: researchState } = useResearch()
+  const pathname = usePathname()
+  const isInChatSession = pathname.startsWith('/search/')
   
   const {
     messages,
@@ -90,13 +94,15 @@ export function ChatContent({
 
   return (
     <div className="flex min-h-screen">
-      <DeepResearchVisualization
-        location="sidebar"
-        chatId={id}
-        initialClearedState={chatResearchState?.isCleared}
-        onClearStateChange={handleClearResearch}
-        onSuggestionSelect={onQuerySelect}
-      />
+      {isInChatSession && (
+        <DeepResearchVisualization
+          location="sidebar"
+          chatId={id}
+          initialClearedState={chatResearchState?.isCleared}
+          onClearStateChange={handleClearResearch}
+          onSuggestionSelect={onQuerySelect}
+        />
+      )}
       <div className="flex-1 flex justify-center">
         <div className="w-full max-w-3xl pt-14 pb-60">
           <ChatMessages
@@ -131,6 +137,7 @@ export function Chat(props: {
 }) {
   return (
     <ResearchProvider>
+      <ResearchInitializer />
       <ChatContent {...props} />
     </ResearchProvider>
   )
