@@ -16,14 +16,14 @@ HIGH PRIORITY FOR TIN
 
 
 
-MEDIUM PRIORITY -> LEAVE TO OTHER ENGINEERS?
+MEDIUM PRIORITY ->  TO OTHER ENGINEERS?
 
 - [ ] Fix the "Research" page including Path Visualization
 - [ ] Add Drag URL to the Bookmarked Articles
 - [ ] Add a Create new Deep Research based on a Booked Article
 
 
-LOW PRIOIRTY -> LEAVE TO OTHER ENGINEERS
+LOW PRIOIRTY -> TO OTHER ENGINEERS
 - [ ] Add the cron job to send Research Updates to the User over MCP like Slack or Telegram
 - [ ] Fix API Statistics
 - [ ] Add the "Settings" page
@@ -31,3 +31,17 @@ LOW PRIOIRTY -> LEAVE TO OTHER ENGINEERS
 - [ ] Add a Create new Deep Research based on a Booked Article
 
 
+1. **Protocol Implementation**
+   - [ ] Add streaming tool call support
+   - [ ] Implement tool call state management
+   - [ ] Support streaming results
+
+2. **Tool State Management**
+   - [ ] Add tool call tracking
+   - [ ] Implement tool result handling
+   - [ ] Support concurrent tool calls
+
+3. **Tool Analytics**
+   - [ ] Add tool usage tracking
+   - [ ] Implement tool performance metrics
+   - [ ] Support tool debugging

@@ -34,5 +34,6 @@
     "source.organizeImports": "always"
   },
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.formatOnSave": true
+  "editor.formatOnSave": true,
+  "todo-tree.tree.showBadges": true
 }

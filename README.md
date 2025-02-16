@@ -15,61 +15,45 @@ An AI-powered search engine with a generative UI and advanced research capabilit
 ### Core Features
 
 - AI-powered search with GenerativeUI
-- Natural language question understanding
-- Multiple search providers support (Tavily, SearXNG, Exa)
-- Model selection from UI (switch between available AI models)
-  - Reasoning models with visible thought process
-- Simple authentication with demo account (username: demo, password: demo)
-- Deep Research capabilities with configurable depth levels
-- Dynamic chart generation and visualization
-- Advanced source tracking and relevance scoring
+- Multiple search providers (Tavily, SearXNG, Exa)
+- Model selection with visible reasoning
+- Demo authentication (username: demo, password: demo)
+- Deep research with configurable depth
+- Dynamic charts and visualizations
+- Source tracking and scoring
 
 ### Chat & History
 
-- Enhanced chat interface with multimodal capabilities
-- File attachments with drag & drop support for Image and PDF with previews
-- Markdown Prettify Format preview toggle
-- Full-size Chat toggle mode
-- Chat history functionality with:
-  - Persistent storage using Redis
-  - Individual chat deletion with confirmation
-  - Hover-based delete controls
-- Share search results (Optional)
-- Redis support (Local/Upstash) with research state persistence
-- Source Quick Insert feature with keyboard shortcuts
-- IME input support
+- Multimodal chat interface
+- File attachments with previews
+- Markdown and full-size toggles
+- Redis-based chat history
+- Share and delete chat functionality
+- Source quick insert
+- IME support
 
 ### Research & Analysis
 
-- Deep Research implementation with:
-  - Configurable depth levels (1-10)
-  - Activity tracking and visualization
-  - Source relevance scoring
-  - Content quality assessment
-  - Time relevance prioritization
-  - Source authority tracking
-- Dynamic chart generation:
-  - Real-time data visualization
-  - Multiple chart types support
-  - Custom styling options
-  - Responsive layout
-  - Data preprocessing capabilities
+- Configurable research depth (1-10)
+- Activity tracking and visualization
+- Source quality assessment
+- Time and authority tracking
+- Real-time data visualization
+- Multiple chart types
+- Responsive layouts
 
 ### Search Capabilities
 
-- URL-specific search
-- Video search support (Optional)
-- Multi-level depth exploration
-- Research context preservation
-- SearXNG integration with:
-  - Customizable search depth (basic/advanced)
-  - Configurable engines
-  - Adjustable results limit
-  - Safe search options
-  - Custom time range filtering
-- Advanced content crawling
-- Domain filtering (include/exclude)
-- Redis-based caching system
+- URL and video search
+- Multi-level exploration
+- Context preservation
+- SearXNG integration
+  - Customizable depth and engines
+  - Results filtering
+  - Safe search
+- Content crawling
+- Domain filtering
+- Redis caching
 
 ### AI Providers
 
@@ -85,8 +69,85 @@ An AI-powered search engine with a generative UI and advanced research capabilit
 
 ### Additional Features
 
-- Docker deployment ready
-- Browser search engine integration
+# AtherAgent Chat
+
+A powerful chat interface with multimodal capabilities, built with Next.js and TypeScript.
+
+## Features
+
+- 💬 Text-based chat with AI models
+- 📎 File attachments and image uploads
+- 🔍 Research mode with source integration
+- 💡 AI-powered text suggestions
+- 🎯 Context-aware responses
+- 🖼️ Image and document previews
+- 📱 Responsive design
+- ♿ Accessibility support
+
+## Chat Components
+
+The chat interface is built with modular components:
+
+### Core Components
+
+- `ChatPanel`: Main chat interface with expandable input
+- `FileDropzone`: File upload with drag & drop support
+- `ImagePreview`: Media preview and management
+- `SourceQuickInsert`: Research source integration
+- `AutoComplete`: AI suggestions
+
+### Features & Capabilities
+
+#### Input
+- Expandable text area with preview
+- Markdown & full-size toggles
+- IME support
+- Enter to submit, Shift+Enter for newline
+
+#### Files
+- Drag & drop upload
+- Validation & progress tracking
+- Preview & removal options
+
+#### Shortcuts
+- Search: `⌘/.` (Mac), `Ctrl + .` (Win/Linux) 
+- Model: `⌘/Ctrl + ↑`
+- Quick Insert: `@` + arrows, Enter to select, Esc to dismiss
+
+#### Search Source Integration
+Quick reference and URL insertion from search results with filtering, real-time updates, keyboard navigation, and metadata preservation.
+
+## File Upload
+- Images (JPEG, PNG, GIF) //TODO: Add more formats
+- Documents (PDF) 
+- Size limit: //TODO
+- Drag & drop with progress tracking and previews
+
+## Research Integration //TODO
+- Source and citation management
+- Relevance scoring
+- Context preservation
+- Search integration
+
+## Accessibility //TODO
+- Keyboard navigation
+- Screen reader support
+- ARIA labels
+- Focus management
+
+## 🔬 Deep Research
+Comprehensive topic exploration with configurable depth levels (1-10), source tracking, relevance scoring, and progress visualization.
+
+## 📊 Chart Generation
+Dynamic data visualization with:
+- Multiple chart types
+- Real-time updates
+- Custom styling
+- Natural language queries
+- Data analysis integration
+- JSON/custom data input
+
+- Docker ready
 
 ## 🧱 Stack
 
@@ -278,141 +339,3 @@ Visit http://localhost:3000 in your browser.
   - DeepSeek V3
   - DeepSeek R1
 
-# AtherAgent Chat
-
-A powerful chat interface with multimodal capabilities, built with Next.js and TypeScript.
-
-## Features
-
-- 💬 Text-based chat with AI models
-- 📎 File attachments and image uploads
-- 🔍 Research mode with source integration
-- 💡 AI-powered text suggestions
-- 🎯 Context-aware responses
-- 🖼️ Image and document previews
-- 📱 Responsive design
-- ♿ Accessibility support
-
-## Chat Components
-
-The chat interface is built with modular components:
-
-### Core Components
-
-- `ChatPanel`: Main chat interface with expandable input
-- `FileDropzone`: File upload with drag & drop support
-- `ImagePreview`: Media preview and management
-- `SourceQuickInsert`: Research source integration
-- `AutoComplete`: AI suggestions
-
-### Features & Capabilities
-
-#### Input Management
-- Expandable text input
-- Markdown preview toggle
-- Full-size mode toggle
-- IME composition handling
-- Enter key submission
-- Shift+Enter for new lines
-
-#### File Handling
-- Drag and drop support
-- File type validation
-- Upload progress tracking
-- Preview generation
-- Error handling
-- Removal capability
-
-#### Keyboard Shortcuts
-
-##### Search Mode
-- Mac: `⌘ + .`
-- Windows/Linux: `Ctrl + .`
-
-##### Model Selector
-- Mac: `⌘ + ↑`
-- Windows/Linux: `Ctrl + ↑`
-
-##### Source Quick Insert
-- Trigger: `@`
-- Navigation: Arrow keys
-- Selection: Enter
-- Dismiss: Escape
-
-#### Search Source Integration
-
-The Search Source Quick Insert feature allows quick reference and insertion of URLs from previous search results:
-
-- Source filtering based on relevance
-- Real-time updates
-- Keyboard navigation
-- Markdown link formatting
-- Automatic cursor positioning
-- Source metadata preservation
-
-## File Upload
-
-Supports:
-- Images (JPEG, PNG, GIF) //TODO: Add support for other image formats
-- Documents (PDF)
-- Size limit: //TODO
-- Drag & drop interface
-- Progress tracking
-- Preview generation
-
-## Research Integration //TODO
-
-- Source management
-- Relevance scoring
-- Quick citation insertion
-- Context preservation
-- Search mode integration
-
-## Accessibility //TODO
-
-- Keyboard navigation
-- Screen reader support
-- ARIA labels
-- Focus management
-- Error announcements
-
-
-## 🔬 Deep Research
-
-### Overview
-
-AtherAgent includes a Deep Research system that enables comprehensive exploration of topics with configurable depth levels and advanced source tracking.
-
-### Key Features
-
-- Depth-based exploration (levels 1-10)
-- Source relevance scoring
-- Content quality assessment
-- Time-based relevance tracking
-- Domain authority evaluation
-- Research context preservation
-- Activity visualization
-- Progress tracking
-
-
-## 📊 Chart Generation
-
-### Overview
-
-AtherAgent supports dynamic chart generation with real-time data visualization capabilities.
-
-### Features
-
-- Multiple chart types (line, bar, pie, etc.)
-- Real-time data updates
-- Custom styling options
-- Responsive layout
-- Data preprocessing
-- Theme integration
-
-### Usage
-
-Charts can be generated through:
-- Natural language queries
-- Data analysis results
-- Custom data input as JSON or any other data format

@@ -1,89 +1,42 @@
-# Contributing to Morphic Chat
+# Contributing Guidelines
 
-We love your input! We want to make contributing to Morphic Chat as easy and transparent as possible, whether it's:
+We welcome contributions! Here's how you can help:
 
-- Reporting a bug
-- Discussing the current state of the code
-- Submitting a fix
-- Proposing new features
-- Becoming a maintainer
+- Report bugs
+- Discuss code
+- Submit fixes 
+- Propose features
+- Join as maintainer
 
 ## Development Process
 
-We use GitHub to host code, to track issues and feature requests, as well as accept pull requests.
+1. Fork repo and branch from `main`
+2. Add tests for new code
+3. Update docs for API changes
+4. Run test suite
+5. Run linting
+6. Submit PR
 
-1. Fork the repo and create your branch from `main`
-2. If you've added code that should be tested, add tests
-3. If you've changed APIs, update the documentation
-4. Ensure the test suite passes
-5. Make sure your code lints
-6. Issue that pull request!
+## Code Standards
 
-## Code Style
-
-- Use TypeScript for all code
-- Follow the existing code style
+- Use TypeScript
+- Follow existing style
 - Use functional components
-- Write descriptive commit messages
-- Document your changes
+- Write clear commit messages
+- Document changes
 
-### TypeScript Guidelines
+### TypeScript
 
-- Use interfaces over types when possible
-- Properly type all props and state
-- Avoid `any` types
-- Use proper type imports/exports
+- Prefer interfaces over types
+- Type all props/state
+- No `any` types
+- Use type imports
 
-### Component Guidelines
+### Components 
 
-- Keep components small and focused
-- Use composition over inheritance
-- Follow the single responsibility principle
-- Implement proper error handling
-- Add accessibility features
+- Keep focused and small
+- Use composition
+- Handle errors
+- Add accessibility
 
-### File Structure
-
-```
-components/
-  chat/              # Chat-related components
-    FileDropzone.tsx
-    ImagePreview.tsx
-    SourceQuickInsert.tsx
-    AutoComplete.tsx
-  ui/                # UI components
-lib/
-  types/             # TypeScript types
-  utils/             # Utility functions
-docs/                # Documentation
-```
-
-## Pull Request Process
-
-1. Update the README.md with details of changes if needed
-2. Update the docs/ with any new information
-3. The PR will be merged once you have the sign-off of maintainers
-
-## Any contributions you make will be under the Apache License 2.0
-
-In short, when you submit code changes, your submissions are understood to be under the same [Apache License 2.0](LICENSE) that covers the project. Feel free to contact the maintainers if that's a concern.
-
-## Report bugs using GitHub's [issue tracker]
-
-We use GitHub issues to track public bugs. Report a bug by [opening a new issue]().
-
-## Write bug reports with detail, background, and sample code
-
-**Great Bug Reports** tend to have:
-
-- A quick summary and/or background
-- Steps to reproduce
-  - Be specific!
-  - Give sample code if you can
-- What you expected would happen
-- What actually happens
-- Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
-
-## License
-
-By contributing, you agree that your contributions will be licensed under its Apache License 2.0.
+### Structure
