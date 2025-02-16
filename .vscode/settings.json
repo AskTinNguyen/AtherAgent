@@ -1,13 +1,38 @@
 {
-  "editor.formatOnSave": true,
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "cSpell.words": ["openai", "Tavily"],
-  "editor.codeActionsOnSave": {
-    "source.organizeImports": "always"
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
   },
+  "cSpell.words": [
+    "openai",
+    "Tavily"
+  ],
   "cursor.aipreview.enabled": true,
   "cursor.cmdk.useThemedDiffBackground": false,
   "cursor.composer.cmdPFilePicker2": true,
   "cursor.composer.renderPillsInsteadOfBlocks": true,
-  "editor.accessibilityPageSize": 12
+  "deno.enablePaths": [
+    "supabase/functions"
+  ],
+  "deno.lint": true,
+  "deno.unstable": [
+    "bare-node-builtins",
+    "byonm",
+    "sloppy-imports",
+    "unsafe-proto",
+    "webgpu",
+    "broadcast-channel",
+    "worker-options",
+    "cron",
+    "kv",
+    "ffi",
+    "fs",
+    "http",
+    "net"
+  ],
+  "editor.accessibilityPageSize": 12,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "always"
+  },
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true
 }

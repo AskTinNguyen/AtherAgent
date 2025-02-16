@@ -25,7 +25,15 @@ This document provides a complete overview of the project's directory structure,
 │   └── ./.swc/plugins
 │       └── ./.swc/plugins/v7_macos_aarch64_4.0.0
 ├── ./.vscode
+│   ├── ./.vscode/extensions.json
 │   └── ./.vscode/settings.json
+├── ./__tests__
+│   ├── ./__tests__/helpers
+│   │   └── ./__tests__/helpers/supabase-test-helper.ts
+│   └── ./__tests__/integration
+│       ├── ./__tests__/integration/research-realtime.test.tsx
+│       ├── ./__tests__/integration/research-service-errors.test.ts
+│       └── ./__tests__/integration/research-service.test.ts
 ├── ./app
 │   ├── ./app/api
 │   │   ├── ./app/api/advanced-search
@@ -33,6 +41,8 @@ This document provides a complete overview of the project's directory structure,
 │   │   ├── ./app/api/auth
 │   │   │   ├── ./app/api/auth/[...nextauth]
 │   │   │   │   └── ./app/api/auth/[...nextauth]/route.ts
+│   │   │   ├── ./app/api/auth/reset-password
+│   │   │   │   └── ./app/api/auth/reset-password/route.ts
 │   │   │   └── ./app/api/auth/session
 │   │   │       └── ./app/api/auth/session/route.ts
 │   │   ├── ./app/api/bookmarks
@@ -72,12 +82,17 @@ This document provides a complete overview of the project's directory structure,
 │   │           └── ./app/api/v1/research/[chatId]
 │   ├── ./app/auth
 │   │   ├── ./app/auth/error
-│   │   └── ./app/auth/signin
-│   │       └── ./app/auth/signin/page.tsx
+│   │   ├── ./app/auth/signin
+│   │   │   └── ./app/auth/signin/page.tsx
+│   │   └── ./app/auth/update-password
+│   │       └── ./app/auth/update-password/page.tsx
 │   ├── ./app/bookmarks
 │   │   └── ./app/bookmarks/page.tsx
 │   ├── ./app/chart-test
 │   │   └── ./app/chart-test/page.tsx
+│   ├── ./app/login
+│   │   ├── ./app/login/login-form.tsx
+│   │   └── ./app/login/page.tsx
 │   ├── ./app/search
 │   │   ├── ./app/search/[id]
 │   │   │   └── ./app/search/[id]/page.tsx
@@ -98,7 +113,10 @@ This document provides a complete overview of the project's directory structure,
 │   │   ├── ./components/chat/SearchSourceManager.tsx
 │   │   └── ./components/chat/SourceQuickInsert.tsx
 │   ├── ./components/providers
-│   │   └── ./components/providers/session-provider.tsx
+│   │   ├── ./components/providers/session-provider.tsx
+│   │   ├── ./components/providers/session-sync.tsx
+│   │   ├── ./components/providers/storage-provider.tsx
+│   │   └── ./components/providers/supabase-provider.tsx
 │   ├── ./components/search
 │   │   ├── ./components/search/search-header.tsx
 │   │   ├── ./components/search/search-result-card.tsx
@@ -145,7 +163,9 @@ This document provides a complete overview of the project's directory structure,
 │   │   └── ./components/ui/tooltip.tsx
 │   ├── ./components/visualization
 │   │   ├── ./components/visualization/activity-item.tsx
+│   │   ├── ./components/visualization/information-flow.md
 │   │   ├── ./components/visualization/metrics-grid.tsx
+│   │   ├── ./components/visualization/panel-controls.tsx
 │   │   ├── ./components/visualization/research-command-center.tsx
 │   │   ├── ./components/visualization/research-content.tsx
 │   │   ├── ./components/visualization/research-diff-view.tsx
@@ -157,6 +177,7 @@ This document provides a complete overview of the project's directory structure,
 │   │   ├── ./components/visualization/research-timeline.tsx
 │   │   └── ./components/visualization/source-item.tsx
 │   ├── ./components/answer-section.tsx
+│   ├── ./components/auth-status.tsx
 │   ├── ./components/blur-reveal.tsx
 │   ├── ./components/bookmark-manager.tsx
 │   ├── ./components/chart-message.tsx
@@ -191,6 +212,7 @@ This document provides a complete overview of the project's directory structure,
 │   ├── ./components/research-diff-view.tsx
 │   ├── ./components/research-history-timeline.tsx
 │   ├── ./components/research-initializer.tsx
+│   ├── ./components/research-realtime-sync.tsx
 │   ├── ./components/research-suggestions.tsx
 │   ├── ./components/retrieve-section.tsx
 │   ├── ./components/search-depth-toggle.tsx
@@ -207,11 +229,15 @@ This document provides a complete overview of the project's directory structure,
 │   ├── ./components/user-message.tsx
 │   ├── ./components/video-search-results.tsx
 │   └── ./components/video-search-section.tsx
+├── ./config
+│   └── ./config/kong.yml
 ├── ./docs
 │   ├── ./docs/AI-streaming_explanation.md
 │   ├── ./docs/BetterVercel_Implementation.md
 │   ├── ./docs/CONFIGURATION.md
 │   ├── ./docs/MasterProjectTracker.md
+│   ├── ./docs/Repo-Structure-Improvement.md
+│   ├── ./docs/SUPABASE_IMPLEMENTATION.md
 │   ├── ./docs/TIPS-explainVisuallyToMe.md
 │   ├── ./docs/To Do lists.md
 │   ├── ./docs/UI-cleanup-implementation.md
@@ -233,6 +259,8 @@ This document provides a complete overview of the project's directory structure,
 │   │   └── ./lib/agents/researcher.ts
 │   ├── ./lib/ai
 │   │   └── ./lib/ai/research-processor.ts
+│   ├── ./lib/auth
+│   │   └── ./lib/auth/auth-options.ts
 │   ├── ./lib/constants
 │   │   └── ./lib/constants/index.ts
 │   ├── ./lib/contexts
@@ -245,9 +273,11 @@ This document provides a complete overview of the project's directory structure,
 │   │   ├── ./lib/diff/index.ts
 │   │   └── ./lib/diff/types.ts
 │   ├── ./lib/hooks
+│   │   ├── ./lib/hooks/use-chat-state.ts
 │   │   ├── ./lib/hooks/use-copy-to-clipboard.ts
 │   │   ├── ./lib/hooks/use-debounce.ts
-│   │   └── ./lib/hooks/use-deep-research.ts
+│   │   ├── ./lib/hooks/use-deep-research.ts
+│   │   └── ./lib/hooks/use-panel-collapse.ts
 │   ├── ./lib/mocks
 │   │   └── ./lib/mocks/research-command-center.ts
 │   ├── ./lib/redis
@@ -272,6 +302,7 @@ This document provides a complete overview of the project's directory structure,
 │   ├── ./lib/services
 │   │   ├── ./lib/services/chart-parser.ts
 │   │   ├── ./lib/services/chart-processor.ts
+│   │   ├── ./lib/services/research-service.ts
 │   │   └── ./lib/services/usage-tracker.ts
 │   ├── ./lib/streaming
 │   │   ├── ./lib/streaming/create-manual-tool-stream.ts
@@ -281,6 +312,10 @@ This document provides a complete overview of the project's directory structure,
 │   │   ├── ./lib/streaming/stream-protocol-manager.ts
 │   │   ├── ./lib/streaming/tool-execution.ts
 │   │   └── ./lib/streaming/types.ts
+│   ├── ./lib/supabase
+│   │   ├── ./lib/supabase/client.ts
+│   │   ├── ./lib/supabase/database.types.ts
+│   │   └── ./lib/supabase/server.ts
 │   ├── ./lib/tools
 │   │   ├── ./lib/tools/.DS_Store
 │   │   ├── ./lib/tools/human-review.ts
@@ -290,10 +325,12 @@ This document provides a complete overview of the project's directory structure,
 │   ├── ./lib/types
 │   │   ├── ./lib/types/chart.test.ts
 │   │   ├── ./lib/types/chart.ts
+│   │   ├── ./lib/types/database.ts
 │   │   ├── ./lib/types/deep-research.ts
 │   │   ├── ./lib/types/index.ts
 │   │   ├── ./lib/types/messages.ts
 │   │   ├── ./lib/types/models.ts
+│   │   ├── ./lib/types/next-auth.d.ts
 │   │   ├── ./lib/types/research-command-center.ts
 │   │   ├── ./lib/types/research.ts
 │   │   ├── ./lib/types/search.ts
@@ -320,6 +357,7 @@ This document provides a complete overview of the project's directory structure,
 │   ├── ./lib/.DS_Store
 │   ├── ./lib/auth.ts
 │   └── ./lib/types.ts
+├── ./migrations
 ├── ./public
 │   ├── ./public/images
 │   │   └── ./public/images/placeholder-image.png
@@ -358,7 +396,20 @@ This document provides a complete overview of the project's directory structure,
 │   │   ├── ./reference/importedcode-newfeature-editor/REF-deep-research-functions.tsx
 │   │   └── ./reference/importedcode-newfeature-editor/REF-deep-research-suggestions.tsx
 │   └── ./reference/REF_framer_blurrevealeffect.ts
+├── ./scripts
+│   ├── ./scripts/migrate-to-supabase.ts
+│   └── ./scripts/supabase-local.sh
 ├── ./servers
+├── ./supabase
+│   ├── ./supabase/.branches
+│   │   └── ./supabase/.branches/_current_branch
+│   ├── ./supabase/.temp
+│   │   └── ./supabase/.temp/cli-latest
+│   ├── ./supabase/migrations
+│   │   ├── ./supabase/migrations/0001_initial_schema.sql
+│   │   └── ./supabase/migrations/20240320000000_create_chat_messages.sql
+│   ├── ./supabase/.gitignore
+│   └── ./supabase/config.toml
 ├── ./types
 │   ├── ./types/search.ts
 │   └── ./types/ui.d.ts
@@ -371,13 +422,16 @@ This document provides a complete overview of the project's directory structure,
 ├── ./CONTRIBUTING.md
 ├── ./Dockerfile
 ├── ./LICENSE
+├── ./MasterProjectTracker.md
 ├── ./README.md
 ├── ./bun.lockb
 ├── ./chatimplementationreference.md
 ├── ./components.json
 ├── ./docker-compose.yaml
 ├── ./jest.config.js
+├── ./jest.setup.js
 ├── ./jest.setup.ts
+├── ./middleware.ts
 ├── ./next-env.d.ts
 ├── ./next.config.mjs
 ├── ./package-lock.json
@@ -385,7 +439,6 @@ This document provides a complete overview of the project's directory structure,
 ├── ./postcss.config.mjs
 ├── ./prettier.config.js
 ├── ./repo-structure.md
-├── ./repomix-output.txt
 ├── ./searxng-limiter.toml
 ├── ./searxng-settings.yml
 ├── ./tailwind.config.ts

@@ -1,0 +1,50 @@
+_format_version: "2.1"
+_transform: true
+
+services:
+  - name: auth-service
+    url: http://auth:9999
+    routes:
+      - name: auth-route
+        paths:
+          - /auth
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          key_names:
+            - apikey
+
+  - name: rest-service
+    url: http://supabase-db:5432
+    routes:
+      - name: rest-route
+        paths:
+          - /rest/v1
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          key_names:
+            - apikey
+
+  - name: realtime-service
+    url: http://realtime:4000
+    routes:
+      - name: realtime-route
+        paths:
+          - /realtime/v1
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          key_names:
+            - apikey
+
+consumers:
+  - username: anon
+    keyauth_credentials:
+      - key: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9
+  - username: service_role
+    keyauth_credentials:
+      - key: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.service_role 

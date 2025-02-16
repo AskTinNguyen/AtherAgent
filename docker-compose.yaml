@@ -1,5 +1,7 @@
 # This is a Docker Compose file for setting up the morphic-stack environment.
 
+version: '3.8'
+
 name: morphic-stack
 services:
   morphic:
@@ -15,12 +17,101 @@ services:
       - searxng
 
   redis:
-    image: redis:alpine
+    image: redis:7.2.3-alpine
     ports:
-      - '6379:6379'
+      - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+
+  supabase-db:
+    image: supabase/postgres:15.1.0.148
+    ports:
+      - "5432:5432"
+    volumes:
+      - supabase_db_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d/migrations
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+
+  supabase-studio:
+    image: supabase/studio:20240116-34b417c
+    ports:
+      - "8000:8000"
+    environment:
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PASSWORD: postgres
+      DEFAULT_ORGANIZATION: Default Organization
+      DEFAULT_PROJECT: Default Project
+    depends_on:
+      - supabase-db
+      - meta
+
+  kong:
+    image: kong:3.3.1-alpine
+    ports:
+      - "8001:8001" # Admin API
+      - "8000:8000" # Proxy
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl
+    volumes:
+      - ./config/kong.yml:/var/lib/kong/kong.yml:ro
+    depends_on:
+      - supabase-db
+
+  meta:
+    image: supabase/postgres-meta:v0.74.0
+    ports:
+      - "8080:8080"
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: supabase-db
+      PG_META_DB_PASSWORD: postgres
+    depends_on:
+      - supabase-db
+
+  auth:
+    image: supabase/gotrue:v2.127.0
+    ports:
+      - "9999:9999"
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://localhost:9999
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_HOST: supabase-db
+      GOTRUE_DB_PORT: 5432
+      GOTRUE_DB_USER: postgres
+      GOTRUE_DB_PASSWORD: postgres
+      GOTRUE_DB_NAME: postgres
+      GOTRUE_JWT_SECRET: your-super-secret-jwt-token
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_SITE_URL: http://localhost:3000
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMS_AUTOCONFIRM: "true"
+    depends_on:
+      - supabase-db
+
+  realtime:
+    image: supabase/realtime:v2.25.8
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      DB_HOST: supabase-db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: postgres
+      SECURE_CHANNELS: "true"
+      JWT_SECRET: your-super-secret-jwt-token
+    depends_on:
+      - supabase-db
 
   searxng:
     image: searxng/searxng
@@ -34,4 +125,5 @@ services:
 
 volumes:
   redis_data:
+  supabase_db_data:
   searxng_data:

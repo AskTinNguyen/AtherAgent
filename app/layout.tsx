@@ -1,9 +1,9 @@
+import { AuthStatus } from '@/components/auth-status'
 import Footer from '@/components/footer'
 import Header from '@/components/header'
+import { ClientProviders } from '@/components/providers/client-providers'
 import { SessionProvider } from '@/components/providers/session-provider'
 import { Sidebar } from '@/components/sidebar'
-import { ThemeProvider } from '@/components/theme-provider'
-import { Toaster } from '@/components/ui/sonner'
 import { cn } from '@/lib/utils'
 import type { Metadata, Viewport } from 'next'
 import { Inter as FontSans, Playfair_Display, Poppins } from 'next/font/google'
@@ -68,18 +68,13 @@ export default function RootLayout({
         playfair.variable
       )}>
         <SessionProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
+          <ClientProviders>
             <Header />
             {children}
             {enableSaveChatHistory && <Sidebar />}
+            <AuthStatus />
             <Footer />
-            <Toaster />
-          </ThemeProvider>
+          </ClientProviders>
         </SessionProvider>
       </body>
     </html>

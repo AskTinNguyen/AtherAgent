@@ -1,3 +1,5 @@
+'use client'
+
 import { cn } from '@/lib/utils'
 import { ChevronDown, UserCircle2 } from 'lucide-react'
 import {

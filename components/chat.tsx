@@ -4,13 +4,15 @@ import { CHAT_ID } from '@/lib/constants'
 import { ResearchProvider, useResearch } from '@/lib/contexts/research-context'
 import type { ChatResearchState } from '@/lib/types/research'
 import { Message, useChat } from 'ai/react'
+import { useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import useSWR from 'swr'
 import { ChatMessages } from './chat-messages'
 import { ChatPanel } from './chat-panel'
 import { DeepResearchVisualization } from './deep-research-visualization'
+import { useSupabase } from './providers/supabase-provider'
 import { ResearchInitializer } from './research-initializer'
 
 export function ChatContent({
@@ -25,7 +27,30 @@ export function ChatContent({
   const { state: researchState } = useResearch()
   const pathname = usePathname()
   const isInChatSession = pathname.startsWith('/search/')
+  const supabase = useSupabase()
+  const { data: session } = useSession()
+  const [userId, setUserId] = useState<string | null>(null)
   
+  // Get user ID from Supabase session
+  useEffect(() => {
+    if (supabase) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user?.id) {
+          setUserId(session.user.id)
+        }
+      })
+    }
+  }, [supabase])
+
+  // Add debug logging for authentication
+  useEffect(() => {
+    console.log('Auth Debug:', {
+      hasSession: !!session,
+      supabaseInitialized: !!supabase,
+      userId
+    })
+  }, [session, supabase, userId])
+
   const {
     messages,
     input,
@@ -44,8 +69,38 @@ export function ChatContent({
       id,
       searchMode: researchState.searchEnabled
     },
-    onFinish: () => {
+    onFinish: async (message) => {
       window.history.replaceState({}, '', `/search/${id}`)
+      
+      // Save assistant message to Supabase
+      if (userId) {
+        try {
+          console.log('Attempting to save assistant message:', {
+            chat_id: id,
+            content: message.content,
+            role: message.role,
+            user_id: userId
+          })
+          const { data, error } = await supabase.from('chat_messages').insert({
+            chat_id: id,
+            content: message.content,
+            role: message.role,
+            user_id: userId
+          }).select()
+          
+          if (error) {
+            console.error('Supabase error:', error)
+            toast.error(`Failed to save message: ${error.message}`)
+          } else {
+            console.log('Successfully saved assistant message:', data)
+          }
+        } catch (error) {
+          console.error('Failed to save message to Supabase:', error)
+          toast.error('Failed to save message')
+        }
+      } else {
+        console.log('No user ID found:', { session })
+      }
     },
     onError: error => {
       toast.error(`Error in chat: ${error.message}`)
@@ -66,16 +121,104 @@ export function ChatContent({
     setMessages(savedMessages)
   }, [id])
 
-  const onQuerySelect = (query: string) => {
+  const onQuerySelect = async (query: string) => {
+    // Save user message to Supabase first
+    if (userId) {
+      try {
+        console.log('Attempting to save user query:', {
+          chat_id: id,
+          content: query,
+          role: 'user',
+          user_id: userId
+        })
+        const { data, error } = await supabase.from('chat_messages').insert({
+          chat_id: id,
+          content: query,
+          role: 'user',
+          user_id: userId
+        }).select()
+        
+        if (error) {
+          console.error('Supabase error:', error)
+          toast.error(`Failed to save message: ${error.message}`)
+        } else {
+          console.log('Successfully saved user query:', data)
+        }
+      } catch (error) {
+        console.error('Failed to save user message to Supabase:', error)
+        toast.error('Failed to save message')
+      }
+    } else {
+      console.log('No user ID found:', { session })
+    }
+    
     append({
       role: 'user',
       content: query
     })
   }
 
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setData(undefined) // reset data to clear tool call
+    
+    // Save user message to Supabase first
+    if (userId && input) {
+      try {
+        console.log('Attempting to save user input:', {
+          chat_id: id,
+          content: input,
+          role: 'user',
+          user_id: userId
+        })
+
+        // Test Supabase connection
+        const { data: testData, error: testError } = await supabase
+          .from('chat_messages')
+          .select('id')
+          .limit(1)
+
+        if (testError) {
+          console.error('Supabase connection test failed:', testError)
+          toast.error(`Database connection error: ${testError.message}`)
+          return
+        }
+
+        console.log('Supabase connection test successful:', testData)
+
+        const { data, error } = await supabase.from('chat_messages').insert({
+          chat_id: id,
+          content: input,
+          role: 'user',
+          user_id: userId
+        }).select()
+        
+        if (error) {
+          console.error('Supabase error:', {
+            error,
+            errorMessage: error.message,
+            details: error.details,
+            hint: error.hint
+          })
+          toast.error(`Failed to save message: ${error.message}`)
+        } else {
+          console.log('Successfully saved user input:', data)
+        }
+      } catch (error) {
+        console.error('Failed to save message to Supabase:', {
+          error,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        })
+        toast.error('Failed to save message')
+      }
+    } else {
+      console.log('No user ID found:', {
+        session,
+        sessionData: (session as any)?.sessionData,
+        userId
+      })
+    }
+    
     handleSubmit(e)
   }
 

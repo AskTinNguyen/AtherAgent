@@ -1,3 +1,5 @@
+'use client'
+
 import type { ChatChartMessage } from '@/lib/types/chart'
 import { createChartMessage } from '@/lib/types/chart'
 import { JSONValue, Message, ToolInvocation } from 'ai'

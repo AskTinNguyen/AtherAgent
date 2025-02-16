@@ -242,39 +242,6 @@ This will allow you to use AtherAgent as your default search engine in the brows
   - DeepSeek V3
   - DeepSeek R1
 
-## ⚡ AI SDK Implementation
-
-### Current Version: AI SDK UI
-
-This version of AtherAgent uses the AI SDK UI implementation, which is recommended for production use. It provides better streaming performance and more reliable client-side UI updates.
-
-### Previous Version: AI SDK RSC (v0.2.34 and earlier)
-
-The React Server Components (RSC) implementation of AI SDK was used in versions up to [v0.2.34](https://github.com/miurla/atheragent/releases/tag/v0.2.34) but is now considered experimental and not recommended for production. If you need to reference the RSC implementation, please check the v0.2.34 release tag.
-
-> Note: v0.2.34 was the final version using RSC implementation before migrating to AI SDK UI.
-
-For more information about choosing between AI SDK UI and RSC, see the [official documentation](https://sdk.vercel.ai/docs/getting-started/navigating-the-library#when-to-use-ai-sdk-rsc).
-
-## 📦 Open Source vs Cloud Offering
-
-AtherAgent is open source software available under the Apache-2.0 license.
-
-To maintain sustainable development and provide cloud-ready features, we offer a hosted version of AtherAgent alongside our open-source offering. The cloud solution makes AtherAgent accessible to non-technical users and provides additional features while keeping the core functionality open and available for developers.
-
-For our cloud service, visit [atheragent.ai](https://atheragent.ai).
-
-## 👥 Contributing
-
-We welcome contributions to AtherAgent! Whether it's bug reports, feature requests, or pull requests, all contributions are appreciated.
-
-Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
-
-- How to submit issues
-- How to submit pull requests
-- Commit message conventions
-- Development setup
-
 # AtherAgent Chat
 
 A powerful chat interface with multimodal capabilities, built with Next.js and TypeScript.
@@ -392,18 +359,6 @@ Supports:
 - Focus management
 - Error announcements
 
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch
-3. Make your changes
-4. Submit a pull request
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
-
-## License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 ## 🔬 Deep Research
 
@@ -422,18 +377,6 @@ AtherAgent includes a sophisticated Deep Research system that enables comprehens
 - Activity visualization
 - Progress tracking
 
-### Configuration
-
-Deep Research can be configured through the UI or environment variables:
-
-```bash
-# Optional Deep Research Configuration
-DEEP_RESEARCH_MAX_DEPTH=10           # Maximum depth level
-DEEP_RESEARCH_DEFAULT_DEPTH=3        # Default depth level
-DEEP_RESEARCH_TIMEOUT_MS=30000       # Timeout per depth level
-```
-
-For detailed configuration options, see [CONFIGURATION.md](./docs/CONFIGURATION.md)
 
 ## 📊 Chart Generation
 
