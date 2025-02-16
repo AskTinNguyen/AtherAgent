@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/client'
 
 export interface ResearchSession {
   id: string
-  chat_id: string
   user_id: string
   created_at: string
   updated_at: string
@@ -11,14 +10,14 @@ export interface ResearchSession {
 }
 
 export class ResearchService {
-  private static async getOrCreateSession(chatId: string, userId: string): Promise<ResearchSession> {
+  private static async getOrCreateSession(id: string, userId: string): Promise<ResearchSession> {
     const supabase = createClient()
     
     // Try to find existing session
     const { data: existingSession } = await supabase
       .from('research_sessions')
       .select()
-      .eq('chat_id', chatId)
+      .eq('id', id)
       .eq('user_id', userId)
       .single()
     
@@ -30,7 +29,7 @@ export class ResearchService {
     const { data: newSession, error } = await supabase
       .from('research_sessions')
       .insert({
-        chat_id: chatId,
+        id,
         user_id: userId,
         metadata: {}
       })
@@ -44,12 +43,12 @@ export class ResearchService {
     return newSession as ResearchSession
   }
   
-  static async getResearchState(chatId: string, userId: string): Promise<{
+  static async getResearchState(id: string, userId: string): Promise<{
     state: ResearchState
     activities: ActivityItem[]
     metrics: ResearchMetrics
   }> {
-    const session = await this.getOrCreateSession(chatId, userId)
+    const session = await this.getOrCreateSession(id, userId)
     const supabase = createClient()
     
     // Get research state
@@ -98,12 +97,12 @@ export class ResearchService {
   }
   
   static async updateResearchState(
-    chatId: string,
+    id: string,
     userId: string,
     state: ResearchState,
     metrics: ResearchMetrics
   ): Promise<void> {
-    const session = await this.getOrCreateSession(chatId, userId)
+    const session = await this.getOrCreateSession(id, userId)
     const supabase = createClient()
     
     const { error } = await supabase
@@ -125,13 +124,13 @@ export class ResearchService {
   }
   
   static async addActivity(
-    chatId: string,
+    id: string,
     userId: string,
     activity: ActivityItem
   ): Promise<void> {
     if (activity.type !== 'search') return // Only store search activities
     
-    const session = await this.getOrCreateSession(chatId, userId)
+    const session = await this.getOrCreateSession(id, userId)
     const supabase = createClient()
     
     const { error } = await supabase
@@ -150,12 +149,12 @@ export class ResearchService {
   }
   
   static async addSource(
-    chatId: string,
+    id: string,
     userId: string,
     url: string,
     metadata: Record<string, any> = {}
   ): Promise<void> {
-    const session = await this.getOrCreateSession(chatId, userId)
+    const session = await this.getOrCreateSession(id, userId)
     const supabase = createClient()
     
     const { error } = await supabase
@@ -171,8 +170,8 @@ export class ResearchService {
     }
   }
   
-  static async clearResearchState(chatId: string, userId: string): Promise<void> {
-    const session = await this.getOrCreateSession(chatId, userId)
+  static async clearResearchState(id: string, userId: string): Promise<void> {
+    const session = await this.getOrCreateSession(id, userId)
     const supabase = createClient()
     
     const { error } = await supabase

@@ -47,7 +47,7 @@ CREATE TYPE message_type AS ENUM (
 | id | UUID | Primary key identifier | uuid_generate_v4() |
 | user_id | UUID | Reference to user profile | NULL |
 | research_session_id | UUID | Reference to research session | NULL |
-| message_type | message_type | Type of message | NULL |
+| message_type | ENUM | Type of message | NULL |
 | content | TEXT | Message content | NULL |
 | metadata | JSONB | Additional message data | '{}' |
 | parent_message_id | UUID | Reference to parent message | NULL |

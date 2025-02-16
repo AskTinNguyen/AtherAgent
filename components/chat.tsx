@@ -2,6 +2,7 @@
 
 import { CHAT_ID } from '@/lib/constants'
 import { ResearchProvider, useResearch } from '@/lib/contexts/research-context'
+import { ChatMessage, createChatMessage } from '@/lib/types/database'
 import type { ChatResearchState } from '@/lib/types/research'
 import { Message, useChat } from 'ai/react'
 import { useSession } from 'next-auth/react'
@@ -9,6 +10,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import useSWR from 'swr'
+import { v4 as uuidv4 } from 'uuid'
 import { ChatMessages } from './chat-messages'
 import { ChatPanel } from './chat-panel'
 import { DeepResearchVisualization } from './deep-research-visualization'
@@ -30,6 +32,7 @@ export function ChatContent({
   const supabase = useSupabase()
   const { data: session } = useSession()
   const [userId, setUserId] = useState<string | null>(null)
+  const [researchSessionId, setResearchSessionId] = useState<string | null>(null)
   
   // Get user ID from Supabase session
   useEffect(() => {
@@ -42,14 +45,89 @@ export function ChatContent({
     }
   }, [supabase])
 
-  // Add debug logging for authentication
+  // Create or get research session
   useEffect(() => {
-    console.log('Auth Debug:', {
+    const initializeResearchSession = async () => {
+      if (!userId || !id) return
+
+      try {
+        // First, try to find existing research session
+        const { data: existingSession, error: searchError } = await supabase
+          .from('research_sessions')
+          .select('id')
+          .eq('id', id)  // Use id directly since it's already a UUID
+          .single()
+
+        if (searchError && searchError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+          console.error('Error finding research session:', {
+            code: searchError.code,
+            details: searchError.details,
+            message: searchError.message,
+            hint: searchError.hint
+          })
+          return
+        }
+
+        if (existingSession) {
+          setResearchSessionId(existingSession.id)
+        } else {
+          // Create new research session using the id directly
+          const { data: newSession, error: insertError } = await supabase
+            .from('research_sessions')
+            .insert({
+              id, // Use the id directly as the session id
+              user_id: userId,
+              metadata: {
+                created_at: new Date().toISOString()
+              }
+            })
+            .select()
+
+          console.log('Insert attempt result:', { newSession, insertError })
+
+          if (insertError) {
+            console.error('Error creating research session:', {
+              code: insertError.code,
+              details: insertError.details,
+              message: insertError.message,
+              hint: insertError.hint,
+              data: { id, userId }
+            })
+            toast.error(`Failed to create research session: ${insertError.message}`)
+            return
+          }
+
+          if (!newSession?.[0]?.id) {
+            console.error('No session ID returned after insert')
+            return
+          }
+
+          setResearchSessionId(newSession[0].id)
+        }
+      } catch (err) {
+        const error = err as Error
+        console.error('Error initializing research session:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack,
+          data: { id, userId }
+        })
+      }
+    }
+
+    initializeResearchSession()
+  }, [userId, id, supabase])
+
+  // Add debug logging
+  useEffect(() => {
+    console.log('Session Debug:', {
       hasSession: !!session,
       supabaseInitialized: !!supabase,
-      userId
+      userId,
+      researchSessionId,
+      id
     })
-  }, [session, supabase, userId])
+  }, [session, supabase, userId, researchSessionId, id])
 
   const {
     messages,
@@ -64,97 +142,193 @@ export function ChatContent({
     setData
   } = useChat({
     initialMessages: savedMessages,
-    id: CHAT_ID,
+    id: CHAT_ID, //The CHAT_ID constant is serving a different purpose than our database IDs - it's more like a namespace for the chat component
     body: {
       id,
       searchMode: researchState.searchEnabled
     },
     onResponse: async (response) => {
-      // This is called when the API response starts streaming
-      if (userId) {
+      if (userId && researchSessionId) {
         try {
+          // When streaming starts, we create a placeholder message in the database
+          // The content must be an empty string ('') NOT null, as the database has a not-null constraint
+          // This empty string also serves as a marker to find this specific message later in onFinish
           console.log('Saving initial assistant message')
-          const { error } = await supabase.from('chat_messages').insert({
-            chat_id: id,
-            content: '', // Will be updated with full content when streaming ends
+          const messageUuid = uuidv4()
+          const newMessage = createChatMessage({
+            id: messageUuid,
+            user_id: userId,
+            research_session_id: researchSessionId,
+            content: '', // TIN: IMPORTANT: Must be empty string, not null - database constraint
             role: 'assistant',
-            user_id: userId
+            metadata: {
+              model: 'gpt-4',
+              temperature: 0.7,
+              processing_time: 0,
+              tokens_used: 0,
+              timestamp: new Date().toISOString()
+            }
+          }, {
+            sequence_number: messages.length + 1
           })
+          
+          const { error } = await supabase
+            .from('chat_messages')
+            .insert(newMessage)
+
           if (error) {
-            console.error('Failed to save initial assistant message:', error)
+            console.error('Failed to save initial assistant message:', {
+              code: error.code,
+              details: error.details,
+              message: error.message,
+              hint: error.hint
+            })
+            toast.error(`Database error: ${error.message}`)
           }
-        } catch (error) {
-          console.error('Error saving initial assistant message:', error)
+        } catch (err) {
+          const error = err as Error
+          console.error('Error saving initial assistant message:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+          })
+          toast.error('Failed to save message due to an unexpected error')
         }
       }
     },
     onFinish: async (message) => {
       window.history.replaceState({}, '', `/search/${id}`)
       
-      // Save or update assistant message in Supabase
-      if (userId) {
+      if (userId && researchSessionId) {
         try {
-          console.log('Saving final assistant message:', {
-            chat_id: id,
-            content: message.content,
-            role: message.role,
-            user_id: userId
-          })
+          console.log('Saving final assistant message, content length:', message.content.length)
 
-          // First try to find if we already have a message for this response
+          // Find the placeholder message we created in onResponse
+          // We identify it by matching research_session_id, message_type, role
+          // and most importantly, the empty string content we set earlier
           const { data: existingMessages, error: searchError } = await supabase
             .from('chat_messages')
-            .select('id')
+            .select('*')
             .match({ 
-              chat_id: id,
+              research_session_id: researchSessionId,
+              message_type: 'ai_response',
               role: 'assistant',
-              content: ''
+              content: null // TIN: this must be null, not an empty string
             })
             .order('created_at', { ascending: false })
             .limit(1)
 
           if (searchError) {
-            console.error('Error searching for existing message:', searchError)
+            console.error('Error searching for existing message:', {
+              code: searchError.code,
+              details: searchError.details,
+              message: searchError.message,
+              hint: searchError.hint
+            })
+            toast.error(`Database search error: ${searchError.message}`)
             return
           }
 
+          // Debug log to see what we found
+          console.log('Found existing messages:', JSON.stringify(existingMessages, null, 2))
+
+          const metadata = {
+            model: 'gpt-4',
+            temperature: 0.7,
+            tokens_used: message.content.length / 4,
+            processing_time: typeof data === 'object' && data !== null && 'startTime' in data 
+              ? Date.now() - (data.startTime as number) 
+              : 0,
+            timestamp: new Date().toISOString()
+          }
+
           if (existingMessages && existingMessages.length > 0) {
-            // Update the existing empty message with the complete content
-            const { error: updateError } = await supabase
+            // Found our placeholder message, now update it with the complete AI response
+            console.log('Updating existing message:', {
+              id: existingMessages[0].id,
+              currentContent: existingMessages[0].content,
+              newContent: message.content.substring(0, 100) + '...',
+              contentLength: message.content.length
+            })
+            
+            const updateData: Partial<ChatMessage> = {
+              content: message.content, // Replace empty string with actual AI response
+              metadata,
+              is_edited: true,
+              sequence_number: messages.length,
+              role: 'assistant',
+              updated_at: new Date().toISOString()
+            }
+
+            // Log the exact update operation
+            console.log('Update operation:', {
+              data: updateData,
+              messageId: existingMessages[0].id
+            })
+
+            const { data: updatedData, error: updateError } = await supabase
               .from('chat_messages')
-              .update({ content: message.content })
+              .update(updateData)
               .eq('id', existingMessages[0].id)
+              .select()
 
             if (updateError) {
-              console.error('Failed to update assistant message:', updateError)
-              toast.error(`Failed to save AI response: ${updateError.message}`)
+              console.error('Failed to update assistant message:', {
+                code: updateError.code,
+                details: updateError.details,
+                message: updateError.message,
+                hint: updateError.hint,
+                messageContent: message.content.substring(0, 100) + '...',
+                contentLength: message.content.length
+              })
+              toast.error(`Failed to update message: ${updateError.message}`)
             } else {
-              console.log('Successfully updated assistant message')
+              console.log('Successfully updated message:', {
+                updatedData,
+                contentPreview: message.content.substring(0, 100) + '...',
+                fullContentLength: message.content.length
+              })
             }
           } else {
-            // Insert new message if no empty message was found
+            // Fallback: If we somehow couldn't find our placeholder message
+            // create a new message with the complete content
+            // This should rarely happen in normal operation
+            console.log('No empty message found, creating new one with content length:', message.content.length)
+            const messageUuid = uuidv4()
+            const newMessage = createChatMessage({
+              id: messageUuid,
+              user_id: userId,
+              research_session_id: researchSessionId,
+              content: message.content,
+              role: 'assistant',
+              metadata
+            }, {
+              sequence_number: messages.length + 1
+            })
+
             const { error: insertError } = await supabase
               .from('chat_messages')
-              .insert({
-                chat_id: id,
-                content: message.content,
-                role: message.role,
-                user_id: userId
-              })
+              .insert(newMessage)
 
             if (insertError) {
-              console.error('Failed to save new assistant message:', insertError)
-              toast.error(`Failed to save AI response: ${insertError.message}`)
-            } else {
-              console.log('Successfully saved new assistant message')
+              console.error('Failed to save new assistant message:', {
+                code: insertError.code,
+                details: insertError.details,
+                message: insertError.message,
+                hint: insertError.hint
+              })
+              toast.error(`Failed to save message: ${insertError.message}`)
             }
           }
-        } catch (error) {
-          console.error('Failed to save message to Supabase:', error)
-          toast.error('Failed to save AI response')
+        } catch (err) {
+          const error = err as Error
+          console.error('Failed to save message to Supabase:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+          })
+          toast.error('Failed to save message due to an unexpected error')
         }
-      } else {
-        console.log('No user ID found:', { session })
       }
     },
     onError: error => {
@@ -177,34 +351,49 @@ export function ChatContent({
   }, [id])
 
   const onQuerySelect = async (query: string) => {
-    // Save user message to Supabase first
-    if (userId) {
+    if (userId && researchSessionId) {
       try {
-        console.log('Attempting to save user query:', {
-          chat_id: id,
+        console.log('Saving user query')
+        const messageUuid = uuidv4()
+        const newMessage = createChatMessage({
+          id: messageUuid,
+          user_id: userId,
+          research_session_id: researchSessionId,
           content: query,
           role: 'user',
-          user_id: userId
+          metadata: {
+            client_timestamp: new Date().toISOString(),
+            client_info: {
+              platform: navigator.platform,
+              userAgent: navigator.userAgent
+            }
+          }
+        }, {
+          sequence_number: messages.length + 1
         })
-        const { data, error } = await supabase.from('chat_messages').insert({
-          chat_id: id,
-          content: query,
-          role: 'user',
-          user_id: userId
-        }).select()
+        
+        const { error } = await supabase
+          .from('chat_messages')
+          .insert(newMessage)
         
         if (error) {
-          console.error('Supabase error:', error)
+          console.error('Failed to save user query:', {
+            code: error.code,
+            details: error.details,
+            message: error.message,
+            hint: error.hint
+          })
           toast.error(`Failed to save message: ${error.message}`)
-        } else {
-          console.log('Successfully saved user query:', data)
         }
-      } catch (error) {
-        console.error('Failed to save user message to Supabase:', error)
-        toast.error('Failed to save message')
+      } catch (err) {
+        const error = err as Error
+        console.error('Failed to save user message:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        })
+        toast.error('Failed to save message due to an unexpected error')
       }
-    } else {
-      console.log('No user ID found:', { session })
     }
     
     append({
@@ -215,63 +404,50 @@ export function ChatContent({
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setData(undefined) // reset data to clear tool call
+    setData(undefined)
     
-    // Save user message to Supabase first
-    if (userId && input) {
+    if (userId && researchSessionId && input) {
       try {
-        console.log('Attempting to save user input:', {
-          chat_id: id,
+        const messageUuid = uuidv4()
+        const newMessage = createChatMessage({
+          id: messageUuid,
+          user_id: userId,
+          research_session_id: researchSessionId,
           content: input,
           role: 'user',
-          user_id: userId
+          metadata: {
+            client_timestamp: new Date().toISOString(),
+            client_info: {
+              platform: navigator.platform,
+              userAgent: navigator.userAgent
+            }
+          }
+        }, {
+          sequence_number: messages.length + 1
         })
-
-        // Test Supabase connection
-        const { data: testData, error: testError } = await supabase
+        
+        const { error } = await supabase
           .from('chat_messages')
-          .select('id')
-          .limit(1)
-
-        if (testError) {
-          console.error('Supabase connection test failed:', testError)
-          toast.error(`Database connection error: ${testError.message}`)
-          return
-        }
-
-        console.log('Supabase connection test successful:', testData)
-
-        const { data, error } = await supabase.from('chat_messages').insert({
-          chat_id: id,
-          content: input,
-          role: 'user',
-          user_id: userId
-        }).select()
+          .insert(newMessage)
         
         if (error) {
-          console.error('Supabase error:', {
-            error,
-            errorMessage: error.message,
+          console.error('Failed to save user input:', {
+            code: error.code,
             details: error.details,
+            message: error.message,
             hint: error.hint
           })
           toast.error(`Failed to save message: ${error.message}`)
-        } else {
-          console.log('Successfully saved user input:', data)
         }
-      } catch (error) {
-        console.error('Failed to save message to Supabase:', {
-          error,
-          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+      } catch (err) {
+        const error = err as Error
+        console.error('Failed to save message:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
         })
-        toast.error('Failed to save message')
+        toast.error('Failed to save message due to an unexpected error')
       }
-    } else {
-      console.log('No user ID found:', {
-        session,
-        sessionData: (session as any)?.sessionData,
-        userId
-      })
     }
     
     handleSubmit(e)

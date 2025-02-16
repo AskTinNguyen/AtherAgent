@@ -1,7 +1,7 @@
 -- Create chat_messages table
 create table if not exists public.chat_messages (
     id uuid default gen_random_uuid() primary key,
-    chat_id text not null,
+    research_session_id uuid references research_sessions(id) on delete cascade,
     content text not null,
     role text not null check (role in ('user', 'assistant', 'system', 'data')),
     annotations jsonb,
@@ -10,7 +10,7 @@ create table if not exists public.chat_messages (
 );
 
 -- Create indexes for better query performance
-create index if not exists chat_messages_chat_id_idx on public.chat_messages(chat_id);
+create index if not exists chat_messages_research_session_id_idx on public.chat_messages(research_session_id);
 create index if not exists chat_messages_created_at_idx on public.chat_messages(created_at);
 create index if not exists chat_messages_user_id_idx on public.chat_messages(user_id);
 
@@ -41,7 +41,7 @@ begin
   perform pg_notify(
     'chat_messages',
     json_build_object(
-      'chat_id', NEW.chat_id,
+      'research_session_id', NEW.research_session_id,
       'message', json_build_object(
         'id', NEW.id,
         'content', NEW.content,

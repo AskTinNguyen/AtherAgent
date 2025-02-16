@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Redis } from 'ioredis'
 
 type RedisResearchState = {
-  chatId: string
+  id: string
   state: string
   activities: string[]
   sources: string[]
@@ -28,9 +28,9 @@ async function migrateResearchData(redis: Redis) {
   const stateKeys = await redis.keys('research:state:*')
   
   for (const stateKey of stateKeys) {
-    const chatId = stateKey.split(':')[2]
-    const activitiesKey = `research:activities:${chatId}`
-    const sourcesKey = `research:sources:${chatId}`
+    const id = stateKey.split(':')[2]
+    const activitiesKey = `research:activities:${id}`
+    const sourcesKey = `research:sources:${id}`
     
     // Get state data
     const stateData = await redis.hgetall(stateKey)
@@ -41,7 +41,7 @@ async function migrateResearchData(redis: Redis) {
     const { data: session, error: sessionError } = await supabase
       .from('research_sessions')
       .insert({
-        chat_id: chatId,
+        id,
         user_id: stateData.userId,
         metadata: JSON.parse(stateData.metadata || '{}')
       })
@@ -49,7 +49,7 @@ async function migrateResearchData(redis: Redis) {
       .single()
       
     if (sessionError) {
-      console.error(`Error creating research session for chat ${chatId}:`, sessionError)
+      console.error(`Error creating research session for id ${id}:`, sessionError)
       continue
     }
     
@@ -64,7 +64,7 @@ async function migrateResearchData(redis: Redis) {
       })
       
     if (stateError) {
-      console.error(`Error migrating research state for chat ${chatId}:`, stateError)
+      console.error(`Error migrating research state for id ${id}:`, stateError)
     }
     
     // Migrate activities as search results
@@ -80,7 +80,7 @@ async function migrateResearchData(redis: Redis) {
         })
         
       if (searchError) {
-        console.error(`Error migrating search result for chat ${chatId}:`, searchError)
+        console.error(`Error migrating search result for id ${id}:`, searchError)
       }
     }
     
@@ -99,11 +99,11 @@ async function migrateResearchData(redis: Redis) {
         })
         
       if (sourceError) {
-        console.error(`Error migrating source for chat ${chatId}:`, sourceError)
+        console.error(`Error migrating source for id ${id}:`, sourceError)
       }
     }
     
-    console.log(`Successfully migrated research data for chat ${chatId}`)
+    console.log(`Successfully migrated research data for id ${id}`)
   }
 }
 
@@ -127,7 +127,7 @@ async function migrateBookmarks(redis: Redis) {
       const { data: session, error: sessionError } = await supabase
         .from('research_sessions')
         .insert({
-          chat_id: `bookmark:${bookmarkId}`,
+          id: bookmarkId,
           user_id: userId,
           metadata: {
             type: 'bookmark',

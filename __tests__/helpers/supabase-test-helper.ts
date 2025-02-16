@@ -8,7 +8,6 @@ export interface TestUser {
 
 export interface TestSession {
   id: string
-  chatId: string
   userId: string
 }
 
@@ -37,12 +36,9 @@ export const testHelpers = {
   
   // Create a test research session
   async createTestSession(userId: string): Promise<TestSession> {
-    const chatId = `test-${uuidv4()}`
-    
     const { data: session, error } = await supabase
       .from('research_sessions')
       .insert({
-        chat_id: chatId,
         user_id: userId,
         metadata: {}
       })
@@ -54,7 +50,6 @@ export const testHelpers = {
     
     return {
       id: session.id,
-      chatId,
       userId
     }
   },

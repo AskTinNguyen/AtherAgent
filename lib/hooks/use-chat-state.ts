@@ -23,7 +23,7 @@ export function useChatState(chatId: string) {
         const { data, error } = await supabase
           .from('chat_messages')
           .select('*')
-          .eq('chat_id', chatId)
+          .eq('research_session_id', chatId)
           .eq('user_id', session.user.id)
           .order('created_at', { ascending: true })
 
@@ -52,7 +52,7 @@ export function useChatState(chatId: string) {
           event: '*', 
           schema: 'public', 
           table: 'chat_messages',
-          filter: `chat_id=eq.${chatId} AND user_id=eq.${session.user.id}`
+          filter: `research_session_id=eq.${chatId} AND user_id=eq.${session.user.id}`
         }, 
         payload => {
           if (payload.eventType === 'INSERT') {
@@ -85,7 +85,7 @@ export function useChatState(chatId: string) {
       const { error } = await supabase
         .from('chat_messages')
         .insert([{
-          chat_id: chatId,
+          research_session_id: chatId,
           content: message.content,
           role: message.role,
           annotations: message.annotations,

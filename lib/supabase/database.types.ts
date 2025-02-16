@@ -13,7 +13,6 @@ export interface Database {
         Row: {
           id: string
           user_id: string
-          chat_id: string
           created_at: string
           updated_at: string
           metadata: Json
@@ -21,7 +20,6 @@ export interface Database {
         Insert: {
           id?: string
           user_id: string
-          chat_id: string
           created_at?: string
           updated_at?: string
           metadata?: Json
@@ -29,7 +27,6 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string
-          chat_id?: string
           created_at?: string
           updated_at?: string
           metadata?: Json

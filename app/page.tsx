@@ -1,9 +1,9 @@
 import { Chat } from '@/components/chat'
-import { generateId } from 'ai'
 import Image from 'next/image'
+import { v4 as uuidv4 } from 'uuid'
 
 export default function Page() {
-  const id = generateId()
+  const id = uuidv4()
   
   return (
     <div className="fixed inset-0 overflow-hidden">
