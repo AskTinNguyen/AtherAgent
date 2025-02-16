@@ -7,11 +7,8 @@ An AI-powered search engine with a generative UI and advanced research capabilit
 - 🛠 [Features](#-features)
 - 🧱 [Stack](#-stack)
 - 🚀 [Quickstart](#-quickstart)
-- 🌐 [Deploy](#-deploy)
 - 🔎 [Search Engine](#-search-engine)
 - ✅ [Verified models](#-verified-models)
-- ⚡ [Vercel AI SDK Implementation](#-ai-sdk-implementation)
-- 👥 [Contributing](#-contributing)
 
 ## 🛠 Features
 
@@ -167,14 +164,7 @@ Fork the repo to your Github account, then run the following command to clone th
 git clone git@github.com:[YOUR_GITHUB_ACCOUNT]/atheragent.git
 ```
 
-### 2. Install dependencies
-
-```bash
-cd atheragent
-bun install
-```
-
-### 3. Configure environment variables
+### 2. Configure environment variables
 
 ```bash
 cp .env.local.example .env.local
@@ -190,52 +180,77 @@ TAVILY_API_KEY=     # Get from https://app.tavily.com/home
 # Authentication (Required for demo login)
 NEXTAUTH_URL=http://localhost:3000    # Your app URL
 NEXTAUTH_SECRET=    # Generate with: openssl rand -base64 32
+
+# Supabase Configuration (for local development)
+NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+
+# Optional: Redis Configuration (if not using Docker)
+REDIS_URL=redis://localhost:6379
+
+# Optional: SearXNG Configuration (if not using Docker)
+SEARXNG_URL=[Get SearXNG URL from Site]
 ```
 
-For optional features configuration (Redis, SearXNG, etc.), see [CONFIGURATION.md](./docs/CONFIGURATION.md)
+### 3. Run with Docker (Recommended for beginners)
 
-### 4. Run app locally
-
-#### Using Bun
-
-```bash
-bun dev
-```
-
-#### Using Docker
+This will start all required services: Next.js app, Supabase, Redis, and SearXNG.
 
 ```bash
 docker compose up -d
 ```
 
+The following services will be available:
+- Web App: http://localhost:3000
+- Supabase Studio: http://localhost:54323
+  - Email: demo@example.com
+  - Password: demo123
+- Supabase API: http://localhost:54321
+- Redis: localhost:6379
+- SearXNG: http://localhost:8080
+
+To view logs:
+```bash
+docker compose logs -f app  # For Next.js app logs
+docker compose logs -f      # For all services
+```
+
+To stop all services:
+```bash
+docker compose down
+```
+
+To reset all data (including database):
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+### 4. Run locally (Alternative)
+
+If you prefer to run services individually:
+
+```bash
+# Install dependencies
+npm install --legacy-peer-deps
+# --legacy-peer-deps is required for Next.js 15.0.3 which is too modern for others
+
+
+# Start the development server
+npm run dev
+```
+
+You'll also need to run these services separately (if you're not using Docker):
+- Supabase: Follow [Supabase CLI setup](https://supabase.com/docs/guides/cli)
+- Redis: Install and run locally
+- SearXNG: Follow [SearXNG setup](https://docs.searxng.org/)
+
+#Start the App
 Visit http://localhost:3000 in your browser.
 
-## 🌐 Deploy
+## 🌐 Deploy for Cloudflare Pages or Vercel
 
-Host your own live version of AtherAgent with Vercel or Cloudflare Pages.
-
-### Vercel
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fmiurla%2Fatheragent&env=OPENAI_API_KEY,TAVILY_API_KEY,UPSTASH_REDIS_REST_URL,UPSTASH_REDIS_REST_TOKEN)
-
-## 🔎 Search Engine
-
-### Setting up the Search Engine in Your Browser
-
-If you want to use AtherAgent as a search engine in your browser, follow these steps:
-
-1. Open your browser settings.
-2. Navigate to the search engine settings section.
-3. Select "Manage search engines and site search".
-4. Under "Site search", click on "Add".
-5. Fill in the fields as follows:
-   - **Search engine**: AtherAgent
-   - **Shortcut**: ather
-   - **URL with %s in place of query**: `https://atheragent.ai/search?q=%s`
-6. Click "Add" to save the new search engine.
-7. Find "AtherAgent" in the list of site search, click on the three dots next to it, and select "Make default".
-
-This will allow you to use AtherAgent as your default search engine in the browser.
+// TODO: Add deploy instructions
 
 ## ✅ Verified models
 
@@ -335,25 +350,6 @@ The Search Source Quick Insert feature allows quick reference and insertion of U
 - Automatic cursor positioning
 - Source metadata preservation
 
-For detailed documentation on chat components and features, see [Chat Components Documentation](docs/chat-components.md)
-
-## Getting Started
-
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-2. Set up environment variables:
-   ```bash
-   cp .env.example .env.local
-   ```
-
-3. Run the development server:
-   ```bash
-   npm run dev
-   ```
-
 ## File Upload
 
 Supports:
@@ -385,7 +381,7 @@ Supports:
 
 ### Overview
 
-AtherAgent includes a sophisticated Deep Research system that enables comprehensive exploration of topics with configurable depth levels and advanced source tracking.
+AtherAgent includes a Deep Research system that enables comprehensive exploration of topics with configurable depth levels and advanced source tracking.
 
 ### Key Features
 

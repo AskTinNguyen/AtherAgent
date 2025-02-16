@@ -2,20 +2,29 @@
 
 version: '3.8'
 
-name: morphic-stack
+name: atheragent
 services:
-  morphic:
+  app:
     build:
-      context: . # The build context is the current directory
+      context: .
       dockerfile: Dockerfile
-    command: bun dev # Use `bun dev -H 0.0.0.0` to listen on all interfaces
-    env_file: .env.local # Load environment variables
+    command: bun dev
+    env_file: .env.local
     ports:
-      - '3000:3000' # Maps port 3000 on the host to port 3000 in the container.
+      - '3000:3000'
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
     depends_on:
       - redis
+      - supabase-db
+      - supabase-studio
+      - auth
+      - realtime
       - searxng
 
+  # Redis for caching and session management
   redis:
     image: redis:7.2.3-alpine
     ports:
@@ -23,36 +32,39 @@ services:
     volumes:
       - redis_data:/data
 
+  # Supabase PostgreSQL Database
   supabase-db:
     image: supabase/postgres:15.1.0.148
     ports:
       - "5432:5432"
     volumes:
       - supabase_db_data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d/migrations
+      - ./supabase/migrations:/docker-entrypoint-initdb.d
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
 
+  # Supabase Studio - Web UI for database management
   supabase-studio:
     image: supabase/studio:20240116-34b417c
     ports:
-      - "8000:8000"
+      - "54323:3000" # Access Studio at http://localhost:54323
     environment:
       STUDIO_PG_META_URL: http://meta:8080
       POSTGRES_PASSWORD: postgres
-      DEFAULT_ORGANIZATION: Default Organization
-      DEFAULT_PROJECT: Default Project
+      DEFAULT_ORGANIZATION: AtherAgent
+      DEFAULT_PROJECT: AtherAgent
     depends_on:
       - supabase-db
       - meta
 
+  # Kong - API Gateway
   kong:
     image: kong:3.3.1-alpine
     ports:
-      - "8001:8001" # Admin API
-      - "8000:8000" # Proxy
+      - "54321:8000" # Proxy
+      - "54322:8001" # Admin API
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
@@ -63,10 +75,9 @@ services:
     depends_on:
       - supabase-db
 
+  # Postgres Meta - Database metadata service
   meta:
     image: supabase/postgres-meta:v0.74.0
-    ports:
-      - "8080:8080"
     environment:
       PG_META_PORT: 8080
       PG_META_DB_HOST: supabase-db
@@ -74,10 +85,9 @@ services:
     depends_on:
       - supabase-db
 
+  # GoTrue - Auth service
   auth:
     image: supabase/gotrue:v2.127.0
-    ports:
-      - "9999:9999"
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
@@ -88,7 +98,7 @@ services:
       GOTRUE_DB_USER: postgres
       GOTRUE_DB_PASSWORD: postgres
       GOTRUE_DB_NAME: postgres
-      GOTRUE_JWT_SECRET: your-super-secret-jwt-token
+      GOTRUE_JWT_SECRET: your-super-secret-jwt-token-please-change-me
       GOTRUE_JWT_EXP: 3600
       GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
       GOTRUE_SITE_URL: http://localhost:3000
@@ -97,10 +107,9 @@ services:
     depends_on:
       - supabase-db
 
+  # Realtime - WebSocket service
   realtime:
     image: supabase/realtime:v2.25.8
-    ports:
-      - "4000:4000"
     environment:
       PORT: 4000
       DB_HOST: supabase-db
@@ -109,15 +118,16 @@ services:
       DB_PASSWORD: postgres
       DB_NAME: postgres
       SECURE_CHANNELS: "true"
-      JWT_SECRET: your-super-secret-jwt-token
+      JWT_SECRET: your-super-secret-jwt-token-please-change-me
     depends_on:
       - supabase-db
 
+  # SearXNG - Search engine
   searxng:
     image: searxng/searxng
     ports:
       - '${SEARXNG_PORT:-8080}:8080'
-    env_file: .env.local # can remove if you want to use env variables or in settings.yml
+    env_file: .env.local
     volumes:
       - ./searxng-limiter.toml:/etc/searxng/limiter.toml
       - ./searxng-settings.yml:/etc/searxng/settings.yml
