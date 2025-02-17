@@ -1,23 +1,24 @@
 import {
-    clearStoredSearchResults,
-    getStoredSearchResults,
-    storeSearchResults
+  clearStoredSearchResults,
+  getStoredSearchResults,
+  storeSearchResults
 } from '@/lib/redis/search-results'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!params.id) {
+    const { id: chatId } = await params
+
+    if (!chatId) {
       return NextResponse.json(
         { error: 'Missing required parameter (id)' },
         { status: 400 }
       )
     }
 
-    const chatId = params.id
     const query = req.nextUrl.searchParams.get('q')
     if (!query) {
       return NextResponse.json(
@@ -39,17 +40,18 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!params.id) {
+    const { id: chatId } = await params
+
+    if (!chatId) {
       return NextResponse.json(
         { error: 'Missing required parameter (id)' },
         { status: 400 }
       )
     }
 
-    const chatId = params.id
     const body = await req.json()
     
     if (!body || typeof body !== 'object') {
@@ -87,17 +89,18 @@ export async function POST(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!params.id) {
+    const { id: chatId } = await params
+
+    if (!chatId) {
       return NextResponse.json(
         { error: 'Missing required parameter (id)' },
         { status: 400 }
       )
     }
 
-    const chatId = params.id
     const query = req.nextUrl.searchParams.get('q')
     
     await clearStoredSearchResults(chatId, query || undefined)

@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const chatId = params.id
+    const { id: chatId } = await params
+
     if (!chatId) {
       return NextResponse.json(
         { error: 'Chat ID is required' },

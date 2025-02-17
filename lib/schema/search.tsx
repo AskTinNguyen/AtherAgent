@@ -2,6 +2,7 @@ import { DeepPartial } from 'ai'
 import { z } from 'zod'
 
 // Base schema without defaults for OpenAI compatibility
+// TIN NOTES: DO NOT ADD default([], []) to the arrays. It will break the search.
 export const searchSchema = z.object({
   query: z.string().describe('The query to search for'),
   search_depth: z

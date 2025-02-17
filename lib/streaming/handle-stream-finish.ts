@@ -101,7 +101,7 @@ export async function handleStreamFinish({
           type: 'related-questions',
           data: { items: [] }
         }
-        streamManager.streamData(relatedQuestionsAnnotation)
+        streamManager.streamData([relatedQuestionsAnnotation])
 
         // Generate related questions
         const relatedQuestions = await generateRelatedQuestions(
@@ -122,7 +122,7 @@ export async function handleStreamFinish({
           } as JSONValue
         }
 
-        streamManager.streamData(updatedRelatedQuestionsAnnotation.content as JSONValue)
+        streamManager.streamData([updatedRelatedQuestionsAnnotation.content] as JSONValue)
         allAnnotations.push(updatedRelatedQuestionsAnnotation)
       } catch (error) {
         console.error('Error processing related questions:', error)
