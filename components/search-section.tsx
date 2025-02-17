@@ -2,11 +2,22 @@
 
 import { SearchHeader } from '@/components/search/search-header'
 import { SearchResultsGrid } from '@/components/search/search-results-grid'
-import { useActivity, useDepth, useSources } from '@/lib/contexts/research-provider'
+import {
+  useActivity,
+  useDepth,
+  useSources
+} from '@/lib/contexts/research-provider'
 import { searchTool } from '@/lib/tools/search'
-import { ResearchDiffSystem, type VisualizationData } from '@/lib/utils/research-diff'
+import {
+  ResearchDiffSystem,
+  type VisualizationData
+} from '@/lib/utils/research-diff'
 import { extractSearchSources } from '@/lib/utils/search'
-import { type SearchResultItem, type SearchSource, type SearchResults as TypeSearchResults } from '@/types/search'
+import {
+  type SearchResultItem,
+  type SearchSource,
+  type SearchResults as TypeSearchResults
+} from '@/types/search'
 import { type Message } from 'ai'
 import { BarChart, Grid2X2, Image as ImageIcon } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -56,7 +67,8 @@ export function SearchSection({
 }: SearchSectionProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  
+  const q = searchParams.get('q')
+
   const isLoading = tool.state === 'call'
   const searchResults = tool.state === 'result' ? tool.result : undefined
   const query = tool.args?.query
@@ -66,21 +78,28 @@ export function SearchSection({
   const { state: activityState, addActivity } = useActivity()
   const { state: depthState, optimizeDepth } = useDepth()
 
-  const [viewMode, setViewMode] = React.useState<'grid' | 'ranked' | 'image'>('grid')
+  const [viewMode, setViewMode] = React.useState<'grid' | 'ranked' | 'image'>(
+    'grid'
+  )
   const [showDiff, setShowDiff] = React.useState(true)
   const [showRankedAnalysis, setShowRankedAnalysis] = React.useState(false)
-  const [previousResults, setPreviousResults] = React.useState<SearchResultItem[]>([])
-  const diffSystemRef = React.useRef<ResearchDiffSystem>(new ResearchDiffSystem())
-  const [diffVisualization, setDiffVisualization] = React.useState<VisualizationData | null>(null)
-  const sourcesProcessedRef = React.useRef<{[key: string]: boolean}>({})
+  const [previousResults, setPreviousResults] = React.useState<
+    SearchResultItem[]
+  >([])
+  const diffSystemRef = React.useRef<ResearchDiffSystem>(
+    new ResearchDiffSystem()
+  )
+  const [diffVisualization, setDiffVisualization] =
+    React.useState<VisualizationData | null>(null)
+  const sourcesProcessedRef = React.useRef<{ [key: string]: boolean }>({})
 
-  const includeDomainsString = React.useMemo(() => 
-    includeDomains ? ` [${includeDomains.join(', ')}]` : '', 
+  const includeDomainsString = React.useMemo(
+    () => (includeDomains ? ` [${includeDomains.join(', ')}]` : ''),
     [includeDomains]
   )
 
   // Split into separate effects for different concerns
-  
+
   // 1. Process search results and update messages
   React.useEffect(() => {
     if (!searchResults?.results || !tool.toolCallId) return
@@ -92,11 +111,11 @@ export function SearchSection({
 
     sourcesProcessedRef.current[tool.toolCallId] = true
 
-    setMessages(messages.map(msg => 
-      msg.id === message.id 
-        ? { ...msg, searchSources: sources }
-        : msg
-    ))
+    setMessages(
+      messages.map(msg =>
+        msg.id === message.id ? { ...msg, searchSources: sources } : msg
+      )
+    )
   }, [searchResults, tool.toolCallId, messages, setMessages])
 
   // 2. Update sources context
@@ -124,9 +143,12 @@ export function SearchSection({
   React.useEffect(() => {
     if (!searchResults?.results) return
 
-    const diffs = diffSystemRef.current.compareResults(previousResults, searchResults.results)
+    const diffs = diffSystemRef.current.compareResults(
+      previousResults,
+      searchResults.results
+    )
     const visualization = diffSystemRef.current.visualizeDiffs(diffs)
-    
+
     setDiffVisualization(visualization)
     setPreviousResults(searchResults.results)
   }, [searchResults, previousResults])
@@ -154,7 +176,7 @@ export function SearchSection({
     }, 1000)
 
     return () => clearTimeout(timeoutId)
-  }, [searchResults, currentDepth, addActivity, optimizeDepth, sourcesState.sourceMetrics])
+  }, [searchResults, currentDepth, optimizeDepth, sourcesState.sourceMetrics])
 
   // Store search results in Redis when they change
   React.useEffect(() => {
@@ -191,9 +213,8 @@ export function SearchSection({
 
   // Restore search results from Redis on mount or when URL parameters change
   React.useEffect(() => {
-    const urlQuery = searchParams.get('q')
-    if (urlQuery && !searchResults) {
-      fetch(`/api/search/${chatId}/results?q=${encodeURIComponent(urlQuery)}`)
+    if (q && !searchResults) {
+      fetch(`/api/search/${chatId}/results?q=${encodeURIComponent(q)}`)
         .then(async response => {
           if (!response.ok) {
             const errorText = await response.text()
@@ -209,18 +230,21 @@ export function SearchSection({
               toolName: 'search' as const,
               toolCallId: 'restored-search',
               args: {
-                query: urlQuery,
-                includeDomains: searchParams.get('domains')?.split(',').filter(Boolean)
+                query: q,
+                includeDomains: searchParams
+                  .get('domains')
+                  ?.split(',')
+                  .filter(Boolean)
               },
               result: data
             }
-            
+
             // Update the tool state
             if (setMessages && messages) {
               const newMessage: ExtendedMessage = {
                 id: 'restored-search',
                 role: 'assistant',
-                content: `Restored search results for: ${urlQuery}`,
+                content: `Restored search results for: ${q}`,
                 toolInvocations: [syntheticTool]
               }
               setMessages([...messages, newMessage])
@@ -231,7 +255,7 @@ export function SearchSection({
           console.error('Error restoring search results:', error)
         })
     }
-  }, [searchParams, searchResults, chatId, setMessages, messages])
+  }, [q, searchResults, chatId, setMessages, messages])
 
   // Clear stored results when chat changes
   React.useEffect(() => {
@@ -245,64 +269,69 @@ export function SearchSection({
   }, [chatId])
 
   // Persist search state in URL
-  React.useEffect(() => {
-    if (searchResults?.results && query) {
-      const params = new URLSearchParams(searchParams.toString())
-      params.set('q', query)
-      if (includeDomains?.length) {
-        params.set('domains', includeDomains.join(','))
-      }
-      router.push(`?${params.toString()}`, { scroll: false })
-    }
-  }, [searchResults, query, includeDomains, router, searchParams])
+  // React.useEffect(() => {
+  //   if (searchResults?.results && query) {
+  //     const params = new URLSearchParams(searchParams.toString())
+  //     params.set('q', query)
+  //     if (includeDomains?.length) {
+  //       params.set('domains', includeDomains.join(','))
+  //     }
+  //     router.push(`?${params.toString()}`, { scroll: false })
+  //   }
+  // }, [searchResults, query, includeDomains, router])
 
   // Recover search from URL parameters
-  const recoverSearch = React.useCallback(async (query: string, domains?: string[]) => {
-    try {
-      const results = await searchTool.execute({
-        query,
-        search_depth: 'basic',
-        include_domains: domains || [],
-        exclude_domains: [],
-        topic: 'general',
-        time_range: 'year',
-        include_answer: false,
-        include_images: false,
-        include_image_descriptions: false,
-        include_raw_content: false,
-        max_results: 10,
-        days: 365
-      }, {
-        toolCallId: 'recover-search',
-        messages: []
-      })
-
-      if (results.results?.length) {
-        // Update the search results in the parent component's state
-        if (setMessages && messages) {
-          const newMessage = {
-            id: 'recover-search',
-            role: 'assistant' as const,
-            content: `Recovered search results for: ${query}`,
-            searchSources: extractSearchSources(results.results)
+  const recoverSearch = React.useCallback(
+    async (query: string, domains?: string[]) => {
+      try {
+        const results = await searchTool.execute(
+          {
+            query,
+            search_depth: 'basic',
+            include_domains: domains || [],
+            exclude_domains: [],
+            topic: 'general',
+            time_range: 'year',
+            include_answer: false,
+            include_images: false,
+            include_image_descriptions: false,
+            include_raw_content: false,
+            max_results: 10,
+            days: 365
+          },
+          {
+            toolCallId: 'recover-search',
+            messages: []
           }
-          setMessages([...messages, newMessage])
+        )
+
+        if (results.results?.length) {
+          // Update the search results in the parent component's state
+          if (setMessages && messages) {
+            const newMessage = {
+              id: 'recover-search',
+              role: 'assistant' as const,
+              content: `Recovered search results for: ${query}`,
+              searchSources: extractSearchSources(results.results)
+            }
+            setMessages([...messages, newMessage])
+          }
         }
+      } catch (error) {
+        console.error('Failed to recover search:', error)
       }
-    } catch (error) {
-      console.error('Failed to recover search:', error)
-    }
-  }, [setMessages, messages])
+    },
+    [setMessages, messages]
+  )
 
   // Restore search state from URL on mount
   React.useEffect(() => {
-    const urlQuery = searchParams.get('q')
     const urlDomains = searchParams.get('domains')?.split(',').filter(Boolean)
-    
-    if (urlQuery && !searchResults) {
-      recoverSearch(urlQuery, urlDomains)
+
+    if (q && !searchResults) {
+      recoverSearch(q, urlDomains)
     }
-  }, [searchParams, searchResults, recoverSearch])
+  }, [q, searchResults, recoverSearch])
 
   // Load results from local storage on mount
   React.useEffect(() => {
@@ -319,11 +348,14 @@ export function SearchSection({
   // Save results to local storage when they change
   React.useEffect(() => {
     if (searchResults?.results) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        chatId,
-        results: searchResults.results,
-        timestamp: Date.now()
-      }))
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          chatId,
+          results: searchResults.results,
+          timestamp: Date.now()
+        })
+      )
     }
   }, [searchResults, chatId])
 
@@ -335,19 +367,26 @@ export function SearchSection({
     setShowRankedAnalysis(prev => !prev)
   }, [])
 
-  const handleOpenChange = React.useCallback((open: boolean) => {
-    onOpenChange(open)
-  }, [onOpenChange])
+  const handleOpenChange = React.useCallback(
+    (open: boolean) => {
+      onOpenChange(open)
+    },
+    [onOpenChange]
+  )
 
   return (
     <CollapsibleMessage
       role="assistant"
       isCollapsible={true}
-      header={<SearchHeader 
-        showRankedAnalysis={showRankedAnalysis}
-        onToggleRankedAnalysis={() => setShowRankedAnalysis(!showRankedAnalysis)}
-        includeDomainsString={includeDomainsString}
-      />}
+      header={
+        <SearchHeader
+          showRankedAnalysis={showRankedAnalysis}
+          onToggleRankedAnalysis={() =>
+            setShowRankedAnalysis(!showRankedAnalysis)
+          }
+          includeDomainsString={includeDomainsString}
+        />
+      }
       isOpen={isOpen}
       onOpenChange={onOpenChange}
     >
@@ -395,14 +434,14 @@ export function SearchSection({
               <SearchResultsGrid results={searchResults.results} />
             )}
             {viewMode === 'ranked' && (
-              <RankedSearchResults 
+              <RankedSearchResults
                 results={searchResults.results}
                 query={query}
                 showMetrics={true}
               />
             )}
             {viewMode === 'image' && searchResults.images && (
-              <SearchResultsImageSection 
+              <SearchResultsImageSection
                 images={searchResults.images}
                 query={query}
               />

@@ -3,9 +3,9 @@
 import { cn } from '@/lib/utils'
 import { ChevronDown, UserCircle2 } from 'lucide-react'
 import {
-    Collapsible,
-    CollapsibleContent,
-    CollapsibleTrigger
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
 } from './ui/collapsible'
 import { IconLogo } from './ui/icons'
 import { Separator } from './ui/separator'
@@ -36,7 +36,7 @@ export function CollapsibleMessage({
   const content = <div className="py-2 flex-1">{children}</div>
 
   return (
-    <div className={cn("flex gap-3", className)}>
+    <div className={cn('flex gap-3', className)}>
       <div className="relative flex flex-col items-center">
         <div className={cn('mt-[10px] w-5', role === 'assistant' && 'mt-4')}>
           {showIcon &&
@@ -51,7 +51,7 @@ export function CollapsibleMessage({
       {isCollapsible ? (
         <div
           className={cn(
-            'flex-1 rounded-2xl p-4',
+            'flex-1 rounded-2xl p-4 max-h-[40vh] overflow-y-auto',
             showBorder && 'border border-border/50'
           )}
         >
