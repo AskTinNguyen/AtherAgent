@@ -1,7 +1,9 @@
 import { type SearchResultItem, type SearchSource } from '@/types/search'
 
 export function extractSearchSources(results: SearchResultItem[]): SearchSource[] {
-  return results.map(result => ({
+  // STRICT: Limit the number of sources to prevent loops
+  const maxSources = 10
+  return results.slice(0, maxSources).map(result => ({
     url: result.url,
     title: result.title || 'Untitled',
     content: result.content || '',
@@ -12,10 +14,14 @@ export function extractSearchSources(results: SearchResultItem[]): SearchSource[
 }
 
 export function calculateRelevanceScore(content: string, query: string): number {
-  if (!query) return 0.5
+  if (!content || !query) return 0.5
+  
+  // STRICT: Limit content length to prevent performance issues
+  const maxContentLength = 1000
+  const truncatedContent = content.slice(0, maxContentLength)
   
   const queryTerms = query.toLowerCase().split(' ')
-  const contentTerms = content.toLowerCase().split(' ')
+  const contentTerms = truncatedContent.toLowerCase().split(' ')
   
   const matchCount = queryTerms.filter(term => 
     contentTerms.some(contentTerm => contentTerm.includes(term))

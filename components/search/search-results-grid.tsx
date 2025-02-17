@@ -11,25 +11,20 @@ interface SearchResultsGridProps {
 }
 
 function SearchResultsGridContent({ results, isLoading = false }: SearchResultsGridProps) {
-  // Memoize the grid layout calculation
-  const gridItems = React.useMemo(() => 
-    results.map((result, index) => (
-      <SearchResultCard
-        key={`${result.url}-${index}`}
-        result={result}
-        index={index}
-      />
-    )),
-    [results]
-  )
-
+  // Simplest possible implementation without any memoization or key generation
   if (isLoading) {
     return <SearchResultsGridSkeleton />
   }
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {gridItems}
+      {results.map((result, index) => (
+        <SearchResultCard
+          key={result.url} // Use just the URL as key - it should be unique
+          result={result}
+          index={index}
+        />
+      ))}
     </div>
   )
 }

@@ -51,32 +51,34 @@ export async function updateChatResearchState(
   const activitiesKey = REDIS_KEYS.researchActivities(chatId)
   const sourcesKey = REDIS_KEYS.researchSources(chatId)
 
-  if (isCleared) {
+  // Get current state first to avoid unnecessary updates
+  const currentState = await redis.hgetall(stateKey)
+  const newState = {
+    isActive: !isCleared,
+    isCleared,
+    clearedAt: isCleared ? new Date().toISOString() : null,
+    currentDepth: 0,
+    maxDepth: maxDepth ?? 7,
+    completedSteps: 0,
+    totalExpectedSteps: 0
+  }
+
+  // Only update if state has changed
+  if (!currentState || 
+      currentState.isCleared !== String(isCleared) || 
+      currentState.maxDepth !== String(maxDepth ?? 7)) {
+    
     const pipeline = redis.pipeline()
-    // Update state
-    pipeline.hmset(stateKey, {
-      isActive: false,
-      isCleared: true,
-      clearedAt: new Date().toISOString(),
-      currentDepth: 0,
-      maxDepth: maxDepth ?? 7,
-      completedSteps: 0,
-      totalExpectedSteps: 0
-    })
-    // Clear activities and sources
-    pipeline.del(activitiesKey)
-    pipeline.del(sourcesKey)
+
+    // Batch all operations
+    pipeline.hmset(stateKey, newState)
+    
+    if (isCleared) {
+      pipeline.del(activitiesKey)
+      pipeline.del(sourcesKey)
+    }
+
     await pipeline.exec()
-  } else {
-    await redis.hmset(stateKey, {
-      isActive: true,
-      isCleared: false,
-      clearedAt: null,
-      currentDepth: 0,
-      maxDepth: maxDepth ?? 7,
-      completedSteps: 0,
-      totalExpectedSteps: 0
-    })
   }
 }
 
@@ -157,6 +159,59 @@ export async function addResearchActivity(
   await redis.zadd(activitiesKey, Date.now(), JSON.stringify(newActivity))
 }
 
+// Batch activity updates
+const activityUpdateQueue = new Map<string, { id: string; status: string }[]>()
+const BATCH_DELAY = 100 // ms
+
+export async function updateActivityStatus(
+  chatId: string,
+  activityId: string,
+  status: ResearchActivity['status']
+): Promise<void> {
+  // Add to queue
+  const queueKey = `${chatId}`
+  const currentQueue = activityUpdateQueue.get(queueKey) || []
+  currentQueue.push({ id: activityId, status })
+  activityUpdateQueue.set(queueKey, currentQueue)
+
+  // Debounce updates
+  await new Promise(resolve => setTimeout(resolve, BATCH_DELAY))
+
+  // Process queue if it still contains our update
+  const queue = activityUpdateQueue.get(queueKey)
+  if (queue?.some(item => item.id === activityId)) {
+    const redis = await getRedisClient()
+    const activitiesKey = REDIS_KEYS.researchActivities(chatId)
+    const activities = await redis.zrange(activitiesKey, 0, -1)
+
+    if (!activities?.length) {
+      activityUpdateQueue.delete(queueKey)
+      return
+    }
+
+    const parsedActivities = activities.map(a => JSON.parse(a))
+    const updatedActivities = parsedActivities.map(activity => {
+      const queuedUpdate = queue.find(item => item.id === activity.id)
+      return queuedUpdate 
+        ? { ...activity, status: queuedUpdate.status }
+        : activity
+    })
+
+    const pipeline = redis.pipeline()
+    pipeline.del(activitiesKey)
+    
+    for (const activity of updatedActivities) {
+      pipeline.zadd(activitiesKey, Date.now(), JSON.stringify(activity))
+    }
+    
+    await pipeline.exec()
+    activityUpdateQueue.delete(queueKey)
+  }
+}
+
+// Add batching for source additions
+const sourceAdditionQueue = new Map<string, ResearchSource[]>()
+
 export async function addResearchSource(
   chatId: string,
   source: Omit<ResearchSource, 'id' | 'chatId' | 'createdAt'>
@@ -165,9 +220,7 @@ export async function addResearchSource(
   const sourcesKey = REDIS_KEYS.researchSources(chatId)
   const state = await getChatResearchState(chatId)
 
-  if (state.isCleared) {
-    return
-  }
+  if (state.isCleared) return
 
   const newSource: ResearchSource = {
     ...source,
@@ -176,33 +229,24 @@ export async function addResearchSource(
     createdAt: new Date().toISOString()
   }
 
-  await redis.zadd(sourcesKey, Date.now(), JSON.stringify(newSource))
-}
+  // Add to queue
+  const currentQueue = sourceAdditionQueue.get(chatId) || []
+  currentQueue.push(newSource)
+  sourceAdditionQueue.set(chatId, currentQueue)
 
-export async function updateActivityStatus(
-  chatId: string,
-  activityId: string,
-  status: ResearchActivity['status']
-): Promise<void> {
-  const redis = await getRedisClient()
-  const activitiesKey = REDIS_KEYS.researchActivities(chatId)
-  const activities = await redis.zrange(activitiesKey, 0, -1)
+  // Debounce updates
+  await new Promise(resolve => setTimeout(resolve, BATCH_DELAY))
 
-  if (!activities?.length) return
-
-  const parsedActivities = activities.map(a => JSON.parse(a))
-  const updatedActivities = parsedActivities.map(activity => 
-    activity.id === activityId 
-      ? { ...activity, status }
-      : activity
-  )
-
-  const pipeline = redis.pipeline()
-  pipeline.del(activitiesKey)
-  
-  for (const activity of updatedActivities) {
-    pipeline.zadd(activitiesKey, Date.now(), JSON.stringify(activity))
+  // Process queue
+  const queue = sourceAdditionQueue.get(chatId)
+  if (queue?.length) {
+    const pipeline = redis.pipeline()
+    
+    for (const queuedSource of queue) {
+      pipeline.zadd(sourcesKey, Date.now(), JSON.stringify(queuedSource))
+    }
+    
+    await pipeline.exec()
+    sourceAdditionQueue.delete(chatId)
   }
-  
-  await pipeline.exec()
 } 

@@ -5,7 +5,7 @@ import { useResearch } from '@/lib/contexts/research-context'
 import { usePanelCollapse } from '@/lib/hooks/use-panel-collapse'
 import { cn } from '@/lib/utils'
 import { usePathname } from 'next/navigation'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ErrorBoundary } from './shared/error-boundary'
 import { PanelControls } from './visualization/panel-controls'
 import { ResearchCommandCenter } from './visualization/research-command-center'
@@ -36,23 +36,32 @@ function DeepResearchVisualizationContent({
 
   // Handle initialization and state clearing once on mount
   useEffect(() => {
-    // Only run initialization once
-    if (initialClearedState && !state.isActive) {
+    if (!isInitialized && initialClearedState && !state.isActive) {
       clearState()
+      setIsInitialized(true)
     }
-    setIsInitialized(true)
-  }, []) // Empty deps since this should only run once on mount
+  }, [initialClearedState, state.isActive, clearState, isInitialized])
 
+  // Memoize callbacks to prevent unnecessary re-renders
   const handleSetActive = useCallback((active: boolean) => {
+    // Only log in development
+    if (process.env.NODE_ENV === 'development') {
     console.log('Setting active state:', active)
+    }
   }, [])
 
   const handleInitProgress = useCallback((max: number, current: number) => {
+    // Only log in development
+    if (process.env.NODE_ENV === 'development') {
     console.log('Initializing progress:', { max, current })
+    }
   }, [])
 
   // Check if we're in a chat session
-  const isInChatSession = pathname.startsWith('/search/') || chatId !== 'global'
+  const isInChatSession = useMemo(() => 
+    pathname.startsWith('/search/') || chatId !== 'global',
+    [pathname, chatId]
+  )
 
   // Only show in chat sessions and when not explicitly cleared
   if (!isInChatSession || initialClearedState) {

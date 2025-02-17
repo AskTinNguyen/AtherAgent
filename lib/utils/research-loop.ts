@@ -1,3 +1,4 @@
+import { nanoid } from 'nanoid'
 import { searchTool } from '../tools/search'
 
 export interface ResearchIteration {
@@ -57,32 +58,8 @@ export function checkDiminishingReturns(
   return overlapRatio > 0.5
 }
 
-// Refine the search query based on context and previous results
-export function refineQuery(
-  originalQuery: string,
-  iterations: ResearchIteration[],
-  context: QueryContext
-): string {
-  const { currentDepth, maxDepth, recentFindings } = context
-  
-  // Don't refine if we're at max depth
-  if (currentDepth >= maxDepth) return originalQuery
-
-  // Extract key terms from recent findings
-  const keyTerms = extractKeyTerms(recentFindings)
-  
-  // Add depth-specific modifiers
-  const depthModifiers = getDepthModifiers(currentDepth)
-  
-  // Combine original query with key terms and modifiers
-  const refinedQuery = [
-    originalQuery,
-    ...keyTerms.slice(0, 2), // Add top 2 key terms
-    ...depthModifiers
-  ].join(' ')
-
-  return refinedQuery
-}
+// Cache for search results to prevent duplicate searches
+const searchCache = new Map<string, any>()
 
 // Execute research tools with the given query
 export async function executeResearchTools(
@@ -90,19 +67,52 @@ export async function executeResearchTools(
   options: { search?: boolean } = {}
 ): Promise<any[]> {
   const results: any[] = []
-
+  
   if (options.search) {
     try {
+      // Create a cache key from the search parameters
+      const cacheKey = JSON.stringify({
+        query,
+        maxResults: 10,
+        searchDepth: 'advanced'
+      })
+
+      // Check cache first
+      if (searchCache.has(cacheKey)) {
+        results.push({ tool: 'search', data: searchCache.get(cacheKey) })
+        return results
+      }
+
+      // Generate a stable ID for this search session
+      const searchId = nanoid()
+
       const searchResults = await searchTool.execute({
         query,
         max_results: 10,
         search_depth: 'advanced',
         include_domains: [],
-        exclude_domains: []
+        exclude_domains: [],
+        topic: 'general' as const,
+        time_range: 'w' as const,
+        include_answer: 'basic' as const,
+        include_images: true,
+        include_image_descriptions: true,
+        include_raw_content: false,
+        days: 7
       }, {
-        toolCallId: `search-${Date.now()}`,
+        toolCallId: `search-${searchId}`,
         messages: []
       })
+
+      // Cache the results
+      searchCache.set(cacheKey, searchResults)
+      
+      // Clear old cache entries if cache gets too large
+      if (searchCache.size > 100) {
+        const oldestKey = searchCache.keys().next().value
+        searchCache.delete(oldestKey)
+      }
+
       results.push({ tool: 'search', data: searchResults })
     } catch (error) {
       console.error('Search tool error:', error)
@@ -110,6 +120,39 @@ export async function executeResearchTools(
   }
 
   return results
+}
+
+// Refine query with memoization
+const queryRefinementCache = new Map<string, string>()
+
+export function refineQuery(
+  originalQuery: string,
+  iterations: ResearchIteration[],
+  context: QueryContext
+): string {
+  const cacheKey = JSON.stringify({ originalQuery, context })
+  
+  if (queryRefinementCache.has(cacheKey)) {
+    return queryRefinementCache.get(cacheKey)!
+  }
+
+  const { currentDepth, maxDepth, recentFindings } = context
+  
+  if (currentDepth >= maxDepth) {
+    return originalQuery
+  }
+
+  const keyTerms = extractKeyTerms(recentFindings)
+  const depthModifiers = getDepthModifiers(currentDepth)
+  
+  const refinedQuery = [
+    originalQuery,
+    ...keyTerms.slice(0, 2),
+    ...depthModifiers
+  ].join(' ')
+
+  queryRefinementCache.set(cacheKey, refinedQuery)
+  return refinedQuery
 }
 
 // Helper function to extract key terms from findings

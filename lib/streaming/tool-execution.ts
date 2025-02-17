@@ -5,10 +5,9 @@ import {
   generateText,
   JSONValue
 } from 'ai'
-import { z } from 'zod'
 import { searchSchema } from '../schema/search'
 import { search } from '../tools/search'
-import { ExtendedCoreMessage } from '../types'
+import { ExtendedCoreMessage } from '../types/index'
 import { getToolCallModel } from '../utils/registry'
 import { parseToolCallXml } from './parse-tool-call'
 
@@ -29,14 +28,6 @@ export async function executeToolCall(
   }
 
   const toolCallModel = getToolCallModel(model)
-  // Convert Zod schema to string representation
-  const searchSchemaString = Object.entries(searchSchema.shape)
-    .map(([key, value]) => {
-      const description = value.description
-      const isOptional = value instanceof z.ZodOptional
-      return `- ${key}${isOptional ? ' (optional)' : ''}: ${description}`
-    })
-    .join('\n')
   const defaultMaxResults = model?.includes('ollama') ? 5 : 20
 
   // Generate tool selection using XML format
@@ -56,13 +47,28 @@ export async function executeToolCall(
                 <search_depth>basic or advanced</search_depth>
                 <include_domains>[]</include_domains>
                 <exclude_domains>[]</exclude_domains>
+                <topic>news or general</topic>
+                <time_range>day, week, month, year</time_range>
+                <include_answer>basic, advanced</include_answer>
+                <include_raw_content>boolean</include_raw_content>
+                <include_images>boolean</include_images>
+                <include_image_descriptions>boolean</include_image_descriptions>
               </parameters>
             </tool_call>
 
             Available tools: search
 
             Search parameters:
-            ${searchSchemaString}
+            - query: The search query text
+            - max_results: Number of results (1-20)
+            - search_depth: basic or advanced
+            - include_domains: List of domains to include
+            - exclude_domains: List of domains to exclude
+            - topic: news or general
+            - time_range: Time range for results
+            - include_answer: Whether to include AI-generated answer
+            - include_raw_content: Whether to include raw content
+            - include_images: Whether to include images
 
             If you don't need a tool, respond with <tool_call><tool></tool></tool_call>`,
     messages: coreMessages
@@ -88,11 +94,20 @@ export async function executeToolCall(
 
   // Support for search tool only for now
   const searchResults = await search(
-    toolCall.parameters?.query ?? '',
-    toolCall.parameters?.max_results,
-    toolCall.parameters?.search_depth as 'basic' | 'advanced',
-    toolCall.parameters?.include_domains ?? [],
-    toolCall.parameters?.exclude_domains ?? []
+    toolCall.parameters?.query ?? '', 
+    {
+      max_results: toolCall.parameters?.max_results,
+      search_depth: toolCall.parameters?.search_depth as 'basic' | 'advanced',
+      include_domains: toolCall.parameters?.include_domains ?? [],
+      exclude_domains: toolCall.parameters?.exclude_domains ?? [],
+      topic: toolCall.parameters?.topic ?? 'general',
+      time_range: toolCall.parameters?.time_range ?? 'w',
+      include_answer: (toolCall.parameters?.include_answer === true ? 'basic' : 
+                      toolCall.parameters?.include_answer === false ? 'none' : 
+                      toolCall.parameters?.include_answer) ?? 'basic',
+      include_raw_content: toolCall.parameters?.include_raw_content ?? false,
+      include_images: toolCall.parameters?.include_images ?? true
+    }
   )
 
   const updatedToolCallAnnotation = {
