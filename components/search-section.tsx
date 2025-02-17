@@ -415,7 +415,7 @@ export function SearchSection({
             onClick={() => setViewMode('image')}
           >
             <ImageIcon className="w-4 h-4 mr-2" />
-            Images
+            Images ({searchResults?.images?.length || 0})
           </Button>
         </div>
 
@@ -428,24 +428,29 @@ export function SearchSection({
           ) : (
             <SearchResultsImageSkeleton />
           )
-        ) : searchResults?.results ? (
+        ) : searchResults ? (
           <>
-            {viewMode === 'grid' && (
+            {viewMode === 'grid' && searchResults.results && (
               <SearchResultsGrid results={searchResults.results} />
             )}
-            {viewMode === 'ranked' && (
+            {viewMode === 'ranked' && searchResults.results && (
               <RankedSearchResults
                 results={searchResults.results}
                 query={query}
                 showMetrics={true}
               />
             )}
-            {viewMode === 'image' && searchResults.images && (
+            {viewMode === 'image' && searchResults.images && searchResults.images.length > 0 ? (
               <SearchResultsImageSection
                 images={searchResults.images}
                 query={query}
+                isLoading={isLoading}
               />
-            )}
+            ) : viewMode === 'image' ? (
+              <div className="text-muted-foreground text-center py-4">
+                No images found for this search
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>

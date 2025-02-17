@@ -1,5 +1,5 @@
 import { ActivityItem, ResearchMetrics, ResearchState } from '@/lib/contexts/research-activity-context'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/server'
 
 export interface ResearchSession {
   id: string
@@ -11,7 +11,7 @@ export interface ResearchSession {
 
 export class ResearchService {
   private static async getOrCreateSession(id: string, userId: string): Promise<ResearchSession> {
-    const supabase = createClient()
+    const supabase = await createClient()
     
     // Try to find existing session
     const { data: existingSession } = await supabase
@@ -42,14 +42,27 @@ export class ResearchService {
     
     return newSession as ResearchSession
   }
-  
+
+  static async getSession(id: string, userId: string): Promise<ResearchSession | null> {
+    const supabase = await createClient()
+    
+    const { data: session } = await supabase
+      .from('research_sessions')
+      .select()
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single()
+    
+    return session as ResearchSession | null
+  }
+
   static async getResearchState(id: string, userId: string): Promise<{
     state: ResearchState
     activities: ActivityItem[]
     metrics: ResearchMetrics
   }> {
     const session = await this.getOrCreateSession(id, userId)
-    const supabase = createClient()
+    const supabase = await createClient()
     
     // Get research state
     const { data: stateData } = await supabase
@@ -103,7 +116,7 @@ export class ResearchService {
     metrics: ResearchMetrics
   ): Promise<void> {
     const session = await this.getOrCreateSession(id, userId)
-    const supabase = createClient()
+    const supabase = await createClient()
     
     const { error } = await supabase
       .from('research_states')
@@ -131,7 +144,7 @@ export class ResearchService {
     if (activity.type !== 'search') return // Only store search activities
     
     const session = await this.getOrCreateSession(id, userId)
-    const supabase = createClient()
+    const supabase = await createClient()
     
     const { error } = await supabase
       .from('search_results')
@@ -155,7 +168,7 @@ export class ResearchService {
     metadata: Record<string, any> = {}
   ): Promise<void> {
     const session = await this.getOrCreateSession(id, userId)
-    const supabase = createClient()
+    const supabase = await createClient()
     
     const { error } = await supabase
       .from('sources')
@@ -172,7 +185,7 @@ export class ResearchService {
   
   static async clearResearchState(id: string, userId: string): Promise<void> {
     const session = await this.getOrCreateSession(id, userId)
-    const supabase = createClient()
+    const supabase = await createClient()
     
     const { error } = await supabase
       .from('research_states')
@@ -181,6 +194,49 @@ export class ResearchService {
     
     if (error) {
       throw new Error(`Failed to clear research state: ${error.message}`)
+    }
+  }
+
+  static async updateState(
+    id: string,
+    userId: string,
+    state: ResearchState
+  ): Promise<void> {
+    const session = await this.getOrCreateSession(id, userId)
+    const supabase = await createClient()
+    
+    const { error } = await supabase
+      .from('research_states')
+      .upsert({
+        session_id: session.id,
+        previous_results: state.previousResults,
+        visualization_data: state.visualizationData,
+        metrics: state.metrics
+      })
+    
+    if (error) {
+      throw new Error(`Failed to update state: ${error.message}`)
+    }
+  }
+
+  static async getState(id: string, userId: string): Promise<ResearchState | null> {
+    const session = await this.getSession(id, userId)
+    if (!session) return null
+    
+    const supabase = await createClient()
+    
+    const { data: state } = await supabase
+      .from('research_states')
+      .select()
+      .eq('session_id', session.id)
+      .single()
+    
+    if (!state) return null
+    
+    return {
+      previousResults: state.previous_results,
+      visualizationData: state.visualization_data,
+      metrics: state.metrics as ResearchMetrics
     }
   }
 } 

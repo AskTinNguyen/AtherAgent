@@ -1,18 +1,17 @@
+import { REDIS_KEYS } from '@/lib/redis/keys'
+import { saveSearchResultsToSupabase } from '@/lib/supabase/search-sources'
 import { type SearchResults } from '@/types/search'
 import { getRedisClient } from './config'
-
-const REDIS_KEYS = {
-  searchResults: (chatId: string, query: string) => 
-    `search:${chatId}:results:${encodeURIComponent(query)}`,
-  searchResultsTTL: 60 * 60 * 24 // 24 hours
-}
 
 export async function storeSearchResults(
   chatId: string,
   query: string,
-  results: SearchResults
+  results: SearchResults,
+  messageId?: string
 ): Promise<void> {
   console.log('Storing search results:', { chatId, query })
+  
+  // Store in Redis for caching
   const redis = await getRedisClient()
   const key = REDIS_KEYS.searchResults(chatId, query)
   console.log('Redis key:', key)
@@ -25,10 +24,47 @@ export async function storeSearchResults(
   console.log('Data size:', data.length, 'bytes')
 
   try {
+    // Store in Redis cache
     await redis.set(key, data, { ex: REDIS_KEYS.searchResultsTTL })
     console.log('Successfully stored results in Redis')
+
+    // Store in Supabase for persistence
+    // Handle both text results and images
+    const textResults = results.items || results.results || []
+    const imageResults = results.images || []
+
+    // Convert images to search results format
+    const imageSearchResults = imageResults.map(image => ({
+      url: image.url,
+      title: image.title || 'Image',
+      content: image.description || '',
+      snippet: image.description,
+      relevance: 1,
+      contentType: 'image',
+      metadata: {
+        type: 'image',
+        thumbnail: image.thumbnail
+      }
+    }))
+
+    // Combine text and image results
+    const allResults = [...textResults, ...imageSearchResults]
+    
+    if (!Array.isArray(allResults)) {
+      console.error('Invalid search results format:', results)
+      throw new Error('Search results must contain either items or results array')
+    }
+    
+    console.log('Processing combined results:', {
+      textResults: textResults.length,
+      imageResults: imageResults.length,
+      totalResults: allResults.length
+    })
+
+    await saveSearchResultsToSupabase(chatId, messageId, allResults)
+    console.log('Successfully stored results in Supabase')
   } catch (error) {
-    console.error('Failed to store results in Redis:', error)
+    console.error('Failed to store results in Supabase:', error)
     throw error
   }
 }

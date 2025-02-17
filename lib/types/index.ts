@@ -1,67 +1,22 @@
-import { CoreMessage, JSONValue, Message } from 'ai'
+import { CoreMessage, JSONValue } from 'ai'
 
-// Search Result Types
-export type SearchResultItem = {
-  title: string
-  url: string
-  content: string
-  relevance: number
-  depth?: number
-}
-
-export interface SearchResults {
+export type SearchResults = {
+  images: SearchResultImage[]
   results: SearchResultItem[]
-  images?: SearchResultImage[]
-  directUrls?: string[]
   number_of_results?: number
+  query: string
 }
 
 // If enabled the include_images_description is true, the images will be an array of { url: string, description: string }
 // Otherwise, the images will be an array of strings
-export type SearchResultImage = {
-  url: string
-  title?: string
-  thumbnail?: string
-}
+export type SearchResultImage =
+  | string
+  | {
+      url: string
+      description: string
+      number_of_results?: number
+    }
 
-// Tool Result Types
-export interface ToolResultContent {
-  type: 'text'
-  text: string
-}
-
-// Research Types
-export interface ResearchDepthConfig {
-  currentDepth: number
-  maxDepth: number
-  minRelevanceScore: number
-  adaptiveThreshold: number
-  depthScores: Record<number, number>
-}
-
-export interface ResearchSourceMetrics {
-  relevanceScore: number
-  depthLevel: number
-  contentQuality: number
-  timeRelevance: number
-  sourceAuthority: number
-  crossValidation?: number
-  coverage?: number
-}
-
-export interface ResearchDepthRules {
-  minRelevanceForNextDepth: number
-  maxSourcesPerDepth: number
-  depthTimeoutMs: number
-  qualityThreshold: number
-}
-
-export type ResearchStage = 'overview' | 'deep_research' | 'verification' | 'report'
-
-// Re-export research types
-export * from './research'
-
-// Provider Types
 export type ExaSearchResults = {
   results: ExaSearchResultItem[]
 }
@@ -73,6 +28,12 @@ export type SerperSearchResults = {
     engine: string
   }
   videos: SerperSearchResultItem[]
+}
+
+export type SearchResultItem = {
+  title: string
+  url: string
+  content: string
 }
 
 export type ExaSearchResultItem = {
@@ -96,17 +57,17 @@ export type SerperSearchResultItem = {
   position: number
 }
 
-// Chat Types
 export interface Chat extends Record<string, any> {
   id: string
   title: string
   createdAt: Date
   userId: string
   path: string
-  messages: ExtendedCoreMessage[]
+  messages: ExtendedCoreMessage[] // Note: Changed from AIMessage to ExtendedCoreMessage
   sharePath?: string
 }
 
+// ExtendedCoreMessage for saveing annotations
 export type ExtendedCoreMessage = Omit<CoreMessage, 'role' | 'content'> & {
   role: CoreMessage['role'] | 'data'
   content: CoreMessage['content'] | JSONValue
@@ -129,7 +90,6 @@ export type AIMessage = {
     | 'end'
 }
 
-// SearXNG Types
 export interface SearXNGResult {
   title: string
   url: string
@@ -152,49 +112,4 @@ export type SearXNGSearchResults = {
   results: SearchResultItem[]
   number_of_results?: number
   query: string
-}
-
-// Attachment Types
-export interface AttachmentFile {
-  id: string
-  file: File
-  type: 'image' | 'document' | 'other'
-  previewUrl?: string
-  status: 'uploading' | 'processing' | 'ready' | 'error'
-  progress?: number
-  error?: string
-}
-
-// Research Source Types
-export interface ResearchSource {
-  id: string
-  url: string
-  title?: string
-  relevance?: number
-  snippet?: string
-}
-
-export interface MultimodalMessage extends Message {
-  attachments?: AttachmentFile[]
-  sources?: ResearchSource[]
-}
-
-export interface AutocompleteSuggestion {
-  id: string
-  text: string
-  confidence: number
-  source?: ResearchSource
-}
-
-export interface SearchSource {
-  url: string
-  title?: string
-  snippet?: string
-  timestamp: number
-  messageId: string
-  searchQuery?: string
-}
-
-export interface ExtendedMessage extends Message {
-  searchSources?: SearchSource[]
 }

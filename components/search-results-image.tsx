@@ -3,31 +3,28 @@
 
 import { Card, CardContent } from '@/components/ui/card'
 import {
-    Carousel,
-    type CarouselApi,
-    CarouselContent,
-    CarouselItem,
-    CarouselNext,
-    CarouselPrevious
+  Carousel,
+  type CarouselApi,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious
 } from '@/components/ui/carousel'
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
 } from '@/components/ui/dialog'
+import { type SearchImage } from '@/lib/types/search'
 import { PlusCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { SearchResultsImageSkeleton } from './skeletons'
 
 interface SearchResultsImageSectionProps {
-  images: {
-    url: string
-    title: string
-    thumbnail?: string
-  }[]
+  images: SearchImage[]
   query?: string
   isLoading?: boolean
 }
@@ -65,15 +62,9 @@ export function SearchResultsImageSection({ images, query, isLoading = false }: 
     return <div className="text-muted-foreground">No images found</div>
   }
 
-  // Update the image conversion logic
-  let convertedImages = images.map(image => ({
-    url: image.url,
-    description: image.title
-  }))
-
   return (
     <div className="flex flex-wrap gap-2">
-      {convertedImages.slice(0, 4).map((image, index) => (
+      {images.slice(0, 4).map((image, index) => (
         <Dialog key={`${image.url}-${index}`}>
           <DialogTrigger asChild>
             <div
@@ -84,12 +75,17 @@ export function SearchResultsImageSection({ images, query, isLoading = false }: 
                 <CardContent className="p-2 h-full w-full">
                   {image ? (
                     <img
-                      src={image.url}
-                      alt={`Image ${index + 1}`}
+                      src={image.thumbnail || image.url}
+                      alt={image.title || `Image ${index + 1}`}
                       className="h-full w-full object-cover"
-                      onError={e =>
-                        (e.currentTarget.src = '/images/placeholder-image.png')
+                      onError={e => {
+                        // If thumbnail fails, try the main URL
+                        if (e.currentTarget.src === image.thumbnail) {
+                          e.currentTarget.src = image.url
+                        } else {
+                          e.currentTarget.src = '/images/placeholder-image.png'
                       }
+                      }}
                     />
                   ) : (
                     <div className="w-full h-full bg-muted animate-pulse" />
@@ -105,8 +101,12 @@ export function SearchResultsImageSection({ images, query, isLoading = false }: 
           </DialogTrigger>
           <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-auto">
             <DialogHeader>
-              <DialogTitle>Search Images</DialogTitle>
-              <DialogDescription className="text-sm">{query}</DialogDescription>
+              <DialogTitle>{image.title || 'Search Image'}</DialogTitle>
+              {(query || image.description) && (
+                <DialogDescription className="text-sm">
+                  {image.description || query}
+                </DialogDescription>
+              )}
             </DialogHeader>
             <div className="py-4">
               <Carousel
@@ -114,12 +114,12 @@ export function SearchResultsImageSection({ images, query, isLoading = false }: 
                 className="w-full bg-muted max-h-[60vh]"
               >
                 <CarouselContent>
-                  {convertedImages.map((img, idx) => (
+                  {images.map((img, idx) => (
                     <CarouselItem key={`${img.url}-${idx}`}>
                       <div className="p-1 flex items-center justify-center h-full">
                         <img
                           src={img.url}
-                          alt={`Image ${idx + 1}`}
+                          alt={img.title || `Image ${idx + 1}`}
                           className="h-auto w-full object-contain max-h-[60vh]"
                           onError={e =>
                             (e.currentTarget.src =
