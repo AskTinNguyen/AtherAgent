@@ -51,7 +51,7 @@ export function CollapsibleMessage({
       {isCollapsible ? (
         <div
           className={cn(
-            'flex-1 rounded-2xl p-4 max-h-[40vh] overflow-y-auto',
+            'flex-1 rounded-2xl p-4',
             showBorder && 'border border-border/50'
           )}
         >

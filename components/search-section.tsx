@@ -390,7 +390,7 @@ export function SearchSection({
       isOpen={isOpen}
       onOpenChange={onOpenChange}
     >
-      <div className="space-y-6">
+      <div className="space-y-6 max-h-[40vh] overflow-y-auto">
         {/* View Mode Controls */}
         <div className="flex gap-2 justify-end">
           <Button
