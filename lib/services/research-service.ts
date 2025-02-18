@@ -1,5 +1,5 @@
 import { ActivityItem, ResearchMetrics, ResearchState } from '@/lib/contexts/research-activity-context'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'; //TIN: use server in order to allow RLS Supabase policies to be correctly enforced, handling authentication context from cookies
 
 export interface ResearchSession {
   id: string

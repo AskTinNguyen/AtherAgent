@@ -163,7 +163,24 @@ export async function handleStreamFinish({
         id: chatId
       }
 
-      // Save chat with complete response and related questions
+      // Preserve existing search results and data messages
+      const existingDataMessages = savedChat.messages.filter(msg => 
+        msg.role === 'data' && 
+        msg.content && 
+        typeof msg.content === 'object' &&
+        msg.content !== null &&
+        'type' in msg.content && 
+        typeof msg.content.type === 'string' &&
+        ['search_results', 'tool_call'].includes(msg.content.type)
+      )
+
+      // Merge existing data messages with new generated messages
+      const mergedMessages = [
+        ...existingDataMessages,
+        ...generatedMessages
+      ]
+
+      // Save chat with complete response and related questions while preserving search results
       let retryCount = 0;
       const maxRetries = 3;
       
@@ -171,7 +188,7 @@ export async function handleStreamFinish({
         try {
           await saveChat({
             ...savedChat,
-            messages: generatedMessages
+            messages: mergedMessages
           });
           break; // If successful, break out of retry loop
         } catch (error) {
