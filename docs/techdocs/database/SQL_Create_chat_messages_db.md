@@ -3,7 +3,7 @@
 ## Overview
 The `chat_messages` table stores all chat interactions, research outputs, and search results. It supports message threading, multiple message types, and maintains relationships with research sessions and users.
 
-For the complete SQL implementation, see: [SQL FILE](../../../supabase/migrations/create_chat_db.sql)
+For the complete SQL implementation, see: [`supabase/migrations/create_chat_db.sql`](../../supabase/migrations/create_chat_db.sql)
 
 ## Schema Structure
 
@@ -26,6 +26,62 @@ For the complete SQL implementation, see: [SQL FILE](../../../supabase/migration
    - assistant
    - system
    - data
+
+## Message Threading Implementation
+
+### Current Implementation
+We use a parent-child relationship model where:
+- User messages are independent (no parent_id)
+- Each AI response is linked to the user message it's responding to
+- Threading is maintained through parent_message_id references
+
+Example flow:
+```
+User Message 1 (no parent)
+└── AI Response 1 (parent: User Message 1)
+User Message 2 (no parent)
+└── AI Response 2 (parent: User Message 2)
+```
+
+### Threading Rules
+1. User Messages:
+   - Always created without parent_message_id
+   - Represent new thoughts/questions in the conversation
+   - Can be queried as conversation starters
+
+2. AI Responses:
+   - Must have parent_message_id linking to the user message they're responding to
+   - Created in two steps:
+     a. Initial empty message with parent link
+     b. Updated with content when streaming completes
+
+### Future Threading Considerations
+Several approaches are being considered for handling longer conversation chains:
+
+1. **Thread ID with Sequence**
+   - Linear conversation tracking
+   - Simple ordering by sequence
+   - Good for straightforward dialogs
+
+2. **Linked List Model**
+   - Direct parent-child relationships
+   - Easy backward traversal
+   - Simple implementation
+
+3. **Adjacency List with Depth**
+   - Supports branching conversations
+   - Easy level-based queries
+   - Maintains conversation hierarchy
+
+4. **Materialized Path**
+   - Complete conversation path tracking
+   - Easy ancestor/descendant queries
+   - Good for complex hierarchies
+
+5. **Hybrid Approach**
+   - Combines thread IDs with parent references
+   - Supports both linear and branching conversations
+   - More flexible but complex implementation
 
 ## Key Columns
 
@@ -67,28 +123,7 @@ For the complete SQL implementation, see: [SQL FILE](../../../supabase/migration
    - JSONB for flexible metadata storage
    - Automatic timestamp management
 
-## Common Metadata Structures
 
-### User Message
-```json
-{
-    "client_timestamp": "2024-03-20T10:00:00Z",
-    "client_info": {
-        "browser": "Chrome",
-        "platform": "macOS"
-    }
-}
-```
-
-### AI Response
-```json
-{
-    "model": "gpt-4",
-    "temperature": 0.7,
-    "tokens_used": 150,
-    "processing_time": 2.5
-}
-```
 
 ## Best Practices
 
@@ -105,40 +140,7 @@ For the complete SQL implementation, see: [SQL FILE](../../../supabase/migration
 
 ## Table Structure
 
-```sql
-CREATE TABLE chat_messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES profiles(id),
-    research_session_id UUID REFERENCES research_sessions(id),
-    message_type message_type,
-    content TEXT,
-    metadata JSONB DEFAULT '{}'::jsonb,
-    parent_message_id UUID REFERENCES chat_messages(id),
-    thread_id UUID,
-    sequence_number BIGINT,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now(),
-    search_query TEXT,
-    search_source TEXT,
-    tool_name TEXT,
-    is_visible BOOLEAN DEFAULT true,
-    is_edited BOOLEAN DEFAULT false,
-    depth_level INTEGER DEFAULT 1
-);
-```
 
-## Message Types Enum
-
-```sql
-CREATE TYPE message_type AS ENUM (
-    'user_prompt',
-    'ai_response',
-    'search_results',
-    'summary',
-    'error',
-    'system'
-);
-```
 
 ## Columns
 
@@ -169,177 +171,6 @@ CREATE TYPE message_type AS ENUM (
 - `parent_message_id` self-references `chat_messages(id)`
 - Related to `sources` table through message references
 
-## Indexes
-
-```sql
--- Primary key index (automatic)
-CREATE INDEX idx_chat_messages_research_session 
-    ON chat_messages(research_session_id);
-CREATE INDEX idx_chat_messages_user 
-    ON chat_messages(user_id);
-CREATE INDEX idx_chat_messages_thread 
-    ON chat_messages(thread_id);
-CREATE INDEX idx_chat_messages_parent 
-    ON chat_messages(parent_message_id);
-CREATE INDEX idx_chat_messages_type 
-    ON chat_messages(message_type);
-CREATE INDEX idx_chat_messages_sequence 
-    ON chat_messages(research_session_id, sequence_number);
-```
-
-## Triggers
-
-```sql
--- Update timestamp trigger
-CREATE OR REPLACE FUNCTION update_chat_messages_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_chat_messages_timestamp
-    BEFORE UPDATE ON chat_messages
-    FOR EACH ROW
-    EXECUTE FUNCTION update_chat_messages_updated_at();
-
--- Auto-generate sequence numbers
-CREATE OR REPLACE FUNCTION generate_message_sequence()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.sequence_number = (
-        SELECT COALESCE(MAX(sequence_number), 0) + 1
-        FROM chat_messages
-        WHERE research_session_id = NEW.research_session_id
-    );
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER set_message_sequence
-    BEFORE INSERT ON chat_messages
-    FOR EACH ROW
-    WHEN (NEW.sequence_number IS NULL)
-    EXECUTE FUNCTION generate_message_sequence();
-```
-
-## Security Policies
-
-```sql
-ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
-
--- Read access
-CREATE POLICY "Enable read access for session participants"
-    ON chat_messages FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM research_sessions
-            WHERE research_sessions.id = chat_messages.research_session_id
-            AND research_sessions.user_id = auth.uid()
-        )
-    );
-
--- Insert access
-CREATE POLICY "Enable insert for session participants"
-    ON chat_messages FOR INSERT
-    WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM research_sessions
-            WHERE research_sessions.id = chat_messages.research_session_id
-            AND research_sessions.user_id = auth.uid()
-        )
-    );
-
--- Update access
-CREATE POLICY "Enable update for message owners"
-    ON chat_messages FOR UPDATE
-    USING (user_id = auth.uid());
-```
-
-## Common Queries
-
-### Get Thread Messages
-```sql
-SELECT *
-FROM chat_messages
-WHERE thread_id = '[thread_id]'
-ORDER BY sequence_number;
-```
-
-### Get Session Messages with Sources
-```sql
-SELECT 
-    cm.*,
-    json_agg(s.*) as sources
-FROM chat_messages cm
-LEFT JOIN sources s ON s.message_id = cm.id
-WHERE cm.research_session_id = '[session_id]'
-GROUP BY cm.id
-ORDER BY cm.sequence_number;
-```
-
-### Get Message Tree
-```sql
-WITH RECURSIVE message_tree AS (
-    -- Base case: root message
-    SELECT 
-        id,
-        parent_message_id,
-        content,
-        1 as level
-    FROM chat_messages
-    WHERE id = '[root_message_id]'
-    
-    UNION ALL
-    
-    -- Recursive case: child messages
-    SELECT 
-        cm.id,
-        cm.parent_message_id,
-        cm.content,
-        mt.level + 1
-    FROM chat_messages cm
-    JOIN message_tree mt ON cm.parent_message_id = mt.id
-)
-SELECT * FROM message_tree;
-```
-
-## JSONB Metadata Structure Examples
-
-### User Message
-```json
-{
-    "client_timestamp": "2024-03-20T10:00:00Z",
-    "client_info": {
-        "browser": "Chrome",
-        "version": "122.0.0",
-        "platform": "macOS"
-    }
-}
-```
-
-### AI Response
-```json
-{
-    "model": "gpt-4",
-    "temperature": 0.7,
-    "tokens_used": 150,
-    "processing_time": 2.5
-}
-```
-
-### Search Results
-```json
-{
-    "total_results": 10,
-    "search_time": 1.2,
-    "filters_applied": {
-        "date_range": "past_year",
-        "source_types": ["academic", "news"]
-    }
-}
-```
 
 ## Implementation Notes
 
