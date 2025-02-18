@@ -1,7 +1,7 @@
 'use client'
 
 import { ErrorBoundary } from '@/components/shared/error-boundary'
-import { useDepth } from '@/lib/contexts/research-provider'
+import { useResearch } from '@/lib/contexts/research-context'
 import { cn } from '@/lib/utils'
 import type { HighlightData, VisualizationData } from '@/lib/utils/research-diff'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -19,7 +19,8 @@ function ResearchDiffViewContent({
   onHighlightSelect,
   onModeChange
 }: ResearchDiffViewProps) {
-  const { state: depthState } = useDepth()
+  const { state: researchState } = useResearch()
+  const { current: currentDepth, max: maxDepth } = researchState.depth
   const [activeMode, setActiveMode] = React.useState(visualization.interactionState.comparisonMode)
   const [expandedSections, setExpandedSections] = React.useState(new Set(visualization.interactionState.expandedSections))
 
@@ -67,7 +68,7 @@ function ResearchDiffViewContent({
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Research Progress</h2>
           <p className="text-gray-600 dark:text-gray-300 mt-1">
-            Depth Level {depthState.currentDepth} of {depthState.maxDepth}
+            Depth Level {currentDepth} of {maxDepth}
           </p>
         </div>
         <div className="flex gap-3">

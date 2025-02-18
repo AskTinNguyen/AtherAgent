@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { useResearchContext } from '@/lib/contexts/research-activity-context'
+import { useResearch } from '@/lib/contexts/research-context'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { Maximize2, Minimize2, Trash2 } from 'lucide-react'
@@ -25,8 +25,8 @@ export function ResearchHeader({
   onClearAll,
   location
 }: ResearchHeaderProps) {
-  const { state, activity } = useResearchContext()
-  const currentActivity = activity[activity.length - 1]
+  const { state } = useResearch()
+  const currentActivity = state.activity[state.activity.length - 1]
 
   const glowVariants = {
     initial: { opacity: 0.5 },

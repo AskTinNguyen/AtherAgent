@@ -4,7 +4,7 @@ import { ErrorBoundary } from '@/components/shared/error-boundary'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { useSources } from '@/lib/contexts/research-provider'
+import { useResearch } from '@/lib/contexts/research-context'
 import { compareSearchResults } from '@/lib/diff'
 import { DiffResult } from '@/lib/diff/types'
 import { SearchResult as BaseSearchResult } from '@/lib/types'
@@ -46,7 +46,10 @@ function SearchResultsContent({
   className,
   userId = 'anonymous'
 }: SearchResultsProps) {
-  const { state: sourcesState, addSource } = useSources()
+  const { 
+    state: researchState,
+    addSource 
+  } = useResearch()
   const [showAllResults, setShowAllResults] = useState(false)
   const [diffResult, setDiffResult] = useState<DiffResult | null>(null)
   const [starredResults, setStarredResults] = useState<Set<string>>(new Set())
@@ -59,21 +62,34 @@ function SearchResultsContent({
     }
   }, [results, previousResults, showDiff])
 
-  // Add results to sources context
+  // Add results to research context
   useEffect(() => {
     results.forEach(result => {
-      if (!sourcesState.sources.some(s => s.url === result.url)) {
+      if (!researchState.sources.some(s => s.url === result.url)) {
+        const relevanceScore = result.relevance || 0
+        const publishedDate = result.timestamp ? new Date(result.timestamp) : new Date()
+        const now = new Date()
+        const ageInDays = Math.floor((now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60 * 24))
+        const timeRelevanceScore = Math.max(0, 1 - (ageInDays / 365))
+
         addSource({
+          id: crypto.randomUUID(),
           url: result.url,
           title: result.title || '',
-          relevance: result.relevance,
+          relevance: relevanceScore,
           content: result.content,
-          query: result.metadata?.query,
-          publishedDate: result.timestamp ? new Date(result.timestamp).toISOString() : undefined
+          query: result.metadata?.query || '',
+          publishedDate: result.timestamp ? new Date(result.timestamp).toISOString() : new Date().toISOString(),
+          timestamp: new Date().toISOString(),
+          quality: {
+            contentQuality: relevanceScore,
+            sourceAuthority: result.quality?.authority || relevanceScore,
+            timeRelevance: timeRelevanceScore
+          }
         })
       }
     })
-  }, [results, sourcesState.sources, addSource])
+  }, [results, researchState.sources, addSource])
 
   const handleViewMore = () => {
     setShowAllResults(true)

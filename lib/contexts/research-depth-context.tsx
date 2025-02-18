@@ -2,7 +2,7 @@
 
 import { ResearchDepthConfig, ResearchSourceMetrics } from '@/lib/types/research'
 import { optimizeDepthStrategy, shouldIncreaseDepth } from '@/lib/utils/research-depth'
-import { createContext, useContext, useReducer, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useReducer, type ReactNode } from 'react'
 
 // Types
 interface DepthState {
@@ -21,6 +21,11 @@ interface DepthContextType {
   setDepth: (current: number, max: number) => void
   optimizeDepth: (sourceMetrics: ResearchSourceMetrics[]) => void
   clearDepth: () => void
+}
+
+interface DepthProviderProps {
+  children: ReactNode
+  onDepthChange?: (current: number, max: number) => void
 }
 
 // Initial state
@@ -90,16 +95,20 @@ function depthReducer(state: DepthState, action: DepthAction): DepthState {
 const DepthContext = createContext<DepthContextType | null>(null)
 
 // Provider
-export function DepthProvider({ children }: { children: ReactNode }) {
+export function DepthProvider({ 
+  children,
+  onDepthChange
+}: DepthProviderProps) {
   const [state, dispatch] = useReducer(depthReducer, initialState)
 
-  const setDepth = (current: number, max: number) => {
+  const setDepth = useCallback((current: number, max: number) => {
     dispatch({ type: 'SET_DEPTH', payload: { current, max } })
-  }
+    onDepthChange?.(current, max)
+  }, [onDepthChange])
 
-  const optimizeDepth = (sourceMetrics: ResearchSourceMetrics[]) => {
+  const optimizeDepth = useCallback((sourceMetrics: ResearchSourceMetrics[]) => {
     dispatch({ type: 'OPTIMIZE_DEPTH', payload: { sourceMetrics } })
-  }
+  }, [])
 
   const clearDepth = () => {
     dispatch({ type: 'CLEAR_DEPTH' })

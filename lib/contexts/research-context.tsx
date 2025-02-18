@@ -1,73 +1,17 @@
 'use client'
 
-import { ResearchSourceMetrics, type ResearchSuggestion } from '@/lib/types/research'
-import { calculateSourceMetrics, optimizeDepthStrategy, shouldIncreaseDepth } from '@/lib/utils/research-depth'
+import { type ResearchActivity, type ResearchSource, type ResearchState, type SourceMetrics } from '@/lib/types/research-enhanced'
+import { optimizeDepthStrategy, shouldIncreaseDepth } from '@/lib/utils/research-depth'
 import { createContext, useCallback, useContext, useReducer, type ReactNode } from 'react'
-import { ResearchActivityProvider } from './research-activity-context'
-import { DepthProvider } from './research-depth-context'
-import { SourcesProvider } from './research-sources-context'
 
-// Types
-export interface ResearchActivity {
-  type: 'search' | 'extract' | 'analyze' | 'reasoning' | 'synthesis' | 'thought'
-  status: 'pending' | 'complete' | 'error'
-  message: string
-  timestamp: string
-  depth?: number
+// Types for depth configuration
+interface DepthConfig {
+  currentDepth: number
+  maxDepth: number
+  minRelevanceScore: number
+  adaptiveThreshold: number
+  depthScores: Record<number, number>
 }
-
-export interface ResearchSource {
-  url: string
-  title: string
-  relevance: number
-  content?: string
-  query?: string
-  publishedDate?: string
-  timestamp: number
-  quality: {
-    contentQuality: number
-    sourceAuthority: number
-    timeRelevance: number
-  }
-}
-
-export interface ResearchState {
-  // Core state
-  isActive: boolean
-  searchEnabled: boolean
-  
-  // Depth management
-  depth: {
-    current: number
-    max: number
-    config: {
-      minRelevanceScore: number
-      adaptiveThreshold: number
-      depthScores: Record<number, number>
-    }
-  }
-  
-  // Research data
-  activity: ResearchActivity[]
-  sources: ResearchSource[]
-  sourceMetrics: ResearchSourceMetrics[]
-  suggestions: ResearchSuggestion[]
-  
-  // Progress tracking
-  completedSteps: number
-  totalExpectedSteps: number
-}
-
-// Actions
-type ResearchAction =
-  | { type: 'TOGGLE_SEARCH' }
-  | { type: 'SET_DEPTH'; payload: { current: number; max: number } }
-  | { type: 'START_RESEARCH' }
-  | { type: 'STOP_RESEARCH' }
-  | { type: 'ADD_ACTIVITY'; payload: ResearchActivity & { completedSteps?: number; totalSteps?: number } }
-  | { type: 'ADD_SOURCE'; payload: ResearchSource }
-  | { type: 'UPDATE_PROGRESS'; payload: { completed: number; total: number } }
-  | { type: 'CLEAR_STATE' }
 
 // Initial state
 const initialState: ResearchState = {
@@ -86,72 +30,40 @@ const initialState: ResearchState = {
   sources: [],
   sourceMetrics: [],
   suggestions: [],
+  messages: [],
   completedSteps: 0,
   totalExpectedSteps: 0
 }
 
+// Actions
+type ResearchAction =
+  | { type: 'SET_MESSAGES'; payload: ResearchState['messages'] }
+  | { type: 'ADD_MESSAGE'; payload: { role: 'user' | 'assistant'; content: string; timestamp?: string } }
+  | { type: 'ADD_ACTIVITY'; payload: ResearchActivity }
+  | { type: 'ADD_SOURCE'; payload: ResearchSource }
+  | { type: 'SET_DEPTH'; payload: { current: number; max: number } }
+  | { type: 'UPDATE_PROGRESS'; payload: { completed: number; total: number } }
+  | { type: 'TOGGLE_SEARCH' }
+  | { type: 'CLEAR_STATE' }
+  | { type: 'CLEAR_SOURCES' }
+
 // Reducer
 function researchReducer(state: ResearchState, action: ResearchAction): ResearchState {
   switch (action.type) {
-    case 'TOGGLE_SEARCH':
+    case 'SET_MESSAGES':
       return {
         ...state,
-        searchEnabled: !state.searchEnabled,
-        // Reset research when disabling search
-        ...(state.searchEnabled && {
-          isActive: false,
-          activity: [],
-          sources: [],
-          sourceMetrics: [],
-          suggestions: [],
-          completedSteps: 0,
-          totalExpectedSteps: 0
-        })
+        messages: action.payload
       }
 
-    case 'SET_DEPTH':
+    case 'ADD_MESSAGE':
       return {
         ...state,
-        depth: {
-          ...state.depth,
-          current: action.payload.current,
-          max: action.payload.max,
-          config: {
-            ...state.depth.config,
-            depthScores: {
-              ...state.depth.config.depthScores,
-              [action.payload.current]: 0
-            }
-          }
-        }
-      }
-
-    case 'START_RESEARCH':
-      return {
-        ...state,
-        isActive: true,
-        completedSteps: 0,
-        activity: [
-          ...state.activity,
-          {
-            type: 'search',
-            status: 'pending',
-            message: 'Initializing research...',
-            timestamp: new Date().toISOString(),
-            depth: state.depth.current
-          }
-        ]
-      }
-
-    case 'STOP_RESEARCH':
-      return {
-        ...state,
-        isActive: false,
-        activity: state.activity.map(item =>
-          item.status === 'pending'
-            ? { ...item, status: 'complete', timestamp: new Date().toISOString() }
-            : item
-        )
+        messages: [...state.messages, {
+          role: action.payload.role,
+          content: action.payload.content,
+          timestamp: action.payload.timestamp || new Date().toISOString()
+        }]
       }
 
     case 'ADD_ACTIVITY':
@@ -159,76 +71,55 @@ function researchReducer(state: ResearchState, action: ResearchAction): Research
         ...state,
         activity: [...state.activity, {
           ...action.payload,
-          timestamp: new Date().toISOString(),
-          status: action.payload.status || 'pending'
-        }],
-        completedSteps: action.payload.completedSteps ?? 
-          (action.payload.status === 'complete' ? state.completedSteps + 1 : state.completedSteps),
-        totalExpectedSteps: action.payload.totalSteps ?? state.totalExpectedSteps
+          timestamp: new Date().toISOString()
+        }]
       }
 
     case 'ADD_SOURCE': {
-      const { url, title, relevance, content, query, publishedDate } = action.payload
-      const existingSourceIndex = state.sources.findIndex(s => s.url === url)
+      const existingSourceIndex = state.sources.findIndex(s => s.url === action.payload.url)
       
-      const metrics = calculateSourceMetrics(
-        content || '',
-        query || '',
-        url,
-        publishedDate
-      )
-      
-      const updatedSourceMetrics = [...state.sourceMetrics]
-      if (existingSourceIndex !== -1) {
-        updatedSourceMetrics[existingSourceIndex] = {
-          ...metrics,
-          depthLevel: state.depth.current
-        }
-      } else {
-        updatedSourceMetrics.push({
-          ...metrics,
-          depthLevel: state.depth.current
-        })
+      // Calculate metrics for the source
+      const metrics: SourceMetrics = {
+        contentQuality: action.payload.quality.contentQuality,
+        sourceAuthority: action.payload.quality.sourceAuthority,
+        timeRelevance: action.payload.quality.timeRelevance,
+        depthLevel: state.depth.current,
+        overallScore: (
+          action.payload.quality.contentQuality +
+          action.payload.quality.sourceAuthority +
+          action.payload.quality.timeRelevance
+        ) / 3
       }
       
-      // Check if we should increase depth
-      const shouldIncrease = shouldIncreaseDepth(
-        { 
-          currentDepth: state.depth.current,
-          maxDepth: state.depth.max,
-          ...state.depth.config
-        },
-        updatedSourceMetrics
-      )
-      
-      const newDepth = shouldIncrease ? state.depth.current + 1 : state.depth.current
-      
-      // Optimize depth strategy
-      const newConfig = optimizeDepthStrategy({
-        currentDepth: newDepth,
-        maxDepth: state.depth.max,
-        ...state.depth.config
-      }, updatedSourceMetrics)
+      // Update sources and metrics
+      const updatedSources = existingSourceIndex !== -1
+        ? state.sources.map((source, index) => 
+            index === existingSourceIndex ? action.payload : source
+          )
+        : [...state.sources, action.payload]
+        
+      const updatedMetrics = existingSourceIndex !== -1
+        ? state.sourceMetrics.map((metric, index) =>
+            index === existingSourceIndex ? metrics : metric
+          )
+        : [...state.sourceMetrics, metrics]
       
       return {
         ...state,
-        sources: existingSourceIndex !== -1
-          ? state.sources.map((source, index) => 
-              index === existingSourceIndex ? action.payload : source
-            )
-          : [...state.sources, action.payload],
-        sourceMetrics: updatedSourceMetrics,
-        depth: {
-          ...state.depth,
-          current: newDepth,
-          config: {
-            minRelevanceScore: newConfig.minRelevanceScore,
-            adaptiveThreshold: newConfig.adaptiveThreshold,
-            depthScores: newConfig.depthScores
-          }
-        }
+        sources: updatedSources,
+        sourceMetrics: updatedMetrics
       }
     }
+
+    case 'SET_DEPTH':
+      return {
+        ...state,
+        depth: {
+          ...state.depth,
+          current: action.payload.current,
+          max: action.payload.max
+        }
+      }
 
     case 'UPDATE_PROGRESS':
       return {
@@ -237,8 +128,22 @@ function researchReducer(state: ResearchState, action: ResearchAction): Research
         totalExpectedSteps: action.payload.total
       }
 
+    case 'TOGGLE_SEARCH':
+      return {
+        ...state,
+        searchEnabled: !state.searchEnabled,
+        isActive: !state.searchEnabled // Sync isActive with searchEnabled
+      }
+
     case 'CLEAR_STATE':
       return initialState
+
+    case 'CLEAR_SOURCES':
+      return {
+        ...state,
+        sources: [],
+        sourceMetrics: []
+      }
 
     default:
       return state
@@ -248,44 +153,52 @@ function researchReducer(state: ResearchState, action: ResearchAction): Research
 // Context
 interface ResearchContextType {
   state: ResearchState
-  toggleSearch: () => void
-  setDepth: (current: number, max: number) => void
-  startResearch: () => void
-  stopResearch: () => void
-  addActivity: (activity: ResearchActivity & { completedSteps?: number; totalSteps?: number }) => void
+  setMessages: (messages: ResearchState['messages']) => void
+  addMessage: (message: { role: 'user' | 'assistant'; content: string; timestamp?: string }) => void
+  addActivity: (activity: ResearchActivity) => void
   addSource: (source: ResearchSource) => void
+  setDepth: (current: number, max: number) => void
   updateProgress: (completed: number, total: number) => void
   clearState: () => void
+  optimizeDepth: (sourceMetrics: SourceMetrics[]) => void
+  toggleSearch: () => void
+  getSources: () => ResearchSource[]
+  getSourceMetrics: () => SourceMetrics[]
+  clearSources: () => void
 }
 
-const ResearchContext = createContext<ResearchContextType | null>(null)
+const ResearchContext = createContext<ResearchContextType | undefined>(undefined)
 
 // Provider
 export function ResearchProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(researchReducer, initialState)
 
-  const toggleSearch = useCallback(() => {
-    dispatch({ type: 'TOGGLE_SEARCH' })
+  const setMessages = useCallback((messages: ResearchState['messages']) => {
+    if (!Array.isArray(messages)) {
+      console.warn('Invalid messages format:', messages)
+      return
+    }
+    dispatch({ type: 'SET_MESSAGES', payload: messages })
   }, [])
 
-  const setDepth = useCallback((current: number, max: number) => {
-    dispatch({ type: 'SET_DEPTH', payload: { current, max } })
+  const addMessage = useCallback((message: { role: 'user' | 'assistant'; content: string; timestamp?: string }) => {
+    if (!message.content?.trim()) {
+      console.warn('Empty message content:', message)
+      return
+    }
+    dispatch({ type: 'ADD_MESSAGE', payload: message })
   }, [])
 
-  const startResearch = useCallback(() => {
-    dispatch({ type: 'START_RESEARCH' })
-  }, [])
-
-  const stopResearch = useCallback(() => {
-    dispatch({ type: 'STOP_RESEARCH' })
-  }, [])
-
-  const addActivity = useCallback((activity: ResearchActivity & { completedSteps?: number; totalSteps?: number }) => {
+  const addActivity = useCallback((activity: ResearchActivity) => {
     dispatch({ type: 'ADD_ACTIVITY', payload: activity })
   }, [])
 
   const addSource = useCallback((source: ResearchSource) => {
     dispatch({ type: 'ADD_SOURCE', payload: source })
+  }, [])
+
+  const setDepth = useCallback((current: number, max: number) => {
+    dispatch({ type: 'SET_DEPTH', payload: { current, max } })
   }, [])
 
   const updateProgress = useCallback((completed: number, total: number) => {
@@ -296,27 +209,63 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'CLEAR_STATE' })
   }, [])
 
+  const toggleSearch = useCallback(() => {
+    dispatch({ type: 'TOGGLE_SEARCH' })
+  }, [])
+
+  const optimizeDepth = useCallback((sourceMetrics: SourceMetrics[]) => {
+    const { depth } = state
+    
+    const depthConfig: DepthConfig = {
+      currentDepth: depth.current,
+      maxDepth: depth.max,
+      ...depth.config
+    }
+    
+    if (!shouldIncreaseDepth(depthConfig, sourceMetrics)) {
+      return
+    }
+    
+    const newDepth = depth.current + 1
+    const newConfig = optimizeDepthStrategy({
+      ...depthConfig,
+      currentDepth: newDepth
+    }, sourceMetrics)
+
+    setDepth(newDepth, depth.max)
+  }, [state.depth, setDepth])
+
+  const getSources = useCallback(() => {
+    return state.sources
+  }, [state.sources])
+
+  const getSourceMetrics = useCallback(() => {
+    return state.sourceMetrics
+  }, [state.sourceMetrics])
+
+  const clearSources = useCallback(() => {
+    dispatch({ type: 'CLEAR_SOURCES' })
+  }, [])
+
   return (
     <ResearchContext.Provider
       value={{
         state,
-        toggleSearch,
-        setDepth,
-        startResearch,
-        stopResearch,
+        setMessages,
+        addMessage,
         addActivity,
         addSource,
+        setDepth,
         updateProgress,
-        clearState
+        clearState,
+        optimizeDepth,
+        toggleSearch,
+        getSources,
+        getSourceMetrics,
+        clearSources
       }}
     >
-      <ResearchActivityProvider>
-        <DepthProvider>
-          <SourcesProvider>
-            {children}
-          </SourcesProvider>
-        </DepthProvider>
-      </ResearchActivityProvider>
+      {children}
     </ResearchContext.Provider>
   )
 }
@@ -324,7 +273,7 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
 // Hook
 export function useResearch() {
   const context = useContext(ResearchContext)
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useResearch must be used within a ResearchProvider')
   }
   return context

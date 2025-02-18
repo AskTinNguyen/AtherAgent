@@ -25,7 +25,7 @@ export function StoredSearchResults({ chatId, onResultsFound }: StoredSearchResu
 
   React.useEffect(() => {
     async function fetchStoredResults() {
-      if (!query || !chatId) {
+      if (!chatId) {
         setIsLoading(false)
         return
       }
@@ -33,7 +33,9 @@ export function StoredSearchResults({ chatId, onResultsFound }: StoredSearchResu
       try {
         const supabase = await createClient()
         
-        // Query sources directly using chatId as research_session_id
+        console.log('Querying sources for research session:', chatId)
+        
+        // Query sources directly using chatId as research_session_id (since Chat component uses the same ID)
         const { data, error } = await supabase
           .from('sources')
           .select(`
@@ -43,14 +45,27 @@ export function StoredSearchResults({ chatId, onResultsFound }: StoredSearchResu
             content,
             relevance,
             metadata,
-            created_at
+            created_at,
+            session_id
           `)
           .eq('session_id', chatId)
           .order('relevance', { ascending: false })
 
         if (error) {
+          console.error('Error querying sources:', {
+            error,
+            sessionId: chatId,
+            query
+          })
           throw error
         }
+
+        console.log('Sources query result:', {
+          resultCount: data?.length ?? 0,
+          sessionId: chatId,
+          firstResult: data?.[0],
+          query
+        })
 
         if (data && data.length > 0) {
           // Transform the data to match SearchResultItem type
@@ -134,7 +149,9 @@ export function StoredSearchResults({ chatId, onResultsFound }: StoredSearchResu
     <div className="space-y-4">
       <div className="text-sm text-muted-foreground text-center">
         {results.length > 0 
-          ? `Showing stored results from previous search: ${query}`
+          ? query
+            ? `Showing stored results from previous search: "${query}"`
+            : "Showing previously stored search results"
           : 'No stored results available'}
       </div>
       {results.length > 0 && (

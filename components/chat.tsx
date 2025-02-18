@@ -26,7 +26,7 @@ export function ChatContent({
   savedMessages?: Message[]
   query?: string
 }) {
-  const { state: researchState } = useResearch()
+  const { state: researchState, setMessages: setResearchMessages } = useResearch()
   const pathname = usePathname()
   const isInChatSession = pathname.startsWith('/search/')
   const supabase = useSupabase()
@@ -369,6 +369,17 @@ export function ChatContent({
   useEffect(() => {
     setMessages(savedMessages)
   }, [id])
+
+  useEffect(() => {
+    if (savedMessages && savedMessages.length > 0) {
+      const formattedMessages = savedMessages.map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: new Date(msg.createdAt || new Date()).toISOString()
+      }))
+      setResearchMessages(formattedMessages)
+    }
+  }, [savedMessages, setResearchMessages])
 
   const onQuerySelect = async (query: string) => {
     if (userId && researchSessionId) {

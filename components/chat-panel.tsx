@@ -350,7 +350,9 @@ export function ChatPanel({
       <form
         onSubmit={handleSubmit}
         className={cn(
-          'max-w-3xl w-full mx-auto',
+          'w-full mx-auto',
+          'lg:max-w-3xl lg:ml-[440px]', // Add left margin for research panel on desktop
+          'transition-all duration-300 ease-in-out',
           messages.length > 0 ? 'px-2 py-4' : 'px-6'
         )}
       >

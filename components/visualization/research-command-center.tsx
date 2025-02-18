@@ -1,8 +1,8 @@
 'use client'
 
+import { type ResearchState } from '@/lib/types/deep-research'
 import { cn } from '@/lib/utils'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { type ResearchState } from '../deep-research-provider'
 import { MetricsGrid } from './metrics-grid'
 import { ResearchContent } from './research-content'
 import { ResearchHeader } from './research-header'
@@ -75,7 +75,8 @@ export function ResearchCommandCenter({
       "h-full bg-background transition-all duration-200 ease-in-out",
       !isCollapsed && "border-r shadow-lg",
       isFullScreen ? "w-full" : "w-[440px]",
-      isCollapsed ? "lg:w-0 lg:opacity-0" : "opacity-100"
+      isCollapsed ? "lg:w-0 lg:opacity-0" : "opacity-100",
+      location === 'header' && "mt-14"
     )}>
       <div className={cn(
         "flex flex-col h-full",
@@ -105,14 +106,8 @@ export function ResearchCommandCenter({
           />
 
           <ResearchTabs
-            activity={state.activity}
-            sources={state.sources}
             chatId={chatId}
             onSuggestionSelect={onSuggestionSelect}
-            currentDepth={state.currentDepth}
-            maxDepth={state.maxDepth}
-            researchMemory={state.researchMemory}
-            sourceMetrics={state.sourceMetrics}
           />
         </div>
       </div>

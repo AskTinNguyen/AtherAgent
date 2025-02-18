@@ -2,11 +2,7 @@
 
 import { SearchHeader } from '@/components/search/search-header'
 import { SearchResultsGrid } from '@/components/search/search-results-grid'
-import {
-  useActivity,
-  useDepth,
-  useSources
-} from '@/lib/contexts/research-provider'
+import { useResearch } from '@/lib/contexts/research-context'
 import { createClient } from '@/lib/supabase/client'
 import { searchTool } from '@/lib/tools/search'
 import {
@@ -76,9 +72,13 @@ export function SearchSection({
   const query = tool.args?.query
   const includeDomains = tool.args?.includeDomains
 
-  const { state: sourcesState, addSource } = useSources()
-  const { state: activityState, addActivity } = useActivity()
-  const { state: depthState, optimizeDepth } = useDepth()
+  const { 
+    state: researchState, 
+    addActivity, 
+    optimizeDepth,
+    addSource 
+  } = useResearch()
+  const { current: currentDepth } = researchState.depth
 
   const [viewMode, setViewMode] = React.useState<'grid' | 'ranked' | 'image'>(
     'grid'
@@ -120,7 +120,7 @@ export function SearchSection({
     )
   }, [searchResults, tool.toolCallId, messages, setMessages])
 
-  // 2. Update sources context
+  // 2. Update sources
   React.useEffect(() => {
     if (!searchResults?.results || !tool.toolCallId) return
     if (!sourcesProcessedRef.current[tool.toolCallId]) return
@@ -129,13 +129,26 @@ export function SearchSection({
     sources.forEach(source => {
       const searchResult = searchResults.results.find(r => r.url === source.url)
       if (searchResult) {
+        const relevanceScore = searchResult.relevance || 0
+        const publishedDate = searchResult.publishedDate ? new Date(searchResult.publishedDate) : new Date()
+        const now = new Date()
+        const ageInDays = Math.floor((now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60 * 24))
+        const timeRelevanceScore = Math.max(0, 1 - (ageInDays / 365)) // Scale down for content older than a year
+
         addSource({
+          id: crypto.randomUUID(),
           url: source.url,
           title: source.title,
-          relevance: searchResult.relevance || 0,
+          relevance: relevanceScore,
           content: source.content,
-          query: query,
-          publishedDate: source.publishedDate
+          query: query || '',
+          publishedDate: searchResult.publishedDate || new Date().toISOString(),
+          timestamp: new Date().toISOString(),
+          quality: {
+            contentQuality: relevanceScore,
+            sourceAuthority: relevanceScore,
+            timeRelevance: timeRelevanceScore
+          }
         })
       }
     })
@@ -156,7 +169,6 @@ export function SearchSection({
   }, [searchResults, previousResults])
 
   // 4. Handle metrics and depth optimization
-  const { currentDepth } = depthState
   React.useEffect(() => {
     if (!searchResults?.results) return
 
@@ -172,13 +184,30 @@ export function SearchSection({
       })
     }
 
+    // Convert metrics to source metrics array
+    const sourceMetrics = searchResults.results.map(result => {
+      const relevanceScore = result.relevance || 0
+      const publishedDate = result.publishedDate ? new Date(result.publishedDate) : new Date()
+      const now = new Date()
+      const ageInDays = Math.floor((now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60 * 24))
+      const timeRelevanceScore = Math.max(0, 1 - (ageInDays / 365)) // Scale down for content older than a year
+      
+      return {
+        contentQuality: relevanceScore,
+        sourceAuthority: relevanceScore, // Use relevance as a proxy for authority
+        timeRelevance: timeRelevanceScore,
+        depthLevel: currentDepth,
+        overallScore: (relevanceScore * 2 + timeRelevanceScore) / 3 // Weight relevance more heavily
+      }
+    })
+
     // Debounce depth optimization
     const timeoutId = setTimeout(() => {
-      optimizeDepth(sourcesState.sourceMetrics)
+      optimizeDepth(sourceMetrics)
     }, 1000)
 
     return () => clearTimeout(timeoutId)
-  }, [searchResults, currentDepth, optimizeDepth, sourcesState.sourceMetrics])
+  }, [searchResults, currentDepth, optimizeDepth, addActivity])
 
   // Store search results in Redis when they change
   React.useEffect(() => {
@@ -394,6 +423,18 @@ export function SearchSection({
       console.error('Supabase fetch error:', error)
     }
   }
+
+  // Update depth optimization
+  React.useEffect(() => {
+    if (researchState.sourceMetrics.length === 0) return
+
+    // Debounce depth optimization
+    const timeoutId = setTimeout(() => {
+      optimizeDepth(researchState.sourceMetrics)
+    }, 1000)
+
+    return () => clearTimeout(timeoutId)
+  }, [researchState.sourceMetrics, optimizeDepth])
 
   return (
     <CollapsibleMessage

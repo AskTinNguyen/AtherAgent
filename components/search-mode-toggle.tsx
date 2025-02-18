@@ -14,15 +14,28 @@ export function SearchModeToggle() {
     setShortcutKey(navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl')
   }, [])
 
-  const handleToggle = useCallback(async (enabled: boolean) => {
-    // Update the cookie
-    document.cookie = `search-mode=${enabled}; path=/; max-age=31536000`
-    
-    // Call the context toggle
+  // Handle keyboard shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === '.') {
+        e.preventDefault()
+        toggleSearch()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [toggleSearch])
+
+  // Handle toggle
+  const handleToggle = useCallback(() => {
     toggleSearch()
     
-    console.log('Search mode toggled:', enabled)
-  }, [toggleSearch])
+    // Update the cookie
+    document.cookie = `search-mode=${!state.searchEnabled}; path=/; max-age=31536000`
+    
+    console.log('Search mode toggled:', !state.searchEnabled)
+  }, [toggleSearch, state.searchEnabled])
 
   return (
     <Toggle
