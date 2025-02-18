@@ -133,7 +133,7 @@ export function ChatContent({
     messages,
     input,
     handleInputChange,
-    handleSubmit,
+    handleSubmit: originalHandleSubmit,
     isLoading,
     setMessages,
     stop,
@@ -148,6 +148,11 @@ export function ChatContent({
       searchMode: researchState.searchEnabled
     },
     onResponse: async (response) => {
+      // Update URL immediately when we get first response
+      if (!pathname.startsWith('/search/')) {
+        window.history.replaceState({}, '', `/search/${id}`)
+      }
+      
       if (userId && researchSessionId) {
         try {
           // When streaming starts, we create a placeholder message in the database
@@ -435,57 +440,17 @@ export function ChatContent({
     })
   }
 
-  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  // Wrap handleSubmit to ensure proper state order
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setData(undefined)
     
-    if (userId && researchSessionId && input) {
-      try {
-        const messageUuid = uuidv4()
-        const newMessage = createChatMessage({
-          id: messageUuid,
-          user_id: userId,
-          research_session_id: researchSessionId,
-          content: input,
-          role: 'user',
-          metadata: {
-            client_timestamp: new Date().toISOString(),
-            client_info: {
-              platform: navigator.platform,
-              userAgent: navigator.userAgent
-            }
-          }
-        }, {
-          sequence_number: messages?.length ? messages.length + 1 : 1,
-          message_type: 'user_prompt'
-          // No parent_message_id needed for user messages
-        })
-        
-        const { error } = await supabase
-          .from('chat_messages')
-          .insert(newMessage)
-        
-        if (error) {
-          console.error('Failed to save user input:', {
-            code: error.code,
-            details: error.details,
-            message: error.message,
-            hint: error.hint
-          })
-          toast.error(`Failed to save message: ${error.message}`)
-        }
-      } catch (err) {
-        const error = err as Error
-        console.error('Failed to save message:', {
-          name: error.name,
-          message: error.message,
-          stack: error.stack
-        })
-        toast.error('Failed to save message due to an unexpected error')
-      }
+    // If this is the first message, update URL immediately
+    if (!pathname.startsWith('/search/')) {
+      window.history.replaceState({}, '', `/search/${id}`)
     }
     
-    handleSubmit(e)
+    // Call original submit handler
+    await originalHandleSubmit(e)
   }
 
   const handleClearResearch = async (chatId: string, isCleared: boolean) => {
@@ -525,7 +490,7 @@ export function ChatContent({
           <ChatPanel
             input={input}
             handleInputChange={handleInputChange}
-            handleSubmit={onSubmit}
+            handleSubmit={handleSubmit}
             isLoading={isLoading}
             messages={messages}
             setMessages={setMessages}

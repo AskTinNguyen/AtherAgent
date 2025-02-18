@@ -18,14 +18,19 @@ export function BlurReveal() {
   return (
     <motion.div
       initial="hidden"
-      whileInView="visible"
-      transition={{ staggerChildren: 0.04 }}
+      animate="visible"
+      viewport={{ once: true }}
+      transition={{ staggerChildren: 0.04, delayChildren: 0.2 }}
       className="flex flex-col items-center justify-center w-full"
     >
       <h1 className="mb-6 text-5xl font-semibold md:text-6xl text-white font-playfair text-center">
         {words.map((word, index) => (
           <React.Fragment key={index}>
-            <motion.span className="inline-block" transition={transition} variants={variants}>
+            <motion.span 
+              className="inline-block" 
+              transition={{ ...transition, delay: index * 0.1 }}
+              variants={variants}
+            >
               {word}
             </motion.span>
             {index < words.length - 1 && ' '}
@@ -34,7 +39,7 @@ export function BlurReveal() {
       </h1>
       <motion.p 
         className="text-zinc-400 text-lg font-bold font-poppins text-center max-w-lg mx-auto" 
-        transition={transition} 
+        transition={{ ...transition, delay: words.length * 0.1 + 0.2 }}
         variants={variants}
       >
         {subtext}

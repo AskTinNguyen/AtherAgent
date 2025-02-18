@@ -351,25 +351,25 @@ export function ChatPanel({
         onSubmit={handleSubmit}
         className={cn(
           'w-full mx-auto',
-          'lg:max-w-3xl lg:ml-[440px]', // Add left margin for research panel on desktop
+          'lg:max-w-3xl',
           'transition-all duration-300 ease-in-out',
-          messages.length > 0 ? 'px-2 py-4' : 'px-6'
+          messages.length > 0 ? 'p-4' : 'px-4 md:px-6'
         )}
       >
-        <div className="relative flex flex-col w-full gap-0 bg-muted rounded-3xl border border-input">
-          <div className="relative w-full">
+        <div className="relative flex flex-col w-full gap-4 bg-muted rounded-xl border border-input">
+          <div className="relative w-full p-2">
             <div
               {...getRootProps()}
               className={cn(
-                'relative w-full',
-                isDragActive && 'after:absolute after:inset-0 after:rounded-3xl after:border-2 after:border-dashed after:border-primary after:bg-primary/5 after:z-50'
+                'relative w-full rounded-lg',
+                isDragActive && 'after:absolute after:inset-0 after:rounded-lg after:border-2 after:border-dashed after:border-primary after:bg-primary/5 after:z-50'
               )}
             >
               <input {...getInputProps()} />
               {isMarkdownView ? (
                 <div 
                   className={cn(
-                    "w-full min-h-12 bg-transparent px-4 py-3 text-sm prose prose-sm max-w-none dark:prose-invert overflow-y-auto",
+                    "w-full min-h-12 bg-transparent px-3 py-2 text-sm prose prose-sm max-w-none dark:prose-invert overflow-y-auto",
                     "prose-headings:mt-2 prose-headings:mb-1 prose-headings:text-foreground",
                     "prose-p:my-1 prose-p:leading-relaxed prose-p:text-muted-foreground",
                     "prose-pre:my-1 prose-pre:p-2 prose-pre:bg-muted prose-pre:text-foreground",
@@ -407,7 +407,7 @@ export function ChatPanel({
                 <Textarea
                   ref={textareaRef}
                   name="input"
-                  rows={isFullSize ? undefined : 2}
+                  rows={isFullSize ? undefined : 1}
                   maxRows={isFullSize ? undefined : 10}
                   tabIndex={0}
                   onCompositionStart={handleCompositionStart}
@@ -416,7 +416,7 @@ export function ChatPanel({
                   spellCheck={false}
                   value={input}
                   className={cn(
-                    "resize-none w-full bg-transparent border-0 px-4 py-3 text-sm",
+                    "resize-none w-full bg-transparent border-0 px-3 py-2 text-sm",
                     "placeholder:text-muted-foreground focus-visible:outline-none",
                     "disabled:cursor-not-allowed disabled:opacity-50",
                     isDragActive && "opacity-50",
@@ -462,14 +462,16 @@ export function ChatPanel({
 
           {/* Show image previews if there are attachments */}
           {attachments.length > 0 && (
-            <ImagePreview
-              attachments={attachments}
-              onRemove={handleRemoveAttachment}
-            />
+            <div className="px-4 pb-2">
+              <ImagePreview
+                attachments={attachments}
+                onRemove={handleRemoveAttachment}
+              />
+            </div>
           )}
 
           {/* Bottom menu area - This is the main container for all buttons */}
-          <div className="flex items-center justify-between p-3">
+          <div className="flex items-center justify-between p-2 md:p-3">
             {/* Left side buttons group - Currently contains ModelSelector and SearchModeToggle */}
             <div className="flex items-center gap-2">
                 <ModelSelector open={modelSelectorOpen} onOpenChange={setModelSelectorOpen} />
