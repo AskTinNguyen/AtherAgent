@@ -7,6 +7,7 @@ import {
   useDepth,
   useSources
 } from '@/lib/contexts/research-provider'
+import { createClient } from '@/lib/supabase/client'
 import { searchTool } from '@/lib/tools/search'
 import {
   ResearchDiffSystem,
@@ -25,6 +26,7 @@ import * as React from 'react'
 import { CollapsibleMessage } from './collapsible-message'
 import { RankedSearchResults } from './ranked-search-results'
 import { SearchResultsImageSection } from './search-results-image'
+import { StoredSearchResults } from './search/stored-search-results'
 import {
   RankedResultsSkeleton,
   SearchResultsGridSkeleton,
@@ -269,16 +271,16 @@ export function SearchSection({
   }, [chatId])
 
   // Persist search state in URL
-  // React.useEffect(() => {
-  //   if (searchResults?.results && query) {
-  //     const params = new URLSearchParams(searchParams.toString())
-  //     params.set('q', query)
-  //     if (includeDomains?.length) {
-  //       params.set('domains', includeDomains.join(','))
-  //     }
-  //     router.push(`?${params.toString()}`, { scroll: false })
-  //   }
-  // }, [searchResults, query, includeDomains, router])
+  React.useEffect(() => {
+    if (searchResults?.results && query) {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set('q', query)
+      if (includeDomains?.length) {
+        params.set('domains', includeDomains.join(','))
+      }
+      router.push(`?${params.toString()}`, { scroll: false })
+    }
+  }, [searchResults, query, includeDomains, router])
 
   // Recover search from URL parameters
   const recoverSearch = React.useCallback(
@@ -374,6 +376,25 @@ export function SearchSection({
     [onOpenChange]
   )
 
+  // Add after Redis fetch fails
+  const fetchFromSupabase = async () => {
+    try {
+      const supabase = await createClient()
+      const { data, error } = await supabase
+        .from('search_results')
+        .select('*')
+        .eq('chat_id', chatId)
+        .eq('query', q)
+        .single()
+      
+      if (data && !error) {
+        // Handle successful Supabase data retrieval
+      }
+    } catch (error) {
+      console.error('Supabase fetch error:', error)
+    }
+  }
+
   return (
     <CollapsibleMessage
       role="assistant"
@@ -390,6 +411,24 @@ export function SearchSection({
       isOpen={isOpen}
       onOpenChange={onOpenChange}
     >
+      {/* StoredSearchResults is now always rendered */}
+      <div className="mb-6 border-b pb-4">
+        <StoredSearchResults 
+          chatId={chatId}
+          onResultsFound={(results) => {
+            if (!searchResults && setMessages && messages) {
+              const newMessage: ExtendedMessage = {
+                id: 'restored-search',
+                role: 'assistant',
+                content: `Restored search results for: ${q}`,
+                searchSources: extractSearchSources(results)
+              }
+              setMessages([...messages, newMessage])
+            }
+          }}
+        />
+      </div>
+
       <div className="space-y-6">
         {/* View Mode Controls */}
         <div className="flex gap-2 justify-end">
@@ -431,7 +470,10 @@ export function SearchSection({
         ) : searchResults ? (
           <>
             {viewMode === 'grid' && searchResults.results && (
-              <SearchResultsGrid results={searchResults.results} />
+              <SearchResultsGrid 
+                results={searchResults.results}
+                chatId={chatId}
+              />
             )}
             {viewMode === 'ranked' && searchResults.results && (
               <RankedSearchResults
