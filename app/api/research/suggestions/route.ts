@@ -3,6 +3,7 @@ import { generateAISuggestions } from '@/lib/services/suggestions/openai'
 import { checkRateLimit } from '@/lib/services/suggestions/rate-limiter'
 import { storeSuggestions } from '@/lib/services/suggestions/storage'
 import { type MessageContext } from '@/lib/types/research-enhanced'
+import { NextResponse } from 'next/server'
 
 interface SuggestionRequest {
   context: MessageContext
@@ -66,6 +67,68 @@ export async function POST(req: Request) {
     console.error('Error in suggestions route:', error)
     return Response.json(
       { error: 'Failed to process suggestion request' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const sessionId = searchParams.get('sessionId')
+
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Session ID is required' }, { status: 400 })
+    }
+
+    // Use the same auth helper as POST route
+    const { supabase, session } = await getAuthenticatedUser()
+    
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
+    }
+
+    // First verify session ownership
+    const { data: sessionData, error: sessionError } = await supabase
+      .from('research_sessions')
+      .select('id')
+      .eq('id', sessionId)
+      .eq('user_id', session.user.id)
+      .single()
+
+    if (sessionError || !sessionData) {
+      console.error('Session verification failed:', sessionError)
+      return NextResponse.json(
+        { error: 'Invalid session or unauthorized access' },
+        { status: 403 }
+      )
+    }
+
+    // Fetch suggestions for the verified session
+    const { data: suggestions, error: fetchError } = await supabase
+      .from('research_suggestions')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false })
+
+    if (fetchError) {
+      console.error('Error fetching suggestions:', fetchError)
+      return NextResponse.json(
+        { error: `Failed to fetch suggestions: ${fetchError.message}` },
+        { status: 500 }
+      )
+    }
+
+    if (!suggestions) {
+      return NextResponse.json([], { status: 200 }) // Return empty array if no suggestions found
+    }
+
+    return NextResponse.json(suggestions)
+  } catch (error) {
+    console.error('Error in GET /api/research/suggestions:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error'
+    return NextResponse.json(
+      { error: errorMessage },
       { status: 500 }
     )
   }

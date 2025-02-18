@@ -18,9 +18,12 @@ export function useSuggestions({ chatId, userId }: UseSuggestionsOptions) {
   const [error, setError] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<ResearchSuggestion[]>([])
   const [hasAttemptedInitialLoad, setHasAttemptedInitialLoad] = useState(false)
+  const [isActivityUpdate, setIsActivityUpdate] = useState(false)
 
   const generateTimeoutRef = useRef<NodeJS.Timeout>()
   const lastGeneratedRef = useRef<string>('')
+  const lastMessageUpdate = useRef<number>(0)
+  const MESSAGE_COOLDOWN = 5000 // 5 seconds
 
   // Convert suggestions to activities
   const convertSuggestionsToActivities = useCallback((suggestions: ResearchSuggestion[]) => {
@@ -35,13 +38,52 @@ export function useSuggestions({ chatId, userId }: UseSuggestionsOptions) {
     }))
   }, [state.completedSteps, state.totalExpectedSteps])
 
+  // Fetch stored suggestions
+  const fetchStoredSuggestions = useCallback(async () => {
+    if (!chatId) return
+    
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const storedSuggestions = await SuggestionService.getStoredSuggestions(chatId)
+      if (storedSuggestions.length > 0) {
+        setSuggestions(storedSuggestions)
+        setIsActivityUpdate(true)
+        const activities = convertSuggestionsToActivities(storedSuggestions)
+        activities.forEach(addActivity)
+        setIsActivityUpdate(false)
+      }
+      return storedSuggestions.length > 0
+    } catch (error) {
+      console.error('Error fetching stored suggestions:', error)
+      setError(error instanceof Error ? error.message : 'Failed to fetch stored suggestions')
+      return false
+    } finally {
+      setIsLoading(false)
+    }
+  }, [chatId, convertSuggestionsToActivities, addActivity])
+
   // Generate suggestions
   const generateSuggestions = useCallback(async (retryCount = 0, forceRefresh = false) => {
+    const now = Date.now()
+    if (!forceRefresh && now - lastMessageUpdate.current < MESSAGE_COOLDOWN) {
+      console.log('Skipping suggestion generation - cooldown period active')
+      return
+    }
+
     if (isLoading) return
     if (suggestions.length > 0 && !forceRefresh) return
 
+    // First try to fetch stored suggestions if not forcing refresh
+    if (!forceRefresh) {
+      const hasStoredSuggestions = await fetchStoredSuggestions()
+      if (hasStoredSuggestions) return
+    }
+
     setIsLoading(true)
     setError(null)
+    lastMessageUpdate.current = now
 
     try {
       // Validate messages
@@ -84,9 +126,11 @@ export function useSuggestions({ chatId, userId }: UseSuggestionsOptions) {
       // Update state
       setSuggestions(newSuggestions)
       
-      // Add activities
+      // Add activities with flag to prevent cycles
+      setIsActivityUpdate(true)
       const activities = convertSuggestionsToActivities(newSuggestions)
       activities.forEach(addActivity)
+      setIsActivityUpdate(false)
 
     } catch (error) {
       console.error('Error generating suggestions:', error)
@@ -110,7 +154,8 @@ export function useSuggestions({ chatId, userId }: UseSuggestionsOptions) {
     isLoading,
     suggestions.length,
     addActivity,
-    convertSuggestionsToActivities
+    convertSuggestionsToActivities,
+    fetchStoredSuggestions
   ])
 
   // Handle suggestion selection
@@ -175,15 +220,17 @@ export function useSuggestions({ chatId, userId }: UseSuggestionsOptions) {
     }
   }, [])
 
-  // Initial load
+  // Initial load - only fetch stored suggestions
   useEffect(() => {
     if (!chatId) return
     
-    if (!hasAttemptedInitialLoad || (activity.length > 0 && suggestions.length === 0)) {
-      debouncedGenerate(!hasAttemptedInitialLoad)
+    if (isActivityUpdate) return
+    
+    if (!hasAttemptedInitialLoad) {
+      fetchStoredSuggestions()
       setHasAttemptedInitialLoad(true)
     }
-  }, [chatId, hasAttemptedInitialLoad, activity.length, suggestions.length, debouncedGenerate])
+  }, [chatId, hasAttemptedInitialLoad, fetchStoredSuggestions, isActivityUpdate])
 
   return {
     isLoading,

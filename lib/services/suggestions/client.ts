@@ -23,6 +23,7 @@ export class SuggestionService {
       headers: {
         'Content-Type': 'application/json'
       },
+      credentials: 'include',
       body: JSON.stringify({
         context,
         currentDepth,
@@ -48,7 +49,8 @@ export class SuggestionService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
-      }
+      },
+      credentials: 'include'
     })
 
     const data = await response.json()
@@ -69,6 +71,7 @@ export class SuggestionService {
       headers: {
         'Content-Type': 'application/json'
       },
+      credentials: 'include',
       body: JSON.stringify(options)
     })
 
@@ -78,5 +81,27 @@ export class SuggestionService {
     }
 
     return response.json()
+  }
+
+  static async getStoredSuggestions(chatId: string): Promise<ResearchSuggestion[]> {
+    const response = await fetch(`/api/research/suggestions?sessionId=${chatId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to fetch stored suggestions')
+    }
+
+    const suggestions = await response.json()
+    if (!Array.isArray(suggestions)) {
+      throw new Error('Invalid suggestions response format')
+    }
+
+    return suggestions
   }
 } 
