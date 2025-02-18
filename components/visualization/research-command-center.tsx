@@ -4,7 +4,6 @@ import { type ResearchState } from '@/lib/types/deep-research'
 import { cn } from '@/lib/utils'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MetricsGrid } from './metrics-grid'
-import { ResearchContent } from './research-content'
 import { ResearchHeader } from './research-header'
 import { ResearchTabs } from './research-tabs'
 
@@ -70,13 +69,20 @@ export function ResearchCommandCenter({
     return () => clearInterval(interval)
   }, [state.isActive, onSetActive])
 
+  // Handle fullscreen toggle
+  const handleFullScreenToggle = useCallback(() => {
+    setIsFullScreen(prev => !prev)
+  }, [])
+
   return (
     <div className={cn(
-      "h-full bg-background transition-all duration-200 ease-in-out",
+      "h-full bg-background transition-all duration-300 ease-in-out",
       !isCollapsed && "border-r shadow-lg",
-      isFullScreen ? "w-full" : "w-[440px]",
-      isCollapsed ? "lg:w-0 lg:opacity-0" : "opacity-100",
-      location === 'header' && "mt-14"
+      isFullScreen ? [
+        "fixed top-16 left-0 right-0 bottom-0 z-50",
+        "max-h-[calc(100vh-4rem)]"
+      ] : "w-[440px]",
+      isCollapsed ? "lg:w-0 lg:opacity-0" : "opacity-100"
     )}>
       <div className={cn(
         "flex flex-col h-full",
@@ -87,7 +93,7 @@ export function ResearchCommandCenter({
           isCollapsed={isCollapsed}
           isFullScreen={isFullScreen}
           onCollapse={() => setIsFullScreen(false)}
-          onFullScreen={() => setIsFullScreen(!isFullScreen)}
+          onFullScreen={handleFullScreenToggle}
           onClearAll={handleClearAll}
           location={location}
         />
@@ -100,14 +106,10 @@ export function ResearchCommandCenter({
             totalExpectedSteps={state.totalExpectedSteps}
           />
 
-          <ResearchContent 
-            activity={state.activity}
-            sources={state.sources}
-          />
-
           <ResearchTabs
             chatId={chatId}
             onSuggestionSelect={onSuggestionSelect}
+            isFullScreen={isFullScreen}
           />
         </div>
       </div>

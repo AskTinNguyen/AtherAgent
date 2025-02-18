@@ -14,6 +14,7 @@ interface ResearchSuggestionsProps {
   onSuggestionSelect?: (content: string) => void
   userId: string
   chatId: string
+  isFullScreen?: boolean
 }
 
 function SuggestionCard({ 
@@ -66,8 +67,9 @@ function SuggestionCard({
 
 function ResearchSuggestionsContent({ 
   onSuggestionSelect, 
-  userId, 
-  chatId 
+  userId,
+  chatId,
+  isFullScreen = false
 }: ResearchSuggestionsProps) {
   const {
     isLoading,
@@ -92,9 +94,20 @@ function ResearchSuggestionsContent({
         </div>
       ) : (
         <motion.div
+          // Start with 0 opacity for fade-in animation
           initial={{ opacity: 0 }}
+          // Animate to full opacity when component mounts
           animate={{ opacity: 1 }}
-          className="grid gap-4 md:grid-cols-2"
+          className={cn(
+            // Base grid layout with 4 gap spacing
+            "grid gap-4",
+            // Responsive grid columns based on screen size:
+            isFullScreen 
+              // If fullscreen: 1 col mobile -> 2 cols tablet -> 3 cols desktop -> 4 cols xl
+              ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" 
+              // If not fullscreen: 1 col mobile -> 2 cols tablet and up
+              : "grid-cols-1 md:grid-cols-2"
+          )}
         >
           {suggestions.map((suggestion) => (
             <SuggestionCard
