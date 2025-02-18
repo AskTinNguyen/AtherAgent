@@ -1,7 +1,107 @@
-# Chat Messages Table Implementation
+# Chat Messages Database Schema
 
 ## Overview
 The `chat_messages` table stores all chat interactions, research outputs, and search results. It supports message threading, multiple message types, and maintains relationships with research sessions and users.
+
+For the complete SQL implementation, see: [SQL FILE](../../../supabase/migrations/create_chat_db.sql)
+
+## Schema Structure
+
+### Core Tables
+1. `chat_messages`: Main table for all message types
+2. `sources`: Related table for storing reference materials
+
+### Enums
+1. `message_type`:
+   - user_prompt
+   - ai_response
+   - search_results
+   - image_results
+   - search_summary
+   - chat_title
+   - tool_output
+
+2. `chat_role`:
+   - user
+   - assistant
+   - system
+   - data
+
+## Key Columns
+
+| Column Name | Type | Description |
+|------------|------|-------------|
+| id | UUID | Primary key |
+| user_id | UUID | Reference to profiles |
+| research_session_id | UUID | Reference to research session |
+| role | chat_role | Message role (user/assistant/system/data) |
+| content | TEXT | Message content (nullable) |
+| message_type | message_type | Type of message |
+| metadata | JSONB | Additional message data |
+| annotations | JSONB | Message annotations |
+| parent_message_id | UUID | Reference to parent message |
+| thread_id | UUID | Thread grouping ID |
+| sequence_number | BIGINT | Message order in thread |
+| search_query | TEXT | Original search query |
+| search_source | TEXT | Source of search results |
+| tool_name | TEXT | Tool used for message |
+| summary_type | TEXT | Type of summary |
+| is_visible | BOOLEAN | Message visibility flag |
+| is_edited | BOOLEAN | Edit status flag |
+| depth_level | INTEGER | Search depth level |
+
+## Key Features
+
+1. **Message Threading**
+   - Parent-child relationships via `parent_message_id`
+   - Thread grouping via `thread_id`
+   - Sequential ordering via `sequence_number`
+
+2. **Security**
+   - Row Level Security (RLS) enabled
+   - User-based access control
+   - Separate read/write policies
+
+3. **Performance**
+   - Optimized indexes for common queries
+   - JSONB for flexible metadata storage
+   - Automatic timestamp management
+
+## Common Metadata Structures
+
+### User Message
+```json
+{
+    "client_timestamp": "2024-03-20T10:00:00Z",
+    "client_info": {
+        "browser": "Chrome",
+        "platform": "macOS"
+    }
+}
+```
+
+### AI Response
+```json
+{
+    "model": "gpt-4",
+    "temperature": 0.7,
+    "tokens_used": 150,
+    "processing_time": 2.5
+}
+```
+
+## Best Practices
+
+1. Always use transactions for multi-step operations
+2. Validate message types and roles before insertion
+3. Handle message visibility changes through updates
+4. Maintain proper thread relationships
+5. Use appropriate indexes for your queries
+6. Regular monitoring of table and index sizes
+7. Implement proper error handling
+8. Sanitize user input
+9. Use prepared statements
+10. Regular backups and maintenance
 
 ## Table Structure
 

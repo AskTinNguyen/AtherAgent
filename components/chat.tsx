@@ -153,6 +153,23 @@ export function ChatContent({
           // When streaming starts, we create a placeholder message in the database
           // The content must be an empty string ('') NOT null, as the database has a not-null constraint
           // This empty string also serves as a marker to find this specific message later in onFinish
+          // Get the last message (which should be the user's message)
+          // Get the last message from the database instead of messages array
+          const { data: lastMessages, error: fetchError } = await supabase
+            .from('chat_messages')
+            .select('id, role')
+            .eq('research_session_id', researchSessionId)
+            .eq('role', 'user')
+            .order('created_at', { ascending: false })
+            .limit(1)
+
+          if (fetchError) {
+            console.error('Error fetching last message:', fetchError)
+          }
+
+          const lastUserMessage = lastMessages?.[0]
+          console.log('Last user message from DB:', lastUserMessage)
+          
           console.log('Saving initial assistant message')
           const messageUuid = uuidv4()
           const newMessage = createChatMessage({
@@ -169,7 +186,9 @@ export function ChatContent({
               timestamp: new Date().toISOString()
             }
           }, {
-            sequence_number: messages.length + 1
+            sequence_number: messages?.length ? messages.length + 1 : 1,
+            message_type: 'ai_response',
+            parent_message_id: lastUserMessage?.id // Use DB message ID
           })
           
           const { error } = await supabase
@@ -303,7 +322,8 @@ export function ChatContent({
               role: 'assistant',
               metadata
             }, {
-              sequence_number: messages.length + 1
+              sequence_number: messages.length + 1,
+              message_type: 'ai_response'
             })
 
             const { error: insertError } = await supabase
@@ -369,7 +389,9 @@ export function ChatContent({
             }
           }
         }, {
-          sequence_number: messages.length + 1
+          sequence_number: messages?.length ? messages.length + 1 : 1,
+          message_type: 'user_prompt'
+          // No parent_message_id needed for user messages
         })
         
         const { error } = await supabase
@@ -423,7 +445,9 @@ export function ChatContent({
             }
           }
         }, {
-          sequence_number: messages.length + 1
+          sequence_number: messages?.length ? messages.length + 1 : 1,
+          message_type: 'user_prompt'
+          // No parent_message_id needed for user messages
         })
         
         const { error } = await supabase
