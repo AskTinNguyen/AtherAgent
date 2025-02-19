@@ -1,115 +1,105 @@
 'use client'
 
-import { useResearchContext } from '@/lib/contexts/research-provider'
-import { createClient } from '@/lib/supabase/client'
-import { useSession } from 'next-auth/react'
+import { useSupabase } from '@/components/providers/supabase-provider'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
-interface ResearchRealtimeSyncProps {
-  chatId: string
+interface ResearchData {
+  id: string
+  user_id: string
+  title: string
+  content: string
+  created_at: string
+  updated_at: string
 }
 
-export function ResearchRealtimeSync({ chatId }: ResearchRealtimeSyncProps) {
-  const { data: session } = useSession()
-  const userId = session?.user?.id
-  const { dispatch } = useResearchContext()
-  const [supabase] = useState(() => createClient())
+export function ResearchRealtimeSync() {
+  const { user } = useSupabase()
+  const [researchData, setResearchData] = useState<ResearchData[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    if (!userId) return
+    if (!user) return
 
-    // Subscribe to research state changes
-    const stateChannel = supabase
-      .channel(`research_state:${chatId}`)
+    const supabase = createClientComponentClient()
+
+    // Initial fetch
+    const fetchResearch = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('research')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+
+        if (error) throw error
+        setResearchData(data || [])
+      } catch (error) {
+        console.error('Error fetching research:', error)
+        toast.error('Failed to fetch research data')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchResearch()
+
+    // Set up realtime subscription
+    const channel = supabase
+      .channel('research_changes')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'research_states',
-          filter: `session_id=eq.${chatId}`
-        },
-        async (payload) => {
-          if (payload.eventType === 'UPDATE' && payload.new) {
-            // Update local state with new data
-            dispatch({
-              type: 'SET_STATE',
-              payload: {
-                state: {
-                  currentDepth: payload.new.metrics.currentDepth,
-                  maxDepth: payload.new.metrics.maxDepth,
-                  sources: [], // Will be updated by sources subscription
-                  isActive: payload.new.metrics.isActive
-                },
-                metrics: payload.new.metrics
-              }
-            })
-          }
-        }
-      )
-
-    // Subscribe to search results (activities)
-    const searchChannel = supabase
-      .channel(`search_results:${chatId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'search_results',
-          filter: `session_id=eq.${chatId}`
+          table: 'research',
+          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          if (payload.new) {
-            dispatch({
-              type: 'ADD_ACTIVITY',
-              payload: {
-                type: 'search',
-                status: 'complete',
-                message: payload.new.query,
-                timestamp: payload.new.created_at,
-                depth: payload.new.depth_level
-              }
-            })
+          console.log('Change received!', payload)
+          switch (payload.eventType) {
+            case 'INSERT':
+              setResearchData((current) => [payload.new as ResearchData, ...current])
+              break
+            case 'UPDATE':
+              setResearchData((current) =>
+                current.map((item) =>
+                  item.id === payload.new.id ? (payload.new as ResearchData) : item
+                )
+              )
+              break
+            case 'DELETE':
+              setResearchData((current) =>
+                current.filter((item) => item.id !== payload.old.id)
+              )
+              break
           }
         }
       )
+      .subscribe()
 
-    // Subscribe to sources
-    const sourcesChannel = supabase
-      .channel(`sources:${chatId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'sources',
-          filter: `session_id=eq.${chatId}`
-        },
-        (payload) => {
-          if (payload.new) {
-            dispatch({
-              type: 'ADD_SOURCE',
-              payload: payload.new.url
-            })
-          }
-        }
-      )
-
-    // Start all subscriptions
-    Promise.all([
-      stateChannel.subscribe(),
-      searchChannel.subscribe(),
-      sourcesChannel.subscribe()
-    ]).catch(console.error)
-
-    // Cleanup subscriptions
     return () => {
-      stateChannel.unsubscribe()
-      searchChannel.unsubscribe()
-      sourcesChannel.unsubscribe()
+      channel.unsubscribe()
     }
-  }, [chatId, userId, dispatch, supabase])
+  }, [user])
 
-  return null // This is a side-effect component
+  if (isLoading) {
+    return <div>Loading research data...</div>
+  }
+
+  return (
+    <div>
+      <h2>Research Items ({researchData.length})</h2>
+      <ul>
+        {researchData.map((item) => (
+          <li key={item.id}>
+            <h3>{item.title}</h3>
+            <p>{item.content}</p>
+            <small>Last updated: {new Date(item.updated_at).toLocaleString()}</small>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 } 

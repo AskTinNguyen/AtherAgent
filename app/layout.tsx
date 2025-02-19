@@ -1,86 +1,38 @@
-import { AuthStatus } from '@/components/auth-status'
-import Footer from '@/components/footer'
-import Header from '@/components/header'
-import { Notifications } from '@/components/notifications'
+import '@/app/globals.css'
 import { ClientProviders } from '@/components/providers/client-providers'
-import { SessionProvider } from '@/components/providers/session-provider'
-import { Sidebar } from '@/components/sidebar'
-import { NotificationsProvider } from '@/lib/contexts/notifications-context'
 import { cn } from '@/lib/utils'
-import type { Metadata, Viewport } from 'next'
-import { Inter as FontSans, Playfair_Display, Poppins } from 'next/font/google'
-import './globals.css'
+import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/next'
+import { GeistMono } from 'geist/font/mono'
+import { GeistSans } from 'geist/font/sans'
 
-const fontSans = FontSans({
-  subsets: ['latin'],
-  variable: '--font-sans'
-})
+const fontSans = GeistSans
+const fontMono = GeistMono
 
-const poppins = Poppins({
-  subsets: ['latin'],
-  weight: ['400', '600'],
-  variable: '--font-poppins'
-})
-
-const playfair = Playfair_Display({
-  subsets: ['latin'],
-  variable: '--font-playfair'
-})
-
-const title = 'AtherAgent'
-const description =
-  'A fully open-source AI-powered answer engine with a generative UI.'
-
-export const metadata: Metadata = {
-  metadataBase: new URL('https://atherlabs.com'),
-  title,
-  description,
-  openGraph: {
-    title,
-    description
-  },
-  twitter: {
-    title,
-    description,
-    card: 'summary_large_image',
-    creator: '@miiura'
-  }
+export const metadata = {
+  title: 'Ather Agent',
+  description: 'Your AI Research Assistant',
 }
 
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  minimumScale: 1,
-  maximumScale: 1
-}
-
-export default function RootLayout({
-  children
-}: Readonly<{
+interface RootLayoutProps {
   children: React.ReactNode
-}>) {
-  const enableSaveChatHistory =
-    process.env.NEXT_PUBLIC_ENABLE_SAVE_CHAT_HISTORY === 'true'
+}
+
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={cn(
-        'font-sans antialiased',
-        fontSans.variable,
-        poppins.variable,
-        playfair.variable
-      )}>
-        <NotificationsProvider>
-          <SessionProvider>
-            <ClientProviders>
-              <Header />
-              <Notifications />
-              {children}
-              {enableSaveChatHistory && <Sidebar />}
-              <AuthStatus />
-              <Footer />
-            </ClientProviders>
-          </SessionProvider>
-        </NotificationsProvider>
+      <body
+        className={cn(
+          'min-h-screen bg-background font-sans antialiased',
+          fontSans.variable,
+          fontMono.variable
+        )}
+      >
+        <ClientProviders>
+          {children}
+          <Analytics />
+          <SpeedInsights />
+        </ClientProviders>
       </body>
     </html>
   )

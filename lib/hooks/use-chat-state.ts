@@ -1,108 +1,104 @@
 'use client'
 
-import { createClient } from '@/lib/supabase/client'
-import { Message } from 'ai'
-import { useSession } from 'next-auth/react'
+import { useSupabase } from '@/components/providers/supabase-provider'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+interface ChatState {
+  id: string
+  user_id: string
+  messages: any[]
+  context: string
+  created_at: string
+  updated_at: string
+}
+
 export function useChatState(chatId: string) {
-  const [supabase] = useState(() => createClient())
-  const [messages, setMessages] = useState<Message[]>([])
+  const { user } = useSupabase()
+  const [chatState, setChatState] = useState<ChatState | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const { data: session } = useSession()
+  const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
-    if (!session?.user?.id) {
-      setIsLoading(false)
-      return
-    }
+    if (!user || !chatId) return
 
-    const fetchMessages = async () => {
+    const supabase = createClientComponentClient()
+
+    // Initial fetch
+    const fetchChatState = async () => {
       try {
         const { data, error } = await supabase
-          .from('chat_messages')
+          .from('chat_states')
           .select('*')
-          .eq('research_session_id', chatId)
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: true })
+          .eq('id', chatId)
+          .eq('user_id', user.id)
+          .single()
 
         if (error) throw error
-
-        setMessages(data.map(msg => ({
-          id: msg.id,
-          content: msg.content,
-          role: msg.role,
-          createdAt: msg.created_at,
-          annotations: msg.annotations
-        })))
+        setChatState(data)
       } catch (error) {
-        console.error('Error fetching messages:', error)
-        toast.error('Failed to load chat messages')
+        console.error('Error fetching chat state:', error)
+        setError(error as Error)
+        toast.error('Failed to fetch chat state')
       } finally {
         setIsLoading(false)
       }
     }
 
-    // Subscribe to real-time changes
+    fetchChatState()
+
+    // Set up realtime subscription
     const channel = supabase
-      .channel(`chat:${chatId}`)
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'chat_messages',
-          filter: `research_session_id=eq.${chatId} AND user_id=eq.${session.user.id}`
-        }, 
-        payload => {
-          if (payload.eventType === 'INSERT') {
-            setMessages(prev => [...prev, {
-              id: payload.new.id,
-              content: payload.new.content,
-              role: payload.new.role,
-              createdAt: payload.new.created_at,
-              annotations: payload.new.annotations
-            }])
+      .channel(`chat_state:${chatId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_states',
+          filter: `id=eq.${chatId}`,
+        },
+        (payload) => {
+          console.log('Chat state change received:', payload)
+          if (payload.eventType === 'UPDATE') {
+            setChatState(payload.new as ChatState)
+          } else if (payload.eventType === 'DELETE') {
+            setChatState(null)
           }
         }
       )
       .subscribe()
 
-    fetchMessages()
-
     return () => {
       channel.unsubscribe()
     }
-  }, [chatId, supabase, session?.user?.id])
+  }, [user, chatId])
 
-  const addMessage = async (message: Omit<Message, 'id'>) => {
-    if (!session?.user?.id) {
-      toast.error('You must be logged in to send messages')
-      return
-    }
+  const updateChatState = async (updates: Partial<ChatState>) => {
+    if (!user || !chatId) return
+
+    const supabase = createClientComponentClient()
 
     try {
       const { error } = await supabase
-        .from('chat_messages')
-        .insert([{
-          research_session_id: chatId,
-          content: message.content,
-          role: message.role,
-          annotations: message.annotations,
-          user_id: session.user.id
-        }])
+        .from('chat_states')
+        .update(updates)
+        .eq('id', chatId)
+        .eq('user_id', user.id)
 
       if (error) throw error
     } catch (error) {
-      console.error('Error adding message:', error)
-      toast.error('Failed to send message')
+      console.error('Error updating chat state:', error)
+      toast.error('Failed to update chat state')
+      throw error
     }
   }
 
   return {
-    messages,
+    chatState,
     isLoading,
-    addMessage,
-    setMessages
+    error,
+    updateChatState,
   }
 } 

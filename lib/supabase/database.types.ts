@@ -189,6 +189,83 @@ export interface Database {
       [_ in never]: never
     }
   }
+  auth: {
+    Tables: {
+      users: {
+        Row: {
+          id: string
+          email: string | null
+          created_at: string
+          updated_at: string | null
+          raw_user_meta_data: Json | null
+          aud: string
+          role: string | null
+          is_super_admin: boolean
+          last_sign_in_at: string | null
+        }
+        Insert: {
+          id?: string
+          email?: string | null
+          created_at?: string
+          updated_at?: string | null
+          raw_user_meta_data?: Json | null
+          aud?: string
+          role?: string | null
+          is_super_admin?: boolean
+          last_sign_in_at?: string | null
+        }
+        Update: {
+          id?: string
+          email?: string | null
+          created_at?: string
+          updated_at?: string | null
+          raw_user_meta_data?: Json | null
+          aud?: string
+          role?: string | null
+          is_super_admin?: boolean
+          last_sign_in_at?: string | null
+        }
+      }
+      sessions: {
+        Row: {
+          id: string
+          user_id: string
+          created_at: string
+          updated_at: string | null
+          factor_id: string | null
+          aal: string | null
+          not_after: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          created_at?: string
+          updated_at?: string | null
+          factor_id?: string | null
+          aal?: string | null
+          not_after?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          created_at?: string
+          updated_at?: string | null
+          factor_id?: string | null
+          aal?: string | null
+          not_after?: string | null
+        }
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
+    }
+  }
 } 
 
 // lib/supabase/database.types.ts 

@@ -1,5 +1,6 @@
 'use client'
 
+import { useSupabase } from '@/components/providers/supabase-provider'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -10,9 +11,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 
 interface SupabaseAuthDialogProps {
@@ -24,60 +24,53 @@ export function SupabaseAuthDialog({ open, onOpenChange }: SupabaseAuthDialogPro
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const { signIn } = useSupabase()
   const router = useRouter()
-  const supabase = createClientComponentClient()
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      const { data, error } = await signIn(email, password)
 
       if (error) {
-        toast.error(error.message)
+        toast.error('Authentication failed', {
+          description: error.message
+        })
         return
       }
 
       if (data.session) {
-        toast.success('Signed in successfully')
-        // Force a router refresh to update auth state
-        router.refresh()
-        // Close the dialog
+        toast.success('Successfully signed in', {
+          description: `Welcome back, ${data.session.user.email}`
+        })
         onOpenChange(false)
-        // Reset form
-        setEmail('')
-        setPassword('')
+        
+        // Get the redirect URL from query params or default to /
+        const params = new URLSearchParams(window.location.search)
+        const redirectTo = params.get('redirectTo') || '/'
+        router.push(redirectTo)
       }
     } catch (error) {
-      toast.error('Failed to sign in')
+      toast.error('An unexpected error occurred', {
+        description: error instanceof Error ? error.message : 'Please try again'
+      })
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Reset form when dialog closes
-  useEffect(() => {
-    if (!open) {
-      setEmail('')
-      setPassword('')
-      setIsLoading(false)
-    }
-  }, [open])
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Sign in to Ather</DialogTitle>
+          <DialogTitle>Sign In</DialogTitle>
           <DialogDescription>
-            Enter your credentials to access all features
+            Enter your credentials to access your account
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSignIn} className="space-y-4 pt-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -100,7 +93,7 @@ export function SupabaseAuthDialog({ open, onOpenChange }: SupabaseAuthDialogPro
             />
           </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? 'Signing in...' : 'Sign in'}
+            {isLoading ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>
       </DialogContent>

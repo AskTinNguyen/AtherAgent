@@ -4,7 +4,6 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
-import { SessionSync } from './session-sync'
 import { StorageProvider } from './storage-provider'
 import SupabaseProvider from './supabase-provider'
 
@@ -25,7 +24,6 @@ export function ClientProviders({
             enableSystem
             disableTransitionOnChange
           >
-            <SessionSync />
             {children}
             <Toaster />
           </ThemeProvider>

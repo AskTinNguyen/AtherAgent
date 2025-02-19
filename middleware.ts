@@ -1,74 +1,49 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 
-export async function middleware(request: NextRequest) {
-  // Check if auth is disabled
-  if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') {
-    return NextResponse.next()
+const PUBLIC_ROUTES = [
+  '/',
+  '/login',
+  '/api/auth/callback',
+  '/api/health'
+]
+
+export async function middleware(req: NextRequest) {
+  const res = NextResponse.next()
+  const supabase = createMiddlewareClient({ req, res })
+
+  // Refresh session if it exists
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  // Allow access to public routes
+  if (PUBLIC_ROUTES.includes(req.nextUrl.pathname)) {
+    return res
   }
 
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Missing Supabase environment variables in middleware')
-      return NextResponse.next()
-    }
-
-    let response = NextResponse.next({
-      request: {
-        headers: request.headers,
-      },
-    })
-
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value
-          },
-          set(name: string, value: string, options: CookieOptions) {
-            response.cookies.set({
-              name,
-              value,
-              domain: options.domain,
-              path: options.path,
-              maxAge: options.maxAge,
-              httpOnly: options.httpOnly,
-              secure: options.secure,
-              sameSite: options.sameSite,
-            })
-          },
-          remove(name: string, options: CookieOptions) {
-            response.cookies.set({
-              name,
-              value: '',
-              domain: options.domain,
-              path: options.path,
-              maxAge: -1,
-              httpOnly: options.httpOnly,
-              secure: options.secure,
-              sameSite: options.sameSite,
-            })
-          },
-        },
-      }
-    )
-
-    await supabase.auth.getUser()
-
-    return response
-  } catch (error) {
-    console.error('Middleware error:', error)
-    return NextResponse.next()
+  // Check auth status
+  if (!session) {
+    // Redirect to login if accessing protected route
+    const redirectUrl = new URL('/login', req.url)
+    redirectUrl.searchParams.set('redirectTo', req.nextUrl.pathname)
+    return NextResponse.redirect(redirectUrl)
   }
+
+  return res
 }
 
 export const config = {
   matcher: [
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     * - public files
+     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 } 

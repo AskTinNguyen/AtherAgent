@@ -1,13 +1,12 @@
 import { createUsageTracker } from '@/lib/services/usage-tracker'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from '@/lib/supabase/auth'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
-  const session = await getServerSession()
+  const { user, error } = await getServerSession()
 
-  if (!session) {
-    console.log('GET /api/usage: Unauthorized - No session')
-    return new NextResponse('Unauthorized', { status: 401 })
+  if (error || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
@@ -23,9 +22,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession()
+  const { user, error } = await getServerSession()
 
-  if (!session) {
+  if (error || !user) {
     console.log('POST /api/usage: Unauthorized - No session')
     return new NextResponse('Unauthorized', { status: 401 })
   }

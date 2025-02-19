@@ -6,14 +6,14 @@ import { useResearch } from '@/lib/contexts/research-context'
 import { createClient } from '@/lib/supabase/client'
 import { searchTool } from '@/lib/tools/search'
 import {
-  ResearchDiffSystem,
-  type VisualizationData
+    ResearchDiffSystem,
+    type VisualizationData
 } from '@/lib/utils/research-diff'
 import { extractSearchSources } from '@/lib/utils/search'
 import {
-  type SearchResultItem,
-  type SearchSource,
-  type SearchResults as TypeSearchResults
+    type SearchResultItem,
+    type SearchSource,
+    type SearchResults as TypeSearchResults
 } from '@/types/search'
 import { type Message } from 'ai'
 import { BarChart, Grid2X2, Image as ImageIcon } from 'lucide-react'
@@ -24,9 +24,9 @@ import { RankedSearchResults } from './ranked-search-results'
 import { SearchResultsImageSection } from './search-results-image'
 import { StoredSearchResults } from './search/stored-search-results'
 import {
-  RankedResultsSkeleton,
-  SearchResultsGridSkeleton,
-  SearchResultsImageSkeleton
+    RankedResultsSkeleton,
+    SearchResultsGridSkeleton,
+    SearchResultsImageSkeleton
 } from './skeletons'
 import { Button } from './ui/button'
 

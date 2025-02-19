@@ -1,11 +1,10 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { SupabaseClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
-import { Database } from './database.types'
+import { createServerClient } from '@supabase/ssr'
+import { type SupabaseClient } from '@supabase/supabase-js'
+import { type CookieStore, RequestCookieStore, ServerCookieStore } from './cookie-store'
+import { type Database } from './database.types'
 
-export async function createClient() {
-  const cookieStore = await cookies()
-
+// Create a Supabase client with the provided cookie store
+function createClientWithStore(cookieStore: CookieStore) {
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -14,41 +13,28 @@ export async function createClient() {
         get(name: string) {
           return cookieStore.get(name)?.value
         },
-        set(name: string, value: string, options: CookieOptions) {
-          try {
-            cookieStore.set({
-              name,
-              value,
-              domain: options.domain,
-              path: options.path,
-              maxAge: options.maxAge,
-              httpOnly: options.httpOnly,
-              secure: options.secure,
-              sameSite: options.sameSite,
-            })
-          } catch (error) {
-            // Handle cookie setting error
-          }
+        set(name: string, value: string, options) {
+          cookieStore.set(name, value, options)
         },
-        remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.set({
-              name,
-              value: '',
-              domain: options.domain,
-              path: options.path,
-              maxAge: -1, // Expire immediately
-              httpOnly: options.httpOnly,
-              secure: options.secure,
-              sameSite: options.sameSite,
-            })
-          } catch (error) {
-            // Handle cookie removal error
-          }
+        remove(name: string, options) {
+          cookieStore.remove(name, options)
         },
       },
     }
   )
+}
+
+// For use in app directory (Server Components)
+export async function createClient() {
+  return createClientWithStore(new ServerCookieStore())
+}
+
+// For use in pages directory or API routes
+export function createClientFromRequest(
+  req: { cookies: { [key: string]: string } },
+  res: { setHeader: (name: string, value: string) => void }
+) {
+  return createClientWithStore(new RequestCookieStore(req, res))
 }
 
 // Helper function to handle Supabase errors
