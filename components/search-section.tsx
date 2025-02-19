@@ -2,11 +2,8 @@
 
 import { SearchHeader } from '@/components/search/search-header'
 import { SearchResultsGrid } from '@/components/search/search-results-grid'
-import {
-  useActivity,
-  useDepth,
-  useSources
-} from '@/lib/contexts/research-provider'
+import { useResearch } from '@/lib/contexts/research-context'
+import { createClient } from '@/lib/supabase/client'
 import { searchTool } from '@/lib/tools/search'
 import {
   ResearchDiffSystem,
@@ -25,6 +22,7 @@ import * as React from 'react'
 import { CollapsibleMessage } from './collapsible-message'
 import { RankedSearchResults } from './ranked-search-results'
 import { SearchResultsImageSection } from './search-results-image'
+import { StoredSearchResults } from './search/stored-search-results'
 import {
   RankedResultsSkeleton,
   SearchResultsGridSkeleton,
@@ -74,9 +72,13 @@ export function SearchSection({
   const query = tool.args?.query
   const includeDomains = tool.args?.includeDomains
 
-  const { state: sourcesState, addSource } = useSources()
-  const { state: activityState, addActivity } = useActivity()
-  const { state: depthState, optimizeDepth } = useDepth()
+  const { 
+    state: researchState, 
+    addActivity, 
+    optimizeDepth,
+    addSource 
+  } = useResearch()
+  const { current: currentDepth } = researchState.depth
 
   const [viewMode, setViewMode] = React.useState<'grid' | 'ranked' | 'image'>(
     'grid'
@@ -118,7 +120,7 @@ export function SearchSection({
     )
   }, [searchResults, tool.toolCallId, messages, setMessages])
 
-  // 2. Update sources context
+  // 2. Update sources
   React.useEffect(() => {
     if (!searchResults?.results || !tool.toolCallId) return
     if (!sourcesProcessedRef.current[tool.toolCallId]) return
@@ -127,13 +129,26 @@ export function SearchSection({
     sources.forEach(source => {
       const searchResult = searchResults.results.find(r => r.url === source.url)
       if (searchResult) {
+        const relevanceScore = searchResult.relevance || 0
+        const publishedDate = searchResult.publishedDate ? new Date(searchResult.publishedDate) : new Date()
+        const now = new Date()
+        const ageInDays = Math.floor((now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60 * 24))
+        const timeRelevanceScore = Math.max(0, 1 - (ageInDays / 365)) // Scale down for content older than a year
+
         addSource({
+          id: crypto.randomUUID(),
           url: source.url,
           title: source.title,
-          relevance: searchResult.relevance || 0,
+          relevance: relevanceScore,
           content: source.content,
-          query: query,
-          publishedDate: source.publishedDate
+          query: query || '',
+          publishedDate: searchResult.publishedDate || new Date().toISOString(),
+          timestamp: new Date().toISOString(),
+          quality: {
+            contentQuality: relevanceScore,
+            sourceAuthority: relevanceScore,
+            timeRelevance: timeRelevanceScore
+          }
         })
       }
     })
@@ -154,7 +169,6 @@ export function SearchSection({
   }, [searchResults, previousResults])
 
   // 4. Handle metrics and depth optimization
-  const { currentDepth } = depthState
   React.useEffect(() => {
     if (!searchResults?.results) return
 
@@ -170,13 +184,30 @@ export function SearchSection({
       })
     }
 
+    // Convert metrics to source metrics array
+    const sourceMetrics = searchResults.results.map(result => {
+      const relevanceScore = result.relevance || 0
+      const publishedDate = result.publishedDate ? new Date(result.publishedDate) : new Date()
+      const now = new Date()
+      const ageInDays = Math.floor((now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60 * 24))
+      const timeRelevanceScore = Math.max(0, 1 - (ageInDays / 365)) // Scale down for content older than a year
+      
+      return {
+        contentQuality: relevanceScore,
+        sourceAuthority: relevanceScore, // Use relevance as a proxy for authority
+        timeRelevance: timeRelevanceScore,
+        depthLevel: currentDepth,
+        overallScore: (relevanceScore * 2 + timeRelevanceScore) / 3 // Weight relevance more heavily
+      }
+    })
+
     // Debounce depth optimization
     const timeoutId = setTimeout(() => {
-      optimizeDepth(sourcesState.sourceMetrics)
+      optimizeDepth(sourceMetrics)
     }, 1000)
 
     return () => clearTimeout(timeoutId)
-  }, [searchResults, currentDepth, optimizeDepth, sourcesState.sourceMetrics])
+  }, [searchResults, currentDepth, optimizeDepth, addActivity])
 
   // Store search results in Redis when they change
   React.useEffect(() => {
@@ -269,16 +300,16 @@ export function SearchSection({
   }, [chatId])
 
   // Persist search state in URL
-  // React.useEffect(() => {
-  //   if (searchResults?.results && query) {
-  //     const params = new URLSearchParams(searchParams.toString())
-  //     params.set('q', query)
-  //     if (includeDomains?.length) {
-  //       params.set('domains', includeDomains.join(','))
-  //     }
-  //     router.push(`?${params.toString()}`, { scroll: false })
-  //   }
-  // }, [searchResults, query, includeDomains, router])
+  React.useEffect(() => {
+    if (searchResults?.results && query) {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set('q', query)
+      if (includeDomains?.length) {
+        params.set('domains', includeDomains.join(','))
+      }
+      router.push(`?${params.toString()}`, { scroll: false })
+    }
+  }, [searchResults, query, includeDomains, router])
 
   // Recover search from URL parameters
   const recoverSearch = React.useCallback(
@@ -374,6 +405,37 @@ export function SearchSection({
     [onOpenChange]
   )
 
+  // Add after Redis fetch fails
+  const fetchFromSupabase = async () => {
+    try {
+      const supabase = await createClient()
+      const { data, error } = await supabase
+        .from('search_results')
+        .select('*')
+        .eq('chat_id', chatId)
+        .eq('query', q)
+        .single()
+      
+      if (data && !error) {
+        // Handle successful Supabase data retrieval
+      }
+    } catch (error) {
+      console.error('Supabase fetch error:', error)
+    }
+  }
+
+  // Update depth optimization
+  React.useEffect(() => {
+    if (researchState.sourceMetrics.length === 0) return
+
+    // Debounce depth optimization
+    const timeoutId = setTimeout(() => {
+      optimizeDepth(researchState.sourceMetrics)
+    }, 1000)
+
+    return () => clearTimeout(timeoutId)
+  }, [researchState.sourceMetrics, optimizeDepth])
+
   return (
     <CollapsibleMessage
       role="assistant"
@@ -390,6 +452,24 @@ export function SearchSection({
       isOpen={isOpen}
       onOpenChange={onOpenChange}
     >
+      {/* StoredSearchResults is now always rendered */}
+      <div className="mb-6 border-b pb-4">
+        <StoredSearchResults 
+          chatId={chatId}
+          onResultsFound={(results) => {
+            if (!searchResults && setMessages && messages) {
+              const newMessage: ExtendedMessage = {
+                id: 'restored-search',
+                role: 'assistant',
+                content: `Restored search results for: ${q}`,
+                searchSources: extractSearchSources(results)
+              }
+              setMessages([...messages, newMessage])
+            }
+          }}
+        />
+      </div>
+
       <div className="space-y-6">
         {/* View Mode Controls */}
         <div className="flex gap-2 justify-end">
@@ -431,7 +511,10 @@ export function SearchSection({
         ) : searchResults ? (
           <>
             {viewMode === 'grid' && searchResults.results && (
-              <SearchResultsGrid results={searchResults.results} />
+              <SearchResultsGrid 
+                results={searchResults.results}
+                chatId={chatId}
+              />
             )}
             {viewMode === 'ranked' && searchResults.results && (
               <RankedSearchResults

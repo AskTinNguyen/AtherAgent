@@ -1,201 +1,107 @@
 'use client'
 
-import { createContext, ReactNode, useContext, useReducer, useState } from 'react'
+import { type ResearchActivity } from '@/lib/types/research-enhanced'
+import { createContext, useCallback, useContext, useReducer, type ReactNode } from 'react'
 
-
-// Export types
-export interface ActivityItem {
-  type: 'search' | 'extract' | 'analyze' | 'reasoning' | 'synthesis' | 'thought'
-  status: 'pending' | 'complete' | 'error'
-  message: string
-  timestamp: string
-  depth?: number
-}
-
-export interface ResearchState {
-  currentDepth: number
-  maxDepth: number
-  sources: string[]
-  isActive: boolean
-}
-
-export interface ResearchMetrics {
-  sourcesAnalyzed: number
-  qualityScore: number
-  coverageScore: number
-  relevanceScore: number
-}
-
-// Types
 interface ActivityState {
-  activities: ActivityItem[]
-  completedSteps: number
-  totalExpectedSteps: number
+  activities: ResearchActivity[]
+  currentDepth: number
 }
 
 type ActivityAction =
-  | { type: 'ADD_ACTIVITY'; payload: ActivityItem & { completedSteps?: number; totalSteps?: number } }
-  | { type: 'UPDATE_PROGRESS'; payload: { completed: number; total: number } }
-  | { type: 'CLEAR_ACTIVITIES' }
-  | { type: 'INIT_PROGRESS'; payload: { totalSteps: number } }
-  | { type: 'USE_ACTIVITY'; payload: ActivityItem }
-
-type ResearchAction =
+  | { type: 'ADD_ACTIVITY'; payload: ResearchActivity }
   | { type: 'SET_DEPTH'; payload: number }
-  | { type: 'ADD_SOURCE'; payload: string }
-  | { type: 'SET_ACTIVE'; payload: boolean }
-  | { type: 'ADD_ACTIVITY'; payload: ActivityItem }
-  | { type: 'UPDATE_METRICS'; payload: Partial<ResearchMetrics> }
+  | { type: 'CLEAR_ACTIVITIES' }
 
 interface ActivityContextType {
   state: ActivityState
-  addActivity: (activity: ActivityItem & { completedSteps?: number; totalSteps?: number }) => void
-  useActivity: (activity: ActivityItem) => void
-  updateProgress: (completed: number, total: number) => void
+  addActivity: (activity: ResearchActivity) => void
+  setDepth: (depth: number) => void
   clearActivities: () => void
-  initProgress: (totalSteps: number) => void
 }
 
-interface ResearchContextType {
-  state: ResearchState
-  activity: ActivityItem[]
-  metrics: ResearchMetrics
-  dispatch: (action: ResearchAction) => void
+interface ResearchActivityProviderProps {
+  children: ReactNode
+  onAddActivity?: (activity: ResearchActivity) => void
+  onSetDepth?: (depth: number) => void
 }
 
-// Initial state
 const initialState: ActivityState = {
   activities: [],
-  completedSteps: 0,
-  totalExpectedSteps: 0
+  currentDepth: 1
 }
 
-const initialResearchState: ResearchState = {
-  currentDepth: 1,
-  maxDepth: 7,
-  sources: [],
-  isActive: false
-}
-
-const initialMetrics: ResearchMetrics = {
-  sourcesAnalyzed: 0,
-  qualityScore: 0,
-  coverageScore: 0,
-  relevanceScore: 0
-}
-
-// Reducer
 function activityReducer(state: ActivityState, action: ActivityAction): ActivityState {
   switch (action.type) {
     case 'ADD_ACTIVITY':
       return {
         ...state,
-        activities: [...state.activities, action.payload],
-        completedSteps: action.payload.completedSteps ?? state.completedSteps,
-        totalExpectedSteps: action.payload.totalSteps ?? state.totalExpectedSteps
+        activities: [...state.activities, {
+          ...action.payload,
+          depth: action.payload.depth || state.currentDepth
+        }]
       }
-    case 'UPDATE_PROGRESS':
+
+    case 'SET_DEPTH':
       return {
         ...state,
-        completedSteps: action.payload.completed,
-        totalExpectedSteps: action.payload.total
+        currentDepth: action.payload
       }
+
     case 'CLEAR_ACTIVITIES':
       return initialState
-    case 'INIT_PROGRESS':
-      return {
-        ...state,
-        totalExpectedSteps: action.payload.totalSteps,
-        completedSteps: 0
-      }
-    case 'USE_ACTIVITY':
-      return {
-        ...state,
-        activities: [...state.activities, { ...action.payload, status: 'complete' }]
-      }
+
     default:
       return state
   }
 }
 
-function researchReducer(state: ResearchState, action: ResearchAction): ResearchState {
-  switch (action.type) {
-    case 'SET_DEPTH':
-      return { ...state, currentDepth: action.payload }
-    case 'ADD_SOURCE':
-      return { ...state, sources: [...state.sources, action.payload] }
-    case 'SET_ACTIVE':
-      return { ...state, isActive: action.payload }
-    default:
-      return state
-  }
-}
+const ActivityContext = createContext<ActivityContextType | undefined>(undefined)
 
-// Context
-const ActivityContext = createContext<ActivityContextType | null>(null)
-const ResearchContext = createContext<ResearchContextType | null>(null)
+export function ResearchActivityProvider({ 
+  children,
+  onAddActivity,
+  onSetDepth
+}: ResearchActivityProviderProps) {
+  const [state, dispatch] = useReducer(activityReducer, initialState)
 
-// Provider check utilities
-function assertContextExists<T>(
-  context: T | null,
-  contextName: string
-): asserts context is T {
-  if (context === null) {
-    throw new Error(
-      `${contextName} must be used within its Provider. ` +
-      'Please ensure the component is wrapped in ResearchActivityProvider.'
-    )
-  }
-}
+  const addActivity = useCallback((activity: ResearchActivity) => {
+    dispatch({ type: 'ADD_ACTIVITY', payload: activity })
+    // Notify parent through props
+    onAddActivity?.(activity)
+  }, [onAddActivity])
 
-// Combined Provider
-export function ResearchActivityProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(researchReducer, initialResearchState)
-  const [activity, setActivity] = useState<ActivityItem[]>([])
-  const [metrics, setMetrics] = useState<ResearchMetrics>(initialMetrics)
-  const [activityState, activityDispatch] = useReducer(activityReducer, initialState)
+  const setDepth = useCallback((depth: number) => {
+    dispatch({ type: 'SET_DEPTH', payload: depth })
+    // Notify parent through props
+    onSetDepth?.(depth)
+  }, [onSetDepth])
 
-  const activityContextValue: ActivityContextType = {
-    state: activityState,
-    addActivity: (activity) => activityDispatch({ type: 'ADD_ACTIVITY', payload: activity }),
-    useActivity: (activity) => activityDispatch({ type: 'USE_ACTIVITY', payload: activity }),
-    updateProgress: (completed, total) => activityDispatch({ type: 'UPDATE_PROGRESS', payload: { completed, total } }),
-    clearActivities: () => activityDispatch({ type: 'CLEAR_ACTIVITIES' }),
-    initProgress: (totalSteps) => activityDispatch({ type: 'INIT_PROGRESS', payload: { totalSteps } })
-  }
-
-  const researchContextValue: ResearchContextType = {
-    state,
-    activity,
-    metrics,
-    dispatch: (action: ResearchAction) => {
-      dispatch(action)
-      if (action.type === 'ADD_ACTIVITY') {
-        setActivity(prev => [...prev, action.payload])
-      } else if (action.type === 'UPDATE_METRICS') {
-        setMetrics(prev => ({ ...prev, ...action.payload }))
-      }
-    }
-  }
+  const clearActivities = useCallback(() => {
+    dispatch({ type: 'CLEAR_ACTIVITIES' })
+  }, [])
 
   return (
-    <ResearchContext.Provider value={researchContextValue}>
-      <ActivityContext.Provider value={activityContextValue}>
-        {children}
-      </ActivityContext.Provider>
-    </ResearchContext.Provider>
+    <ActivityContext.Provider
+      value={{
+        state,
+        addActivity,
+        setDepth,
+        clearActivities
+      }}
+    >
+      {children}
+    </ActivityContext.Provider>
   )
 }
 
-// Hooks with enhanced error messages
-export function useActivity() {
+export function useResearchActivity() {
   const context = useContext(ActivityContext)
-  assertContextExists(context, 'useActivity')
-  return context
-}
-
-export function useResearchContext() {
-  const context = useContext(ResearchContext)
-  assertContextExists(context, 'useResearchContext')
+  if (context === undefined) {
+    throw new Error(
+      'useResearchActivity must be used within a ResearchActivityProvider. ' +
+      'Make sure it is wrapped in the ResearchProvider.'
+    )
+  }
   return context
 } 

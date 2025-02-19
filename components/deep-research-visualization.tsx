@@ -86,7 +86,7 @@ function DeepResearchVisualizationContent({
 
         {/* Panel Container */}
         <div className={cn(
-          "fixed inset-y-0 left-0 z-40 transition-all duration-300 ease-in-out",
+          "fixed top-14 bottom-0 left-0 z-30 transition-all duration-300 ease-in-out",
           // Desktop: Show panel and handle collapse
           "hidden lg:block",
           isCollapsed ? "lg:w-0 lg:opacity-0" : "lg:w-[440px] lg:opacity-100",

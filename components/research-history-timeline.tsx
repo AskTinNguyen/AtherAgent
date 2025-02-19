@@ -1,11 +1,11 @@
 'use client'
 
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select"
 import { useResearch } from '@/lib/contexts/research-context'
 import { cn } from '@/lib/utils'
@@ -77,7 +77,7 @@ export function ResearchHistoryTimeline() {
 
   if (activity.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center p-4">
+      <div className="flex flex-col items-center justify-center h-full p-6">
         <Clock className="h-12 w-12 text-muted-foreground mb-4" />
         <h3 className="text-lg font-medium">No Research History</h3>
         <p className="text-sm text-muted-foreground">
@@ -88,104 +88,104 @@ export function ResearchHistoryTimeline() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full">
       {/* Controls */}
-      <div className="flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur p-2 z-10">
-        <div className="flex items-center gap-2">
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Events</SelectItem>
-              <SelectItem value="search">Search</SelectItem>
-              <SelectItem value="extract">Extract</SelectItem>
-              <SelectItem value="analyze">Analyze</SelectItem>
-              <SelectItem value="reasoning">Reasoning</SelectItem>
-              <SelectItem value="synthesis">Synthesis</SelectItem>
-              <SelectItem value="thought">Thought</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        
+      <div className="flex items-center justify-between border-b bg-background px-4 py-2.5">
+        <Select value={filter} onValueChange={setFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Events</SelectItem>
+            <SelectItem value="search">Search</SelectItem>
+            <SelectItem value="extract">Extract</SelectItem>
+            <SelectItem value="analyze">Analyze</SelectItem>
+            <SelectItem value="reasoning">Reasoning</SelectItem>
+            <SelectItem value="synthesis">Synthesis</SelectItem>
+            <SelectItem value="thought">Thought</SelectItem>
+          </SelectContent>
+        </Select>
+
         <Button
           variant="outline"
           size="sm"
-          className="flex items-center gap-2"
           onClick={handleExport}
+          className="gap-2"
         >
           <Download className="h-4 w-4" />
           Export History
         </Button>
       </div>
 
-      {/* Timeline */}
-      <div className="space-y-8">
-        {filteredGroups.map((group, groupIndex) => (
-          <motion.div
-            key={group.date}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: groupIndex * 0.1 }}
-          >
-            <div className="sticky top-16 bg-background/95 backdrop-blur py-2 z-[5]">
-              <h3 className="text-sm font-medium">{group.date}</h3>
-            </div>
+      {/* Timeline Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="space-y-6 p-4">
+          {filteredGroups.map((group, groupIndex) => (
+            <motion.div
+              key={group.date}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: groupIndex * 0.1 }}
+              className="relative"
+            >
+              <div className="sticky top-2 z-20">
+                <div className="flex h-6 items-center bg-background px-2 text-sm font-medium rounded-md shadow-sm">
+                  {group.date}
+                </div>
+              </div>
 
-            <div className="space-y-4 mt-4">
-              {group.events.map((event, eventIndex) => (
-                <motion.div
-                  key={`${event.timestamp}-${eventIndex}`}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: eventIndex * 0.05 }}
-                  className="relative pl-6 before:absolute before:left-2 before:top-2 before:size-2 before:rounded-full before:bg-primary"
-                >
-                  <Card className="p-3">
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="text-sm whitespace-pre-wrap">{event.message}</p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <span className="text-xs text-muted-foreground capitalize">
-                              {event.type}
-                            </span>
-                            {event.depth !== undefined && (
-                              <span className="text-xs text-muted-foreground">
-                                Depth: {event.depth}
-                              </span>
-                            )}
+              <div className="mt-2 space-y-3">
+                {group.events.map((event, eventIndex) => (
+                  <motion.div
+                    key={`${event.timestamp}-${eventIndex}`}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: eventIndex * 0.05 }}
+                    className="relative pl-6 before:absolute before:left-2 before:top-2 before:size-2 before:rounded-full before:bg-primary"
+                  >
+                    <Card className="overflow-hidden">
+                      <div className="p-3">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                                {event.message}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-muted-foreground capitalize">
+                                  {event.type}
+                                </span>
+                                {event.depth !== undefined && (
+                                  <span className="text-xs text-muted-foreground">
+                                    Depth: {event.depth}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <time className="text-xs text-muted-foreground whitespace-nowrap">
+                              {new Date(event.timestamp).toLocaleTimeString()}
+                            </time>
+                          </div>
+                          
+                          <div className="relative h-1 w-full overflow-hidden rounded-full bg-secondary">
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-all duration-500",
+                                event.status === 'pending' && 'bg-yellow-500 w-1/2',
+                                event.status === 'complete' && 'bg-green-500 w-full',
+                                event.status === 'error' && 'bg-red-500 w-full'
+                              )}
+                            />
                           </div>
                         </div>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(event.timestamp).toLocaleTimeString()}
-                        </span>
                       </div>
-                      
-                      <div
-                        className={cn(
-                          'h-1 w-full rounded-full',
-                          event.status === 'pending' && 'bg-yellow-500/20',
-                          event.status === 'complete' && 'bg-green-500/20',
-                          event.status === 'error' && 'bg-red-500/20'
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            'h-full rounded-full transition-all duration-500',
-                            event.status === 'pending' && 'bg-yellow-500 w-1/2',
-                            event.status === 'complete' && 'bg-green-500 w-full',
-                            event.status === 'error' && 'bg-red-500 w-full'
-                          )}
-                        />
-                      </div>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        ))}
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          ))}
+        </div>
       </div>
     </div>
   )

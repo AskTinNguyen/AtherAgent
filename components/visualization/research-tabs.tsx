@@ -1,4 +1,5 @@
 import { useResearch } from '@/lib/contexts/research-context'
+import { cn } from '@/lib/utils'
 import * as Tabs from '@radix-ui/react-tabs'
 import { Layers } from 'lucide-react'
 import { ResearchHistoryTimeline } from '../research-history-timeline'
@@ -8,17 +9,23 @@ import { ResearchPathVisualization } from './research-path-visualization'
 interface ResearchTabsProps {
   chatId: string
   onSuggestionSelect?: (content: string) => void
+  isFullScreen?: boolean
 }
-
-const cn = (...classes: (string | boolean | undefined)[]) => 
-  classes.filter((c): c is string => typeof c === 'string').join(' ')
 
 export function ResearchTabs({ 
   chatId, 
-  onSuggestionSelect
+  onSuggestionSelect,
+  isFullScreen = false
 }: ResearchTabsProps) {
   const { state } = useResearch()
   const { activity, sources } = state
+
+  const tabContentClass = cn(
+    "flex-1 overflow-y-auto transition-all duration-300",
+    isFullScreen 
+      ? "container mx-auto max-w-screen-2xl px-6 py-8"
+      : "px-4 py-6"
+  )
 
   return (
     <Tabs.Root defaultValue="activity" className="h-[calc(100vh-11rem)] flex flex-col">
@@ -57,40 +64,48 @@ export function ResearchTabs({
 
       <Tabs.Content 
         value="path" 
-        className="flex-1 overflow-y-auto"
+        className={tabContentClass}
       >
-        <ResearchPathVisualization />
+        <div className={cn(
+          "h-full",
+          isFullScreen && "max-w-screen-xl mx-auto"
+        )}>
+          <ResearchPathVisualization />
+        </div>
       </Tabs.Content>
 
       <Tabs.Content 
         value="activity" 
-        className="flex-1 overflow-y-auto"
+        className={tabContentClass}
       >
-        <div className="space-y-4">
+        <div className={cn(
+          "space-y-4",
+          isFullScreen && "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 space-y-0"
+        )}>
           {[...activity].reverse().map((item, index) => (
             <div
               key={index}
-              className="flex items-start gap-3"
+              className="flex items-start gap-4 rounded-lg p-4 hover:bg-muted/50 transition-colors"
             >
               {item.type === 'search' ? (
-                <div className="flex items-center gap-1 shrink-0 mt-1">
-                  <Layers className="h-3.5 w-3.5 text-primary" />
+                <div className="flex items-center gap-1.5 shrink-0 mt-1">
+                  <Layers className="h-4 w-4 text-primary" />
                   <span className="text-xs font-medium text-primary">{item.depth}</span>
                 </div>
               ) : (
                 <div
                   className={cn(
-                    'size-2 rounded-full shrink-0 mt-1.5',
+                    'size-2.5 rounded-full shrink-0 mt-2',
                     item.status === 'pending' && 'bg-yellow-500',
                     item.status === 'complete' && 'bg-green-500',
                     item.status === 'error' && 'bg-red-500',
                   )}
                 />
               )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-foreground break-words whitespace-pre-wrap">
+              <div className="flex-1 min-w-0 space-y-1">
+                <p className="text-sm leading-relaxed text-foreground break-words whitespace-pre-wrap">
                   {item.type === 'search' 
-                    ? item.message.replace(/^Depth \d+: /, '') // Remove the "Depth X: " prefix
+                    ? item.message.replace(/^Depth \d+: /, '')
                     : item.message
                   }
                 </p>
@@ -105,27 +120,30 @@ export function ResearchTabs({
 
       <Tabs.Content 
         value="sources" 
-        className="flex-1 overflow-y-auto"
+        className={tabContentClass}
       >
-        <div className="space-y-4">
+        <div className={cn(
+          "space-y-4",
+          isFullScreen && "grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4 space-y-0"
+        )}>
           {sources.map((source, index) => (
             <div
               key={index}
-              className="flex flex-col gap-1"
+              className="flex flex-col gap-2 p-4 rounded-lg hover:bg-muted/50 transition-colors border"
             >
               <a
                 href={source.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm font-medium hover:underline break-words"
+                className="text-sm font-medium hover:underline break-words text-primary"
               >
                 {source.title}
               </a>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <div className="text-xs text-muted-foreground truncate">
                   {new URL(source.url).hostname}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                   Relevance: {Math.round(source.relevance * 100)}%
                 </div>
               </div>
@@ -136,16 +154,25 @@ export function ResearchTabs({
 
       <Tabs.Content 
         value="suggestions" 
-        className="flex-1 overflow-y-auto"
+        className={tabContentClass}
       >
-        <ResearchSuggestions chatId={chatId} onSuggestionSelect={onSuggestionSelect} />
+        <ResearchSuggestions 
+          chatId={chatId} 
+          onSuggestionSelect={onSuggestionSelect}
+          isFullScreen={isFullScreen}
+        />
       </Tabs.Content>
 
       <Tabs.Content 
         value="history" 
-        className="flex-1 overflow-y-auto"
+        className={tabContentClass}
       >
-        <ResearchHistoryTimeline />
+        <div className={cn(
+          "h-full",
+          isFullScreen && "max-w-screen-xl mx-auto"
+        )}>
+          <ResearchHistoryTimeline />
+        </div>
       </Tabs.Content>
     </Tabs.Root>
   )

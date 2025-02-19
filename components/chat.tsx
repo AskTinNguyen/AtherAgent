@@ -26,7 +26,7 @@ export function ChatContent({
   savedMessages?: Message[]
   query?: string
 }) {
-  const { state: researchState } = useResearch()
+  const { state: researchState, setMessages: setResearchMessages } = useResearch()
   const pathname = usePathname()
   const isInChatSession = pathname.startsWith('/search/')
   const supabase = useSupabase()
@@ -133,7 +133,7 @@ export function ChatContent({
     messages,
     input,
     handleInputChange,
-    handleSubmit,
+    handleSubmit: originalHandleSubmit,
     isLoading,
     setMessages,
     stop,
@@ -148,11 +148,33 @@ export function ChatContent({
       searchMode: researchState.searchEnabled
     },
     onResponse: async (response) => {
+      // Update URL immediately when we get first response
+      if (!pathname.startsWith('/search/')) {
+        window.history.replaceState({}, '', `/search/${id}`)
+      }
+      
       if (userId && researchSessionId) {
         try {
           // When streaming starts, we create a placeholder message in the database
           // The content must be an empty string ('') NOT null, as the database has a not-null constraint
           // This empty string also serves as a marker to find this specific message later in onFinish
+          // Get the last message (which should be the user's message)
+          // Get the last message from the database instead of messages array
+          const { data: lastMessages, error: fetchError } = await supabase
+            .from('chat_messages')
+            .select('id, role')
+            .eq('research_session_id', researchSessionId)
+            .eq('role', 'user')
+            .order('created_at', { ascending: false })
+            .limit(1)
+
+          if (fetchError) {
+            console.error('Error fetching last message:', fetchError)
+          }
+
+          const lastUserMessage = lastMessages?.[0]
+          console.log('Last user message from DB:', lastUserMessage)
+          
           console.log('Saving initial assistant message')
           const messageUuid = uuidv4()
           const newMessage = createChatMessage({
@@ -169,7 +191,9 @@ export function ChatContent({
               timestamp: new Date().toISOString()
             }
           }, {
-            sequence_number: messages.length + 1
+            sequence_number: messages?.length ? messages.length + 1 : 1,
+            message_type: 'ai_response',
+            parent_message_id: lastUserMessage?.id // Use DB message ID
           })
           
           const { error } = await supabase
@@ -303,7 +327,8 @@ export function ChatContent({
               role: 'assistant',
               metadata
             }, {
-              sequence_number: messages.length + 1
+              sequence_number: messages.length + 1,
+              message_type: 'ai_response'
             })
 
             const { error: insertError } = await supabase
@@ -350,6 +375,17 @@ export function ChatContent({
     setMessages(savedMessages)
   }, [id])
 
+  useEffect(() => {
+    if (savedMessages && savedMessages.length > 0) {
+      const formattedMessages = savedMessages.map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: new Date(msg.createdAt || new Date()).toISOString()
+      }))
+      setResearchMessages(formattedMessages)
+    }
+  }, [savedMessages, setResearchMessages])
+
   const onQuerySelect = async (query: string) => {
     if (userId && researchSessionId) {
       try {
@@ -369,7 +405,9 @@ export function ChatContent({
             }
           }
         }, {
-          sequence_number: messages.length + 1
+          sequence_number: messages?.length ? messages.length + 1 : 1,
+          message_type: 'user_prompt'
+          // No parent_message_id needed for user messages
         })
         
         const { error } = await supabase
@@ -402,55 +440,17 @@ export function ChatContent({
     })
   }
 
-  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  // Wrap handleSubmit to ensure proper state order
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setData(undefined)
     
-    if (userId && researchSessionId && input) {
-      try {
-        const messageUuid = uuidv4()
-        const newMessage = createChatMessage({
-          id: messageUuid,
-          user_id: userId,
-          research_session_id: researchSessionId,
-          content: input,
-          role: 'user',
-          metadata: {
-            client_timestamp: new Date().toISOString(),
-            client_info: {
-              platform: navigator.platform,
-              userAgent: navigator.userAgent
-            }
-          }
-        }, {
-          sequence_number: messages.length + 1
-        })
-        
-        const { error } = await supabase
-          .from('chat_messages')
-          .insert(newMessage)
-        
-        if (error) {
-          console.error('Failed to save user input:', {
-            code: error.code,
-            details: error.details,
-            message: error.message,
-            hint: error.hint
-          })
-          toast.error(`Failed to save message: ${error.message}`)
-        }
-      } catch (err) {
-        const error = err as Error
-        console.error('Failed to save message:', {
-          name: error.name,
-          message: error.message,
-          stack: error.stack
-        })
-        toast.error('Failed to save message due to an unexpected error')
-      }
+    // If this is the first message, update URL immediately
+    if (!pathname.startsWith('/search/')) {
+      window.history.replaceState({}, '', `/search/${id}`)
     }
     
-    handleSubmit(e)
+    // Call original submit handler
+    await originalHandleSubmit(e)
   }
 
   const handleClearResearch = async (chatId: string, isCleared: boolean) => {
@@ -490,7 +490,7 @@ export function ChatContent({
           <ChatPanel
             input={input}
             handleInputChange={handleInputChange}
-            handleSubmit={onSubmit}
+            handleSubmit={handleSubmit}
             isLoading={isLoading}
             messages={messages}
             setMessages={setMessages}

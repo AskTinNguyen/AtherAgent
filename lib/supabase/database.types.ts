@@ -116,6 +116,68 @@ export interface Database {
           created_at?: string
         }
       }
+      message_contexts: {
+        Row: {
+          id: string
+          session_id: string
+          main_topic: string
+          related_topics: string[]
+          relevance_score: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          main_topic: string
+          related_topics?: string[]
+          relevance_score?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          main_topic?: string
+          related_topics?: string[]
+          relevance_score?: number
+          updated_at?: string
+        }
+      }
+      research_suggestions: {
+        Row: {
+          id: string
+          session_id: string
+          context_id: string
+          type: 'depth' | 'cross_reference' | 'refinement' | 'path'
+          content: string
+          confidence: number
+          metadata: Json
+          created_at: string
+          used_at: string | null
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          context_id: string
+          type: 'depth' | 'cross_reference' | 'refinement' | 'path'
+          content: string
+          confidence?: number
+          metadata?: Json
+          created_at?: string
+          used_at?: string | null
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          context_id?: string
+          type?: 'depth' | 'cross_reference' | 'refinement' | 'path'
+          content?: string
+          confidence?: number
+          metadata?: Json
+          used_at?: string | null
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -128,3 +190,7 @@ export interface Database {
     }
   }
 } 
+
+// lib/supabase/database.types.ts 
+// Add to the existing Database interface:
+
