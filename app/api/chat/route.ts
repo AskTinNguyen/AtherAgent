@@ -46,7 +46,7 @@ function processChartData(message: string | { content: string }): { content: str
 
 export async function POST(req: Request) {
   try {
-    const { messages, id: chatId } = await req.json()
+    const { messages, id: chatId, experimental_attachments } = await req.json()
     const referer = req.headers.get('referer')
     const isSharePage = referer?.includes('/share/')
 
@@ -69,17 +69,45 @@ export async function POST(req: Request) {
       })
     }
 
+    // Process image attachments if present
+    const processedMessages = messages.map((message: any) => {
+      if (message.role === 'user' && experimental_attachments?.length) {
+        // For each image attachment, add its base64 data to the message content
+        const imageAttachments = experimental_attachments
+          .filter((attachment: any) => attachment.type === 'image' && attachment.base64)
+          .map((attachment: any) => ({
+            type: 'image_url',
+            image_url: {
+              url: attachment.base64,
+              detail: 'auto'
+            }
+          }))
+
+        // If we have image attachments, format the message for GPT-4 Vision
+        if (imageAttachments.length > 0) {
+          return {
+            ...message,
+            content: [
+              { type: 'text', text: message.content },
+              ...imageAttachments
+            ]
+          }
+        }
+      }
+      return message
+    })
+
     const supportsToolCalling = isToolCallSupported(model)
 
     const streamResponse = supportsToolCalling
       ? await createToolCallingStreamResponse({
-          messages,
+          messages: processedMessages,
           model,
           chatId,
           searchMode
         })
       : await createManualToolStreamResponse({
-          messages,
+          messages: processedMessages,
           model,
           chatId,
           searchMode

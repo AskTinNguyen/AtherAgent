@@ -1,4 +1,4 @@
-import { SearchResultItem, SearchResults, ToolResultContent } from '@/lib/types'
+import { SearchResultItem, SearchResults, ToolResultContent } from '@/lib/types/index'
 import { CoreMessage, smoothStream, streamText } from 'ai'
 import { ResearchContext } from '../ai/research-processor'
 import { retrieveTool } from '../tools/retrieve'

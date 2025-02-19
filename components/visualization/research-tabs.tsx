@@ -1,7 +1,9 @@
+import { useSupabase } from '@/components/providers/supabase-provider'
 import { useResearch } from '@/lib/contexts/research-context'
 import { cn } from '@/lib/utils'
 import * as Tabs from '@radix-ui/react-tabs'
 import { Layers } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { ResearchHistoryTimeline } from '../research-history-timeline'
 import { ResearchSuggestions } from '../research-suggestions'
 import { ResearchPathVisualization } from './research-path-visualization'
@@ -19,6 +21,16 @@ export function ResearchTabs({
 }: ResearchTabsProps) {
   const { state } = useResearch()
   const { activity, sources } = state
+  const supabase = useSupabase()
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.id) {
+        setUserId(session.user.id)
+      }
+    })
+  }, [supabase])
 
   const tabContentClass = cn(
     "flex-1 overflow-y-auto transition-all duration-300",
@@ -156,11 +168,18 @@ export function ResearchTabs({
         value="suggestions" 
         className={tabContentClass}
       >
-        <ResearchSuggestions 
-          chatId={chatId} 
-          onSuggestionSelect={onSuggestionSelect}
-          isFullScreen={isFullScreen}
-        />
+        {userId ? (
+          <ResearchSuggestions
+            chatId={chatId} 
+            userId={userId}
+            onSuggestionSelect={onSuggestionSelect}
+            isFullScreen={isFullScreen}
+          />
+        ) : (
+          <div className="flex items-center justify-center p-4 text-muted-foreground">
+            Loading user data...
+          </div>
+        )}
       </Tabs.Content>
 
       <Tabs.Content 

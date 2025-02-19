@@ -30,10 +30,26 @@ export type SerperSearchResults = {
   videos: SerperSearchResultItem[]
 }
 
+// Base search result type with common properties
 export type SearchResultItem = {
   title: string
   url: string
   content: string
+}
+
+// Extended search result with additional metadata
+export interface SearchResult extends SearchResultItem {
+  relevance: number
+  depth: number
+  source?: string
+  timestamp?: number
+  metadata?: Record<string, any>
+  quality?: {
+    relevance: number
+    authority: number
+    freshness: number
+    coverage: number
+  }
 }
 
 export type ExaSearchResultItem = {
@@ -112,4 +128,44 @@ export type SearXNGSearchResults = {
   results: SearchResultItem[]
   number_of_results?: number
   query: string
+}
+
+export interface AttachmentFile {
+  id: string
+  file: File
+  type: 'image' | 'other'
+  previewUrl?: string
+  status: 'uploading' | 'ready' | 'error'
+  progress: number
+  url?: string
+  base64?: string
+  error?: string
+  tempPath?: string
+}
+
+export interface ChatRequestOptions {
+  images?: string[]
+  experimental_attachments?: AttachmentFile[]
+  experimental_deepResearch?: boolean
+}
+
+export interface SearchSource {
+  id: string
+  url: string
+  title?: string
+  relevance?: number
+  snippet?: string
+  messageId?: string
+}
+
+export interface ToolResultContent {
+  type: 'text'
+  text: string
+}
+
+export class UploadError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'UploadError'
+  }
 }

@@ -1,4 +1,4 @@
-import { ResearchSuggestion } from '@/components/research-suggestions'
+import { ResearchSuggestion } from '@/lib/types/research-enhanced'
 import { getRedisClient } from './config'
 
 const REDIS_KEYS = {

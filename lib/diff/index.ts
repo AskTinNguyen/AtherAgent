@@ -1,4 +1,4 @@
-import { SearchResult } from '@/lib/types'
+import { SearchResult } from '@/lib/types/index'
 import { DiffResult, DiffType, ResultDiff } from './types'
 
 const RELEVANCE_THRESHOLD = 0.2

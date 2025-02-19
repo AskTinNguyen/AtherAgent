@@ -1,8 +1,9 @@
 'use client'
 
-import { AttachmentFile, SearchSource } from '@/lib/types'
+import { type AttachmentFile, type ChatRequestOptions, type SearchSource } from '@/lib/types/index'
 import { cn } from '@/lib/utils'
-import { uploadFile, validateFile } from '@/lib/utils/upload'
+import { cleanupTempImage, persistChatImage, uploadChatImageTemp } from '@/lib/utils/chat-image-upload'
+import { getFileType, validateFile } from '@/lib/utils/upload'
 import { Message } from 'ai'
 import { ArrowUp, Maximize2, MessageCirclePlus, Square, Type, Upload } from 'lucide-react'
 import { nanoid } from 'nanoid'
@@ -22,12 +23,13 @@ import { Button } from './ui/button'
 
 interface UploadResponse {
   url: string
+  base64?: string
 }
 
 interface ChatPanelProps {
   input: string
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void
+  handleSubmit: (e?: React.FormEvent, options?: ChatRequestOptions) => void
   isLoading: boolean
   messages: Message[]
   setMessages: (messages: Message[]) => void
@@ -38,12 +40,13 @@ interface ChatPanelProps {
   currentDepth?: number
   maxDepth?: number
   onDepthChange?: (depth: number) => void
+  chatId: string
 }
 
 export function ChatPanel({
   input,
   handleInputChange,
-  handleSubmit,
+  handleSubmit: originalHandleSubmit,
   isLoading,
   messages,
   setMessages,
@@ -53,7 +56,8 @@ export function ChatPanel({
   onSearchModeChange,
   currentDepth = 1,
   maxDepth = 3,
-  onDepthChange
+  onDepthChange,
+  chatId
 }: ChatPanelProps) {
   const [showEmptyScreen, setShowEmptyScreen] = useState(false)
   const [searchMode, setSearchMode] = useState(false)
@@ -113,6 +117,58 @@ export function ChatPanel({
     router.replace('/')
   }
 
+  // Wrap the original handleSubmit to include image attachments
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    
+    // Get ready images
+    const readyAttachments = attachments.filter(a => a.status === 'ready')
+    const imageUrls = readyAttachments
+      .map(a => a.base64 || a.url)
+      .filter((url): url is string => typeof url === 'string') // Type guard to ensure string[]
+    
+    try {
+      // Call the original handleSubmit with image data
+      await originalHandleSubmit(e, {
+        images: imageUrls,
+        experimental_attachments: readyAttachments
+      })
+      
+      // After successful AI processing, persist the images
+      for (const attachment of readyAttachments) {
+        if (attachment.tempPath && attachment.url) {
+          try {
+            await persistChatImage(
+              {
+                id: attachment.id,
+                url: attachment.url,
+                path: attachment.tempPath,
+                size: attachment.file.size,
+                contentType: attachment.file.type,
+                tempPath: attachment.tempPath
+              },
+              chatId
+            )
+          } catch (error) {
+            console.error('Failed to persist image:', error)
+            // Continue with other images even if one fails
+          }
+        }
+      }
+    } catch (error) {
+      // If AI processing fails, cleanup temp images
+      for (const attachment of readyAttachments) {
+        if (attachment.tempPath) {
+          await cleanupTempImage(attachment.tempPath)
+        }
+      }
+      throw error
+    } finally {
+      // Clear attachments after processing
+      setAttachments([])
+    }
+  }
+
   const handleFileAccepted = async (files: File[]) => {
     const newAttachments: AttachmentFile[] = []
 
@@ -120,7 +176,7 @@ export function ChatPanel({
       try {
         validateFile(file)
         const id = nanoid()
-        const type = file.type.startsWith('image/') ? 'image' : file.type === 'application/pdf' ? 'document' : 'other'
+        const type = getFileType(file)
         
         // Create preview URL for images
         const previewUrl = type === 'image' ? URL.createObjectURL(file) : undefined
@@ -137,15 +193,15 @@ export function ChatPanel({
         newAttachments.push(attachment)
         setAttachments(prev => [...prev, attachment])
 
-        // Start upload
+        // Start upload to temp storage
         try {
-          const response = await uploadFile(file, (progress) => {
+          const result = await uploadChatImageTemp(file, (progress) => {
             setAttachments(prev =>
               prev.map(a =>
                 a.id === id ? { ...a, progress } : a
               )
             )
-          }) as UploadResponse
+          })
 
           // Update attachment with upload result
           setAttachments(prev =>
@@ -155,7 +211,8 @@ export function ChatPanel({
                     ...a,
                     status: 'ready',
                     progress: 100,
-                    url: response.url
+                    url: result.url,
+                    tempPath: result.tempPath // Store temp path for later persistence
                   }
                 : a
             )
@@ -174,7 +231,6 @@ export function ChatPanel({
           )
         }
       } catch (error) {
-        // Handle validation error
         console.error('File validation error:', error)
       }
     }

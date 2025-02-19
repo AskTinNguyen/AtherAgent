@@ -5,7 +5,7 @@ import {
   SearchResults,
   SearXNGResponse,
   SearXNGResult
-} from '@/lib/types'
+} from '@/lib/types/index'
 import { sanitizeUrl } from '@/lib/utils'
 import { tool } from 'ai'
 import Exa from 'exa-js'
@@ -100,7 +100,15 @@ export async function search(
       max_results: maxResults,
       search_depth: searchDepth,
       include_domains: includeDomains,
-      exclude_domains: excludeDomains
+      exclude_domains: excludeDomains,
+      // TODO: TIN to verify if these schemas should be strict or will it force errors if Search API is not Taivly or a specific Search Provider
+      topic: 'general',
+      time_range: 'w',
+      include_answer: false,
+      include_raw_content: false,
+      include_images: true,
+      include_image_descriptions: true,
+      days: 3
     },
     {
       toolCallId: 'search',

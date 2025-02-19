@@ -1,11 +1,11 @@
 'use client'
 
+import type { SerperSearchResults } from '@/lib/types/index'
+import { ToolInvocation } from 'ai'
+import { CollapsibleMessage } from './collapsible-message'
 import { DefaultSkeleton } from './default-skeleton'
 import { Section, ToolArgsSection } from './section'
-import type { SerperSearchResults } from '@/lib/types'
-import { ToolInvocation } from 'ai'
 import { VideoSearchResults } from './video-search-results'
-import { CollapsibleMessage } from './collapsible-message'
 
 interface VideoSearchSectionProps {
   tool: ToolInvocation

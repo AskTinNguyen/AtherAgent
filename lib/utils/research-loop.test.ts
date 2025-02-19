@@ -1,4 +1,4 @@
-import type { SearchResult } from '@/lib/types'
+import type { SearchResult } from '@/lib/types/index'
 import { describe, expect, jest, test } from '@jest/globals'
 import fetch, { Response } from 'node-fetch'
 import type { ResearchIteration } from './research-loop'

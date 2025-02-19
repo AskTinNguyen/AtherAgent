@@ -7,6 +7,7 @@ import type { ChatResearchState } from '@/lib/types/research'
 import { Message, useChat } from 'ai/react'
 import { useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
+import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import useSWR from 'swr'
@@ -441,8 +442,10 @@ export function ChatContent({
   }
 
   // Wrap handleSubmit to ensure proper state order
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
+  const handleSubmit = async (e?: FormEvent<Element>, options?: any) => {
+    if (e) {
+      e.preventDefault()
+    }
     
     // If this is the first message, update URL immediately
     if (!pathname.startsWith('/search/')) {
@@ -450,7 +453,7 @@ export function ChatContent({
     }
     
     // Call original submit handler
-    await originalHandleSubmit(e)
+    await originalHandleSubmit(e, options)
   }
 
   const handleClearResearch = async (chatId: string, isCleared: boolean) => {
@@ -497,6 +500,7 @@ export function ChatContent({
             stop={stop}
             query={query}
             append={append}
+            chatId={id}
           />
         </div>
       </div>

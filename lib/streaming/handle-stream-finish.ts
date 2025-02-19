@@ -1,6 +1,6 @@
 import { getChat, saveChat } from '@/lib/actions/chat'
 import { generateRelatedQuestions } from '@/lib/agents/generate-related-questions'
-import { ExtendedCoreMessage } from '@/lib/types'
+import { ExtendedCoreMessage } from '@/lib/types/index'
 import { CoreMessage, DataStreamWriter, JSONValue, Message } from 'ai'
 import { StreamProtocolManager } from './stream-protocol-manager'
 

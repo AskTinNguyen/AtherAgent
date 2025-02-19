@@ -1,7 +1,7 @@
 'use server'
 
 import { getRedisClient } from '@/lib/redis/config'
-import { type Chat } from '@/lib/types'
+import { type Chat } from '@/lib/types/index'
 import { normalizeDate } from '@/lib/utils'
 import { JSONValue } from 'ai'
 import { revalidatePath } from 'next/cache'

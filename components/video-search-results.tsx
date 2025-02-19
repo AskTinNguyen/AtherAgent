@@ -1,17 +1,8 @@
 /* eslint-disable @next/next/no-img-element */
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { AvatarImage, Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { CardContent, Card } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Carousel,
   type CarouselApi,
@@ -20,8 +11,17 @@ import {
   CarouselNext,
   CarouselPrevious
 } from '@/components/ui/carousel'
-import { SerperSearchResultItem, SerperSearchResults } from '@/lib/types'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog'
+import { SerperSearchResultItem, SerperSearchResults } from '@/lib/types/index'
 import { PlusCircle } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 
 export interface VideoSearchResultsProps {
   results: SerperSearchResults

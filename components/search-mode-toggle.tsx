@@ -1,13 +1,12 @@
 'use client'
 
-import { useResearch } from '@/lib/contexts/research-context'
+import { type SearchModeToggleProps } from '@/lib/types/search-toggles'
 import { cn } from '@/lib/utils'
 import { Globe } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Toggle } from './ui/toggle'
 
-export function SearchModeToggle() {
-  const { state, toggleSearch } = useResearch()
+export function SearchModeToggle({ enabled, onEnabledChange }: SearchModeToggleProps) {
   const [shortcutKey, setShortcutKey] = useState('Ctrl')
 
   useEffect(() => {
@@ -19,28 +18,28 @@ export function SearchModeToggle() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === '.') {
         e.preventDefault()
-        toggleSearch()
+        onEnabledChange(!enabled)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [toggleSearch])
+  }, [enabled, onEnabledChange])
 
   // Handle toggle
   const handleToggle = useCallback(() => {
-    toggleSearch()
+    onEnabledChange(!enabled)
     
     // Update the cookie
-    document.cookie = `search-mode=${!state.searchEnabled}; path=/; max-age=31536000`
+    document.cookie = `search-mode=${!enabled}; path=/; max-age=31536000`
     
-    console.log('Search mode toggled:', !state.searchEnabled)
-  }, [toggleSearch, state.searchEnabled])
+    console.log('Search mode toggled:', !enabled)
+  }, [enabled, onEnabledChange])
 
   return (
     <Toggle
       aria-label="Toggle search mode"
-      pressed={state.searchEnabled}
+      pressed={enabled}
       onPressedChange={handleToggle}
       variant="outline"
       className={cn(

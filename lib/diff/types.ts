@@ -1,4 +1,4 @@
-import { SearchResult } from '@/lib/types'
+import { SearchResult } from '@/lib/types/index'
 
 export type DiffType = 'unchanged' | 'added' | 'refined' | 'removed'
 

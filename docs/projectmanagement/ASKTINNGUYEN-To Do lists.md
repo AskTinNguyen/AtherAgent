@@ -5,7 +5,7 @@ TOP PRIORITY FOR TIN
 - [X] Clean up minor bugs
 - [X] Fix AI Streaming Issues
 - [X] Complete Supabase CLI Foundation Setup. See [SUPABASE_IMPLEMENTATION.md](./SUPABASE_IMPLEMENTATION.md)
-- [ ] Update the [database.ts](../lib/types/database.ts) to include the new fields for the research_sessions table and other tables. Add helper functions to help with the data passing to Supabase.
+- [X] Update the [database.ts](../lib/types/database.ts) to include the new fields for the research_sessions table and other tables. Add helper functions to help with the data passing to Supabase.
 - [X] Fix Search Results to render properly by calling from Supabase DB
                We identified that the database schema had three key tables with specific relationships:
                research_sessions (with id as primary key)
@@ -20,21 +20,21 @@ TOP PRIORITY FOR TIN
                Reduces database queries from two to one
                Eliminates potential points of failure
                Maintains proper data relationships as designed in the schema
-- [ ] Fix Search Results so it doesn't spam the Terminal with the search results
+- [X] Fix Search Results so it doesn't spam the Terminal with the search results
 - [X] check onFinish function in chat.tsx to see why AI response content does not get passed to the Supabase DB until user refreshes the page.
 - [X] CHECK [Research Sessions DB](../SQL_Create_research_sessions_db.md) to see if the research_sessions table is properly created to track all the URLs across all the research sessions and link them to the chat_messages table.
-
+- [ ] Upgrade the Supabase DB to include the saving of Images Uploaded by the User. Consider compression.
 
 HIGH PRIORITY FOR TIN
-- [ ] Research Suggestions: fix the default "depth_exploration" place holder prompt in the research-suggestions.tsx
+- [X] Research Suggestions: fix the default "depth_exploration" place holder prompt in the research-suggestions.tsx
 
 
 
 MEDIUM PRIORITY ->  TO OTHER ENGINEERS?
 
-- [ ] Fix the "Research" page including Path Visualization
+- [X] Fix the "Research" page including Path Visualization
 - [ ] Add Drag URL to the Bookmarked Articles
-- [ ] Add a Create new Deep Research based on a Booked Article
+- [ ] Add a Create new Research based on a Bookmarked Article
 
 
 LOW PRIOIRTY -> TO OTHER ENGINEERS

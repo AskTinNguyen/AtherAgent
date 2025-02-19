@@ -1,33 +1,33 @@
 'use client';
 
-import type { Attachment, CreateMessage, Message } from 'ai';
 import type { ChatRequestOptions } from '@/lib/types';
+import type { Attachment, CreateMessage, Message } from 'ai';
 import cx from 'classnames';
 import type React from 'react';
 import {
-  useRef,
-  useEffect,
-  useState,
+  memo,
   useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
   type Dispatch,
   type SetStateAction,
-  type ChangeEvent,
-  memo,
 } from 'react';
 import { toast } from 'sonner';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
 
 import { sanitizeUIMessages } from '@/lib/utils';
 
-import { ArrowUpIcon, PaperclipIcon, StopIcon, GlobeIcon } from './icons';
+import { useDeepResearch } from '@/lib/deep-research-context';
+import equal from 'fast-deep-equal';
+import { Telescope } from 'lucide-react';
+import { DeepResearch } from './deep-research';
+import { ArrowUpIcon, PaperclipIcon, StopIcon } from './icons';
 import { PreviewAttachment } from './preview-attachment';
+import { SuggestedActions } from './suggested-actions';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
-import { SuggestedActions } from './suggested-actions';
-import equal from 'fast-deep-equal';
-import { useDeepResearch } from '@/lib/deep-research-context';
-import { DeepResearch } from './deep-research';
-import { Telescope } from 'lucide-react';
 
 function PureMultimodalInput({
   chatId,

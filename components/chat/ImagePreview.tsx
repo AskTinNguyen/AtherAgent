@@ -1,6 +1,6 @@
 'use client'
 
-import { AttachmentFile } from '@/lib/types'
+import { AttachmentFile } from '@/lib/types/index'
 import { cn } from '@/lib/utils'
 import { FileText, X } from 'lucide-react'
 import Image from 'next/image'

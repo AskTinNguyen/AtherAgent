@@ -1,12 +1,11 @@
-import { mkdir, writeFile } from 'fs/promises'
-import { nanoid } from 'nanoid'
+import { uploadChatImage } from '@/lib/utils/chat-image-upload'
 import { NextRequest, NextResponse } from 'next/server'
-import { join } from 'path'
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
     const file = formData.get('file') as File
+    const chatId = formData.get('chatId') as string
     
     if (!file) {
       return NextResponse.json(
@@ -15,58 +14,29 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf']
-    if (!allowedTypes.includes(file.type)) {
+    if (!chatId) {
       return NextResponse.json(
-        { error: 'File type not supported' },
+        { error: 'No chat ID provided' },
         { status: 400 }
       )
     }
 
-    // Validate file size (5MB)
-    const maxSize = 5 * 1024 * 1024
-    if (file.size > maxSize) {
-      return NextResponse.json(
-        { error: 'File too large' },
-        { status: 400 }
-      )
-    }
-
-    // Create unique filename
-    const id = nanoid()
-    const ext = file.name.split('.').pop()
-    const filename = `${id}.${ext}`
-
-    // Save file
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    
-    // Create uploads directory if it doesn't exist
-    const uploadDir = join(process.cwd(), 'public', 'uploads')
-    try {
-      await mkdir(uploadDir, { recursive: true })
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-        throw error
-      }
-    }
-
-    // Write file
-    await writeFile(join(uploadDir, filename), buffer)
+    // Upload to Supabase
+    const result = await uploadChatImage(file, chatId)
 
     // Return file info
     return NextResponse.json({
-      id,
-      filename,
+      id: result.id,
+      filename: file.name,
       type: file.type,
       size: file.size,
-      url: `/uploads/${filename}`
+      url: result.url,
+      path: result.path
     })
   } catch (error) {
     console.error('Upload error:', error)
     return NextResponse.json(
-      { error: 'Upload failed' },
+      { error: error instanceof Error ? error.message : 'Upload failed' },
       { status: 500 }
     )
   }

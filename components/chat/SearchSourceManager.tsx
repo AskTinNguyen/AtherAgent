@@ -1,6 +1,6 @@
 'use client'
 
-import { SearchSource } from '@/lib/types'
+import { SearchSource } from '@/lib/types/index'
 import { cn } from '@/lib/utils'
 import { Message } from 'ai'
 import { useCallback, useEffect, useState } from 'react'
