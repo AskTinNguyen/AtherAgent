@@ -1,38 +1,17 @@
 'use client'
 
-import { createClient } from '@/lib/supabase/client'
-import { AuthChangeEvent } from '@supabase/supabase-js'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import { createContext, useContext, useEffect, useState } from 'react'
 
-// Create a singleton instance
-let supabaseInstance: ReturnType<typeof createClient> | null = null
-
-function getSupabaseClient() {
-  if (typeof window === 'undefined') {
-    throw new Error('Supabase client cannot be used in server-side code')
-  }
-
-  try {
-    if (!supabaseInstance) {
-      // Check environment variables before creating client
-      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-        throw new Error(
-          `Missing required environment variables:
-           NEXT_PUBLIC_SUPABASE_URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'defined' : 'missing'}
-           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'defined' : 'missing'}`
-        )
-      }
-      supabaseInstance = createClient()
-    }
-    return supabaseInstance
-  } catch (error) {
-    console.error('Error initializing Supabase client:', error)
-    throw error
-  }
+type SupabaseContextType = {
+  supabase: ReturnType<typeof createClientComponentClient> | null
+  session: Session | null
+  isLoading: boolean
 }
 
-const Context = createContext<ReturnType<typeof createClient> | null>(null)
+const Context = createContext<SupabaseContextType | null>(null)
 
 export default function SupabaseProvider({
   children,
@@ -40,57 +19,74 @@ export default function SupabaseProvider({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const [error, setError] = useState<Error | null>(null)
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [session, setSession] = useState<Session | null>(null)
+  const [supabase] = useState(() => createClientComponentClient())
 
   useEffect(() => {
-    try {
-      const client = getSupabaseClient()
-      setSupabase(client)
-    } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : 'Failed to initialize Supabase client'
-      console.error('Supabase initialization error:', e)
-      setError(new Error(errorMessage))
-    }
-  }, [])
+    let mounted = true
 
-  useEffect(() => {
-    if (!supabase || process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') {
-      return
-    }
+    async function getInitialSession() {
+      try {
+        const { data: { session: initialSession }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('Error getting session:', error.message)
+          return
+        }
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent) => {
-      if (event === 'SIGNED_OUT') {
-        router.push('/login')
+        if (mounted) {
+          if (initialSession) {
+            console.log('Initial session found:', initialSession.user.email)
+            setSession(initialSession)
+          } else {
+            console.log('No initial session found')
+            if (!process.env.NEXT_PUBLIC_DISABLE_AUTH) {
+              router.push('/login')
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error in getInitialSession:', error)
+      } finally {
+        if (mounted) {
+          setIsLoading(false)
+        }
       }
-      router.refresh()
-    })
+    }
+
+    getInitialSession()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, currentSession) => {
+        console.log('Auth state changed:', event, currentSession?.user?.email)
+        
+        if (mounted) {
+          setSession(currentSession)
+
+          if (event === 'SIGNED_OUT') {
+            router.push('/login')
+          }
+        }
+      }
+    )
 
     return () => {
+      mounted = false
       subscription.unsubscribe()
     }
-  }, [router, supabase])
+  }, [supabase, router])
 
-  if (error) {
+  if (isLoading) {
     return (
-      <div className="p-4 text-red-500 bg-red-50 rounded-md">
-        <h3 className="font-bold">Supabase Initialization Error</h3>
-        <p>{error.message}</p>
-        <p className="text-sm mt-2">
-          Please check your environment variables and make sure they are properly configured.
-        </p>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
       </div>
     )
   }
 
-  if (!supabase) {
-    return null // or a loading state
-  }
-
   return (
-    <Context.Provider value={supabase}>
+    <Context.Provider value={{ supabase, session, isLoading }}>
       {children}
     </Context.Provider>
   )
@@ -98,8 +94,24 @@ export default function SupabaseProvider({
 
 export const useSupabase = () => {
   const context = useContext(Context)
-  if (context === null) {
+  if (!context) {
     throw new Error('useSupabase must be used within a SupabaseProvider')
+  }
+  return context.supabase
+}
+
+export const useSession = () => {
+  const context = useContext(Context)
+  if (!context) {
+    throw new Error('useSession must be used within a SupabaseProvider')
+  }
+  return context.session
+}
+
+export const useSupabaseContext = () => {
+  const context = useContext(Context)
+  if (!context) {
+    throw new Error('useSupabaseContext must be used within a SupabaseProvider')
   }
   return context
 } 

@@ -1,9 +1,11 @@
 import { AuthStatus } from '@/components/auth-status'
 import Footer from '@/components/footer'
 import Header from '@/components/header'
+import { Notifications } from '@/components/notifications'
 import { ClientProviders } from '@/components/providers/client-providers'
 import { SessionProvider } from '@/components/providers/session-provider'
 import { Sidebar } from '@/components/sidebar'
+import { NotificationsProvider } from '@/lib/contexts/notifications-context'
 import { cn } from '@/lib/utils'
 import type { Metadata, Viewport } from 'next'
 import { Inter as FontSans, Playfair_Display, Poppins } from 'next/font/google'
@@ -67,15 +69,18 @@ export default function RootLayout({
         poppins.variable,
         playfair.variable
       )}>
-        <SessionProvider>
-          <ClientProviders>
-            <Header />
-            {children}
-            {enableSaveChatHistory && <Sidebar />}
-            <AuthStatus />
-            <Footer />
-          </ClientProviders>
-        </SessionProvider>
+        <NotificationsProvider>
+          <SessionProvider>
+            <ClientProviders>
+              <Header />
+              <Notifications />
+              {children}
+              {enableSaveChatHistory && <Sidebar />}
+              <AuthStatus />
+              <Footer />
+            </ClientProviders>
+          </SessionProvider>
+        </NotificationsProvider>
       </body>
     </html>
   )

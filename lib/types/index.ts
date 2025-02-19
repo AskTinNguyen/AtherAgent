@@ -169,3 +169,11 @@ export class UploadError extends Error {
     this.name = 'UploadError'
   }
 }
+
+export type TaskStatus = 
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'scheduled'
