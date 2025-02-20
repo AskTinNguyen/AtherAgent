@@ -19,11 +19,19 @@ import { ResearchInitializer } from './research-initializer'
 export function ChatContent({
   id,
   savedMessages = [],
-  query
+  query,
+  /**
+   * Callback function that is executed when the first message is sent in the chat.
+   * It's optional, and allows the parent component to perform actions specifically
+   * when a new chat session is initiated. For example, it could be used to update
+   * the UI or trigger analytics events.
+   */
+  onFirstMessage
 }: {
   id: string
   savedMessages?: Message[]
   query?: string
+  onFirstMessage?: () => void
 }) {
   const { state: researchState, setMessages: setResearchMessages } = useResearch()
   const pathname = usePathname()
@@ -239,12 +247,7 @@ export function ChatContent({
             .limit(1)
 
           if (searchError) {
-            console.error('Error searching for existing message:', {
-              code: searchError.code,
-              details: searchError.details,
-              message: searchError.message,
-              hint: searchError.hint
-            })
+            console.error('Error searching for existing message:', searchError)
             toast.error(`Database search error: ${searchError.message}`)
             return
           }
@@ -293,21 +296,10 @@ export function ChatContent({
               .select()
 
             if (updateError) {
-              console.error('Failed to update assistant message:', {
-                code: updateError.code,
-                details: updateError.details,
-                message: updateError.message,
-                hint: updateError.hint,
-                messageContent: message.content.substring(0, 100) + '...',
-                contentLength: message.content.length
-              })
+              console.error('Failed to update assistant message:', updateError)
               toast.error(`Failed to update message: ${updateError.message}`)
             } else {
-              console.log('Successfully updated message:', {
-                updatedData,
-                contentPreview: message.content.substring(0, 100) + '...',
-                fullContentLength: message.content.length
-              })
+              console.log('Successfully updated message:', updatedData)
             }
           } else {
             // Fallback: If we somehow couldn't find our placeholder message
@@ -332,22 +324,13 @@ export function ChatContent({
               .insert(newMessage)
 
             if (insertError) {
-              console.error('Failed to save new assistant message:', {
-                code: insertError.code,
-                details: insertError.details,
-                message: insertError.message,
-                hint: insertError.hint
-              })
+              console.error('Failed to save new assistant message:', insertError)
               toast.error(`Failed to save message: ${insertError.message}`)
             }
           }
         } catch (err) {
           const error = err as Error
-          console.error('Failed to save message to Supabase:', {
-            name: error.name,
-            message: error.message,
-            stack: error.stack
-          })
+          console.error('Failed to save message to Supabase:', error)
           toast.error('Failed to save message due to an unexpected error')
         }
       }
@@ -411,21 +394,12 @@ export function ChatContent({
           .insert(newMessage)
         
         if (error) {
-          console.error('Failed to save user query:', {
-            code: error.code,
-            details: error.details,
-            message: error.message,
-            hint: error.hint
-          })
+          console.error('Failed to save user query:', error)
           toast.error(`Failed to save message: ${error.message}`)
         }
       } catch (err) {
         const error = err as Error
-        console.error('Failed to save user message:', {
-          name: error.name,
-          message: error.message,
-          stack: error.stack
-        })
+        console.error('Failed to save user message:', error)
         toast.error('Failed to save message due to an unexpected error')
       }
     }
@@ -447,6 +421,10 @@ export function ChatContent({
     if (!chatInput.trim()) return
 
     try {
+      // If this is the first message, trigger the callback
+      if (messages.length === 0 && onFirstMessage) {
+        onFirstMessage()
+      }
       await originalHandleSubmit(e)
     } catch (error) {
       console.error('Error sending message:', error)
@@ -468,7 +446,7 @@ export function ChatContent({
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-transparent">
       {isInChatSession && (
         <DeepResearchVisualization
           location="sidebar"
@@ -478,8 +456,9 @@ export function ChatContent({
           onSuggestionSelect={onQuerySelect}
         />
       )}
-      <div className="flex-1 flex justify-center">
-        <div className="w-full max-w-3xl pt-14 pb-60">
+      <div className="flex-1 flex justify-center bg-transparent">
+        <div className="w-full max-w-3xl pt-14 pb-60"> 
+          {/* bg-transparent */}
           <ChatMessages
             messages={messages}
             data={data}
@@ -509,6 +488,7 @@ export function Chat(props: {
   id: string
   savedMessages?: Message[]
   query?: string
+  onFirstMessage?: () => void
 }) {
   return (
     <ResearchProvider>

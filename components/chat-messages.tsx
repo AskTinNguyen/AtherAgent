@@ -249,9 +249,9 @@ export function ChatMessages({
   }
 
   return (
-    <div className="relative mx-auto px-4 w-full">
+    <div className="relative mx-auto px-4 w-full bg-transparent">
       {messages.map(message => (
-        <div key={message.id} className="mb-4 flex flex-col gap-4">
+        <div key={message.id} className="mb-4 flex flex-col gap-4 bg-transparent">
           <RenderMessage
             message={message}
             messageId={message.id}
@@ -276,7 +276,7 @@ export function ChatMessages({
             chatId={chatId ?? 'default'}
           />
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 bg-transparent">
             <Spinner />
             {streamState.isStreaming && (
               <span className="text-sm text-muted-foreground">
