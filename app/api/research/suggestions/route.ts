@@ -14,7 +14,7 @@ interface SuggestionRequest {
 export async function POST(req: Request) {
   try {
     // Get authenticated user and Supabase client
-    const { supabase, session } = await getAuthenticatedUser()
+    const { supabase, user } = await getAuthenticatedUser()
 
     // Parse request body
     const { context, currentDepth, maxDepth } = (await req.json()) as SuggestionRequest
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
         context,
         suggestions,
         currentDepth,
-        session.user.id
+        user.id
       )
       return Response.json(data)
     } catch (err) {
@@ -65,6 +65,9 @@ export async function POST(req: Request) {
   } catch (err) {
     const error = err as Error
     console.error('Error in suggestions route:', error)
+    if (error.message === 'Authentication required') {
+      return Response.json({ error: 'User not authenticated' }, { status: 401 })
+    }
     return Response.json(
       { error: 'Failed to process suggestion request' },
       { status: 500 }
@@ -82,9 +85,9 @@ export async function GET(request: Request) {
     }
 
     // Use the same auth helper as POST route
-    const { supabase, session } = await getAuthenticatedUser()
+    const { supabase, user } = await getAuthenticatedUser()
     
-    if (!session?.user?.id) {
+    if (!user?.id) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
@@ -93,7 +96,7 @@ export async function GET(request: Request) {
       .from('research_sessions')
       .select('id')
       .eq('id', sessionId)
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .single()
 
     if (sessionError || !sessionData) {
@@ -127,6 +130,9 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error in GET /api/research/suggestions:', error)
     const errorMessage = error instanceof Error ? error.message : 'Internal server error'
+    if (errorMessage === 'Authentication required') {
+      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
+    }
     return NextResponse.json(
       { error: errorMessage },
       { status: 500 }

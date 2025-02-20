@@ -35,11 +35,13 @@ export async function createServerSupabase() {
 
 export async function getAuthenticatedUser() {
   const supabase = await createServerSupabase()
-  const { data: { session }, error: authError } = await supabase.auth.getSession()
   
-  if (authError || !session) {
+  // Get and verify the user
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  
+  if (userError || !user) {
     throw new Error('Authentication required')
   }
 
-  return { supabase, session }
+  return { supabase, user }
 } 

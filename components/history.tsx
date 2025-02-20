@@ -2,12 +2,13 @@
 
 import { Button } from '@/components/ui/button'
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger
 } from '@/components/ui/sheet'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { ChevronLeft, History as HistoryIcon, Menu } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -48,24 +49,37 @@ export function History({ location, children }: HistoryProps) {
           animation: glow 2s ease-in-out infinite;
         }
       `}</style>
-      <SheetTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn({
-            'rounded-full text-foreground/30': location === 'sidebar'
-          })}
-        >
-          {location === 'header' ? (
-            <Menu />
-          ) : (
-            <ChevronLeft 
-              size={32} 
-              className="glow-effect"
-            />
-          )}
-        </Button>
-      </SheetTrigger>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "text-muted-foreground hover:text-primary",
+                  location === 'sidebar' && "rounded-full text-foreground/30"
+                )}
+              >
+                {location === 'header' ? (
+                  <Menu className="w-5 h-5" />
+                ) : (
+                  <ChevronLeft 
+                    size={32} 
+                    className="glow-effect"
+                  />
+                )}
+                <span className="sr-only">
+                  {location === 'header' ? 'Open Menu' : 'Toggle Sidebar'}
+                </span>
+              </Button>
+            </SheetTrigger>
+          </TooltipTrigger>
+          <TooltipContent>
+            {location === 'header' ? 'Open Menu' : 'Toggle Sidebar'}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <SheetContent className="w-64 rounded-tl-xl rounded-bl-xl">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-1 text-sm font-normal mb-2">

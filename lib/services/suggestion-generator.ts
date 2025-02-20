@@ -1,4 +1,5 @@
 // lib/services/suggestion-generator.ts
+import { createClient } from '@/lib/supabase/client'
 import { type MessageContext, type ResearchSuggestion } from '@/lib/types/research-enhanced'
 
 export interface GenerateSuggestionsOptions {
@@ -15,12 +16,22 @@ export async function generateResearchSuggestions(options: GenerateSuggestionsOp
       maxDepth: options.maxDepth
     })
 
+    // Get the current session
+    const supabase = createClient()
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    
+    if (sessionError || !session) {
+      throw new Error('Authentication required')
+    }
+
     const response = await fetch('/api/research/suggestions', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
       },
-      body: JSON.stringify(options)
+      body: JSON.stringify(options),
+      credentials: 'include' // Include cookies in the request
     })
 
     if (!response.ok) {
