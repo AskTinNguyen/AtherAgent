@@ -54,8 +54,8 @@ function DeepResearchVisualizationContent({
   // Check if we're in a chat session
   const isInChatSession = pathname.startsWith('/search/') || chatId !== 'global'
 
-  // Only show in chat sessions and when not explicitly cleared
-  if (!isInChatSession || initialClearedState) {
+  // Only show in chat sessions, when not explicitly cleared, and when search is enabled
+  if (!isInChatSession || initialClearedState || !state.searchEnabled) {
     return null
   }
 

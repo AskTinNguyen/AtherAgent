@@ -8,6 +8,7 @@ import { AnswerSection } from './answer-section'
 import ChartMessage from './chart-message'
 import { ReasoningAnswerSection } from './reasoning-answer-section'
 import RelatedQuestions from './related-questions'
+import { ShimmerBackground } from './shimmer-background'
 import { ToolSection } from './tool-section'
 
 // Function to extract and parse chart data from message content
@@ -107,9 +108,9 @@ export function RenderMessage({
 
   if (message.role === 'user') {
     return (
-      <div className="whitespace-pre-wrap bg-muted/50 p-4 rounded-lg">
+      <ShimmerBackground className="whitespace-pre-wrap p-4 rounded-lg backdrop-blur-sm">
         {message.content}
-      </div>
+      </ShimmerBackground>
     )
   }
 

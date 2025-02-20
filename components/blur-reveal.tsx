@@ -1,12 +1,29 @@
 "use client"
 
-import { motion } from "framer-motion"
-import React from "react"
+import { motion } from "framer-motion";
+import React from "react";
 
-const transition = { duration: 1, ease: [.25,.1,.25,1] }
+const transition = { 
+  duration: 2.5, 
+  ease: [.25,.1,.25,1],
+  type: "ease",
+  stiffness: 100,
+  damping: 20,
+};
+
 const variants = {
-  hidden: { filter: "blur(10px)", transform: "translateY(20%)", opacity: 0 },
-  visible: { filter: "blur(0)", transform: "translateY(0)", opacity: 1 },
+  hidden: { 
+    filter: "blur(10px)", 
+    transform: "translateY(20%)", 
+    opacity: 0,
+    transition: transition,
+  },
+  visible: { 
+    filter: "blur(0)", 
+    transform: "translateY(0)", 
+    opacity: 1,
+    transition: transition,
+  },
 }
 
 const text = "I'm Ather"

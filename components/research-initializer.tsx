@@ -6,7 +6,7 @@ import { useEffect } from 'react'
 export function ResearchInitializer() {
   const { state, startResearch, stopResearch } = useResearch()
 
-  // Start research when search is enabled
+  // Only start/stop research when searchEnabled changes
   useEffect(() => {
     if (state.searchEnabled && !state.isActive) {
       startResearch()

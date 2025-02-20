@@ -165,6 +165,8 @@ interface ResearchContextType {
   getSources: () => ResearchSource[]
   getSourceMetrics: () => SourceMetrics[]
   clearSources: () => void
+  startResearch: () => void
+  stopResearch: () => void
 }
 
 const ResearchContext = createContext<ResearchContextType | undefined>(undefined)
@@ -247,6 +249,18 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'CLEAR_SOURCES' })
   }, [])
 
+  const startResearch = useCallback(() => {
+    if (!state.isActive) {
+      dispatch({ type: 'TOGGLE_SEARCH' })
+    }
+  }, [state.isActive])
+
+  const stopResearch = useCallback(() => {
+    if (state.isActive) {
+      dispatch({ type: 'TOGGLE_SEARCH' })
+    }
+  }, [state.isActive])
+
   return (
     <ResearchContext.Provider
       value={{
@@ -262,7 +276,9 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
         toggleSearch,
         getSources,
         getSourceMetrics,
-        clearSources
+        clearSources,
+        startResearch,
+        stopResearch
       }}
     >
       {children}

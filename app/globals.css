@@ -94,6 +94,26 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground transition-colors duration-300;
   }
+}
+
+/* Add smooth transitions for theme changes */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: smooth-transition 3.0s ease;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+/* Ensure background transitions are smooth */
+.bg-background {
+  transition: background-color 3.0s ease;
 }
