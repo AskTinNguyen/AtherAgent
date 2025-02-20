@@ -1,82 +1,84 @@
 'use client'
 
-import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useSupabase } from '@/components/providers/supabase-provider'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { AUTH_COOKIE_NAME, cookies, REFRESH_COOKIE_NAME } from '@/lib/utils/cookies'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
-export default function LoginForm() {
+export function LoginForm() {
+  const supabase = useSupabase()
   const router = useRouter()
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const searchParams = useSearchParams()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setError(null)
-    setLoading(true)
-
-    const formData = new FormData(e.currentTarget)
-    const email = formData.get('email') as string
-    const password = formData.get('password') as string
+    setIsLoading(true)
 
     try {
-      const result = await signIn('credentials', {
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        password,
-        redirect: false,
+        password
       })
 
-      if (result?.error) {
-        setError('Invalid credentials')
-        return
+      if (error) throw error
+
+      // Store auth tokens in cookies
+      if (data.session) {
+        cookies.set(AUTH_COOKIE_NAME, data.session.access_token)
+        cookies.set(REFRESH_COOKIE_NAME, data.session.refresh_token)
       }
 
-      router.push('/')
+      // Get redirect URL from query params or default to home
+      const redirectTo = searchParams.get('redirect') || '/'
+      router.push(redirectTo)
       router.refresh()
+      toast.success('Successfully signed in')
     } catch (error) {
-      setError('An error occurred. Please try again.')
+      console.error('Login error:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to sign in')
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {error && (
-        <div className="rounded-md bg-red-50 p-4 text-sm text-red-500">
-          {error}
-        </div>
-      )}
-      <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-          Email
-        </label>
-        <input
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="email">Email</Label>
+        <Input
           id="email"
-          name="email"
           type="email"
+          placeholder="Enter your email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           required
-          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500"
+          autoComplete="email"
+          disabled={isLoading}
         />
       </div>
-      <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-          Password
-        </label>
-        <input
+      <div className="space-y-2">
+        <Label htmlFor="password">Password</Label>
+        <Input
           id="password"
-          name="password"
           type="password"
+          placeholder="Enter your password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           required
-          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500"
+          autoComplete="current-password"
+          disabled={isLoading}
         />
       </div>
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
-      >
-        {loading ? 'Signing in...' : 'Sign in'}
-      </button>
+      <Button type="submit" className="w-full" disabled={isLoading}>
+        {isLoading ? 'Signing in...' : 'Sign in'}
+      </Button>
     </form>
   )
 } 

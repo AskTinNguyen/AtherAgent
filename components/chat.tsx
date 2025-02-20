@@ -1,20 +1,19 @@
 'use client'
 
+import { useSupabase } from '@/components/providers/supabase-provider'
 import { CHAT_ID } from '@/lib/constants'
 import { ResearchProvider, useResearch } from '@/lib/contexts/research-context'
 import { ChatMessage, createChatMessage } from '@/lib/types/database'
 import type { ChatResearchState } from '@/lib/types/research'
 import { Message, useChat } from 'ai/react'
-import { useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import useSWR from 'swr'
 import { v4 as uuidv4 } from 'uuid'
 import { ChatMessages } from './chat-messages'
 import { ChatPanel } from './chat-panel'
 import { DeepResearchVisualization } from './deep-research-visualization'
-import { useSupabase } from './providers/supabase-provider'
 import { ResearchInitializer } from './research-initializer'
 
 export function ChatContent({
@@ -30,52 +29,67 @@ export function ChatContent({
   const pathname = usePathname()
   const isInChatSession = pathname.startsWith('/search/')
   const supabase = useSupabase()
-  const { data: session } = useSession()
   const [userId, setUserId] = useState<string | null>(null)
   const [researchSessionId, setResearchSessionId] = useState<string | null>(null)
+  const [input, setInput] = useState('')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
   
   // Get user ID from Supabase session
   useEffect(() => {
-    if (supabase) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user?.id) {
-          setUserId(session.user.id)
+    const getUser = async () => {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser()
+        if (!error && user) {
+          setUserId(user.id)
+          setIsAuthenticated(true)
+        } else {
+          setIsAuthenticated(false)
+          // Don't redirect here - let the user use the app in unauthenticated mode
         }
-      })
+      } catch (error) {
+        console.error('Error getting user:', error)
+        setIsAuthenticated(false)
+      }
+    }
+
+    getUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id || null)
+      setIsAuthenticated(!!session?.user)
+    })
+
+    return () => {
+      subscription.unsubscribe()
     }
   }, [supabase])
 
-  // Create or get research session
+  // Create or get research session - only if authenticated
   useEffect(() => {
     const initializeResearchSession = async () => {
-      if (!userId || !id) return
+      if (!userId || !id || !isAuthenticated) return
 
       try {
         // First, try to find existing research session
         const { data: existingSession, error: searchError } = await supabase
           .from('research_sessions')
           .select('id')
-          .eq('id', id)  // Use id directly since it's already a UUID
+          .eq('id', id)
           .single()
 
-        if (searchError && searchError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
-          console.error('Error finding research session:', {
-            code: searchError.code,
-            details: searchError.details,
-            message: searchError.message,
-            hint: searchError.hint
-          })
+        if (searchError && searchError.code !== 'PGRST116') {
+          console.error('Error finding research session:', searchError)
           return
         }
 
         if (existingSession) {
           setResearchSessionId(existingSession.id)
         } else {
-          // Create new research session using the id directly
           const { data: newSession, error: insertError } = await supabase
             .from('research_sessions')
             .insert({
-              id, // Use the id directly as the session id
+              id,
               user_id: userId,
               metadata: {
                 created_at: new Date().toISOString()
@@ -83,55 +97,37 @@ export function ChatContent({
             })
             .select()
 
-          console.log('Insert attempt result:', { newSession, insertError })
-
           if (insertError) {
-            console.error('Error creating research session:', {
-              code: insertError.code,
-              details: insertError.details,
-              message: insertError.message,
-              hint: insertError.hint,
-              data: { id, userId }
-            })
-            toast.error(`Failed to create research session: ${insertError.message}`)
+            console.error('Error creating research session:', insertError)
             return
           }
 
-          if (!newSession?.[0]?.id) {
-            console.error('No session ID returned after insert')
-            return
+          if (newSession?.[0]?.id) {
+            setResearchSessionId(newSession[0].id)
           }
-
-          setResearchSessionId(newSession[0].id)
         }
-      } catch (err) {
-        const error = err as Error
-        console.error('Error initializing research session:', {
-          name: error.name,
-          message: error.message,
-          stack: error.stack,
-          data: { id, userId }
-        })
+      } catch (error) {
+        console.error('Error initializing research session:', error)
       }
     }
 
     initializeResearchSession()
-  }, [userId, id, supabase])
+  }, [userId, id, supabase, isAuthenticated])
 
   // Add debug logging
   useEffect(() => {
     console.log('Session Debug:', {
-      hasSession: !!session,
+      hasSession: !!userId,
       supabaseInitialized: !!supabase,
       userId,
       researchSessionId,
       id
     })
-  }, [session, supabase, userId, researchSessionId, id])
+  }, [userId, supabase, researchSessionId, id])
 
   const {
     messages,
-    input,
+    input: chatInput,
     handleInputChange,
     handleSubmit: originalHandleSubmit,
     isLoading,
@@ -443,14 +439,32 @@ export function ChatContent({
   // Wrap handleSubmit to ensure proper state order
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    
-    // If this is the first message, update URL immediately
-    if (!pathname.startsWith('/search/')) {
-      window.history.replaceState({}, '', `/search/${id}`)
+    if (!userId) {
+      toast.error('You must be logged in to send messages')
+      return
     }
-    
-    // Call original submit handler
-    await originalHandleSubmit(e)
+
+    if (!input.trim()) return
+
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .insert([
+          {
+            content: input,
+            user_id: userId
+          }
+        ])
+
+      if (error) throw error
+
+      setInput('')
+      // Scroll to bottom
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    } catch (error) {
+      console.error('Error sending message:', error)
+      toast.error('Failed to send message')
+    }
   }
 
   const handleClearResearch = async (chatId: string, isCleared: boolean) => {

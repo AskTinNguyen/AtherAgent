@@ -2,9 +2,9 @@
 
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
-import { SessionSync } from './session-sync'
+import { SignInModal } from '../auth/sign-in-modal'
 import { StorageProvider } from './storage-provider'
-import SupabaseProvider from './supabase-provider'
+import SupabaseProvider, { useAuth } from './supabase-provider'
 
 export function ClientProviders({
   children
@@ -13,18 +13,40 @@ export function ClientProviders({
 }) {
   return (
     <SupabaseProvider>
-      <StorageProvider>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <SessionSync />
-          {children}
-          <Toaster />
-        </ThemeProvider>
-      </StorageProvider>
+      <SupabaseInitializer>
+        <StorageProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+            <Toaster />
+            <SignInModalWrapper />
+          </ThemeProvider>
+        </StorageProvider>
+      </SupabaseInitializer>
     </SupabaseProvider>
+  )
+}
+
+function SupabaseInitializer({ children }: { children: React.ReactNode }) {
+  const { isLoading } = useAuth()
+
+  if (isLoading) {
+    return <div>Loading...</div> // You can replace this with a proper loading spinner
+  }
+
+  return children
+}
+
+function SignInModalWrapper() {
+  const { showSignInModal, setShowSignInModal } = useAuth()
+  return (
+    <SignInModal 
+      isOpen={showSignInModal} 
+      onClose={() => setShowSignInModal(false)} 
+    />
   )
 } 

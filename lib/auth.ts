@@ -1,5 +1,4 @@
-import { authOptions } from '@/lib/auth/auth-options'
-import { getServerSession } from 'next-auth'
+import { createClient } from '@/lib/supabase/server'
 
 // Test user for development/testing purposes
 const TEST_USER = {
@@ -23,14 +22,26 @@ export async function getAuth() {
       }
     }
 
-    // Get NextAuth session
-    const session = await getServerSession(authOptions)
+    // Get Supabase session
+    const supabase = await createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error) {
+      throw error
+    }
     
     return {
-      userId: session?.user?.id || 'anonymous',
-      userEmail: session?.user?.email || null,
-      isAuthenticated: !!session?.user?.id,
-      session
+      userId: user?.id || 'anonymous',
+      userEmail: user?.email || null,
+      isAuthenticated: !!user?.id,
+      session: user ? {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.email?.split('@')[0] || 'User'
+        },
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours from now
+      } : null
     }
   } catch (error) {
     console.error('Error getting auth:', error)

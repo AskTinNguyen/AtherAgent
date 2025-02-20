@@ -43,7 +43,7 @@ export async function handleStreamFinish({
       
       // Track usage in our system
       try {
-        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
         console.log('Tracking usage:', {
           model,
           chatId,

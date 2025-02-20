@@ -39,12 +39,8 @@ This document provides a complete overview of the project's directory structure,
 │   │   ├── ./app/api/advanced-search
 │   │   │   └── ./app/api/advanced-search/route.ts
 │   │   ├── ./app/api/auth
-│   │   │   ├── ./app/api/auth/[...nextauth]
-│   │   │   │   └── ./app/api/auth/[...nextauth]/route.ts
-│   │   │   ├── ./app/api/auth/reset-password
-│   │   │   │   └── ./app/api/auth/reset-password/route.ts
-│   │   │   └── ./app/api/auth/session
-│   │   │       └── ./app/api/auth/session/route.ts
+│   │   │   └── supabase/
+│   │   │       └── route.ts
 │   │   ├── ./app/api/bookmarks
 │   │   │   ├── ./app/api/bookmarks/check
 │   │   │   │   └── ./app/api/bookmarks/check/route.ts

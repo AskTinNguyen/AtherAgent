@@ -1,6 +1,20 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Define protected routes that require authentication
+const protectedRoutes = [
+  '/dashboard',
+  '/profile',
+  '/settings',
+  '/bookmarks'
+]
+
+// Define auth routes that should redirect if already authenticated
+const authRoutes = [
+  '/login',
+  '/auth/signin'
+]
+
 export async function middleware(request: NextRequest) {
   // Check if auth is disabled
   if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') {
@@ -58,11 +72,41 @@ export async function middleware(request: NextRequest) {
       }
     )
 
-    await supabase.auth.getUser()
+    // Get the current path
+    const path = new URL(request.url).pathname
+
+    // Get user session
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    const isAuthenticated = !!user && !userError
+
+    // Handle protected routes
+    if (protectedRoutes.some(route => path.startsWith(route))) {
+      if (!isAuthenticated) {
+        // Redirect to login if not authenticated
+        const redirectUrl = new URL('/login', request.url)
+        redirectUrl.searchParams.set('redirect', path)
+        return NextResponse.redirect(redirectUrl)
+      }
+    }
+
+    // Handle auth routes (login, signin)
+    if (authRoutes.some(route => path.startsWith(route))) {
+      if (isAuthenticated) {
+        // Redirect to home if already authenticated
+        return NextResponse.redirect(new URL('/', request.url))
+      }
+    }
 
     return response
   } catch (error) {
     console.error('Middleware error:', error)
+    // On error, redirect to login for protected routes
+    const path = new URL(request.url).pathname
+    if (protectedRoutes.some(route => path.startsWith(route))) {
+      const redirectUrl = new URL('/login', request.url)
+      redirectUrl.searchParams.set('redirect', path)
+      return NextResponse.redirect(redirectUrl)
+    }
     return NextResponse.next()
   }
 }

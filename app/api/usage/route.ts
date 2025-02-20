@@ -1,64 +1,56 @@
-import { createUsageTracker } from '@/lib/services/usage-tracker'
-import { getServerSession } from 'next-auth'
+import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
-  const session = await getServerSession()
-
-  if (!session) {
-    console.log('GET /api/usage: Unauthorized - No session')
-    return new NextResponse('Unauthorized', { status: 401 })
-  }
-
   try {
-    // Use demo user ID for now, in production this would be the actual user ID
-    const usageTracker = createUsageTracker({ userId: 'demo' })
-    const usage = await usageTracker.getUserUsage()
-    console.log('GET /api/usage: Success', { usage })
-    return NextResponse.json(usage)
+    const supabase = await createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+
+    if (error || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get usage data for the authenticated user
+    const { data: usageData, error: usageError } = await supabase
+      .from('usage_stats')
+      .select('*')
+      .eq('user_id', user.id)
+      .single()
+
+    if (usageError) {
+      console.error('Error fetching usage data:', usageError)
+      return NextResponse.json({ error: 'Failed to fetch usage data' }, { status: 500 })
+    }
+
+    return NextResponse.json(usageData || { searches: 0, messages: 0 })
   } catch (error) {
-    console.error('GET /api/usage: Error fetching usage:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error('Error in usage route:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function POST(req: Request) {
-  const session = await getServerSession()
-
-  if (!session) {
-    console.log('POST /api/usage: Unauthorized - No session')
-    return new NextResponse('Unauthorized', { status: 401 })
-  }
-
+export async function POST() {
   try {
-    const body = await req.json()
-    console.log('POST /api/usage: Received request', { body })
-    
-    const { model, chatId, usage, finishReason } = body
+    const supabase = await createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
 
-    if (!model || !chatId || !usage) {
-      console.log('POST /api/usage: Missing required fields', { model, chatId, usage })
-      return new NextResponse('Missing required fields', { status: 400 })
+    if (error || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const usageTracker = createUsageTracker({ userId: 'demo' })
-    await usageTracker.trackUsage({
-      model,
-      chatId,
-      usage,
-      finishReason: finishReason || 'stop'
+    // Update usage stats for the authenticated user
+    const { error: updateError } = await supabase.rpc('increment_usage_stats', {
+      user_id: user.id
     })
 
-    console.log('POST /api/usage: Successfully tracked usage', {
-      model,
-      chatId,
-      usage,
-      finishReason
-    })
+    if (updateError) {
+      console.error('Error updating usage stats:', updateError)
+      return NextResponse.json({ error: 'Failed to update usage stats' }, { status: 500 })
+    }
 
-    return new NextResponse('OK')
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('POST /api/usage: Error tracking usage:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error('Error in usage route:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 

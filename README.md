@@ -206,7 +206,7 @@ Dynamic data visualization with:
 
 ### Authentication
 
-- [NextAuth.js](https://next-auth.js.org/) - Authentication for Next.js
+- [Supabase Auth](https://supabase.com/docs/guides/auth) - Authentication for Next.js
 - Simple credential provider setup for demo:
   - Username: `demo`
   - Password: `demo`
@@ -239,12 +239,9 @@ OPENAI_API_KEY=     # Get from https://platform.openai.com/api-keys
 TAVILY_API_KEY=     # Get from https://app.tavily.com/home
 
 # Authentication (Required for demo login)
-NEXTAUTH_URL=http://localhost:3000    # Your app URL
-NEXTAUTH_SECRET=    # Generate with: openssl rand -base64 32
-
-# Supabase Configuration (for local development)
-NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+NEXT_PUBLIC_APP_URL=http://localhost:3000    # Your app URL
+NEXT_PUBLIC_SUPABASE_URL=    # Your Supabase project URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY=    # Your Supabase anon key
 
 # Optional: Redis Configuration (if not using Docker)
 REDIS_URL=redis://localhost:6379

@@ -1,115 +1,103 @@
 'use client'
 
-import { useResearchContext } from '@/lib/contexts/research-provider'
-import { createClient } from '@/lib/supabase/client'
-import { useSession } from 'next-auth/react'
+import { useSupabase } from '@/components/providers/supabase-provider'
+import { useResearch } from '@/lib/contexts/research-context'
+import { ResearchActivity, ResearchSource } from '@/lib/types/research-enhanced'
 import { useEffect, useState } from 'react'
 
-interface ResearchRealtimeSyncProps {
-  chatId: string
+// Type guards
+function isValidResearchActivity(data: any): data is ResearchActivity {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof data.type === 'string' &&
+    typeof data.status === 'string' &&
+    typeof data.message === 'string' &&
+    typeof data.timestamp === 'string'
+  )
 }
 
-export function ResearchRealtimeSync({ chatId }: ResearchRealtimeSyncProps) {
-  const { data: session } = useSession()
-  const userId = session?.user?.id
-  const { dispatch } = useResearchContext()
-  const [supabase] = useState(() => createClient())
+function isValidResearchSource(data: any): data is ResearchSource {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof data.id === 'string' &&
+    typeof data.url === 'string' &&
+    typeof data.title === 'string' &&
+    typeof data.relevance === 'number'
+  )
+}
+
+export function ResearchRealtimeSync() {
+  const supabase = useSupabase()
+  const [userId, setUserId] = useState<string | null>(null)
+  const { state, addActivity, addSource } = useResearch()
 
   useEffect(() => {
-    if (!userId) return
+    const getUser = async () => {
+      const { data: { user }, error } = await supabase.auth.getUser()
+      if (!error && user) {
+        setUserId(user.id)
+      }
+    }
 
-    // Subscribe to research state changes
-    const stateChannel = supabase
-      .channel(`research_state:${chatId}`)
+    getUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id || null)
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    if (!userId || !state.isActive) return
+
+    // Subscribe to research activities
+    const activityChannel = supabase
+      .channel('research_activities')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'research_states',
-          filter: `session_id=eq.${chatId}`
-        },
-        async (payload) => {
-          if (payload.eventType === 'UPDATE' && payload.new) {
-            // Update local state with new data
-            dispatch({
-              type: 'SET_STATE',
-              payload: {
-                state: {
-                  currentDepth: payload.new.metrics.currentDepth,
-                  maxDepth: payload.new.metrics.maxDepth,
-                  sources: [], // Will be updated by sources subscription
-                  isActive: payload.new.metrics.isActive
-                },
-                metrics: payload.new.metrics
-              }
-            })
-          }
-        }
-      )
-
-    // Subscribe to search results (activities)
-    const searchChannel = supabase
-      .channel(`search_results:${chatId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'search_results',
-          filter: `session_id=eq.${chatId}`
+          table: 'research_activities',
+          filter: `user_id=eq.${userId}`
         },
         (payload) => {
-          if (payload.new) {
-            dispatch({
-              type: 'ADD_ACTIVITY',
-              payload: {
-                type: 'search',
-                status: 'complete',
-                message: payload.new.query,
-                timestamp: payload.new.created_at,
-                depth: payload.new.depth_level
-              }
-            })
+          if (payload.eventType === 'INSERT' && isValidResearchActivity(payload.new)) {
+            addActivity(payload.new)
           }
         }
       )
+      .subscribe()
 
-    // Subscribe to sources
+    // Subscribe to research sources
     const sourcesChannel = supabase
-      .channel(`sources:${chatId}`)
+      .channel('research_sources')
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
-          table: 'sources',
-          filter: `session_id=eq.${chatId}`
+          table: 'research_sources',
+          filter: `user_id=eq.${userId}`
         },
         (payload) => {
-          if (payload.new) {
-            dispatch({
-              type: 'ADD_SOURCE',
-              payload: payload.new.url
-            })
+          if (payload.eventType === 'INSERT' && isValidResearchSource(payload.new)) {
+            addSource(payload.new)
           }
         }
       )
+      .subscribe()
 
-    // Start all subscriptions
-    Promise.all([
-      stateChannel.subscribe(),
-      searchChannel.subscribe(),
-      sourcesChannel.subscribe()
-    ]).catch(console.error)
-
-    // Cleanup subscriptions
     return () => {
-      stateChannel.unsubscribe()
-      searchChannel.unsubscribe()
+      activityChannel.unsubscribe()
       sourcesChannel.unsubscribe()
     }
-  }, [chatId, userId, dispatch, supabase])
+  }, [userId, state.isActive, addActivity, addSource, supabase])
 
-  return null // This is a side-effect component
+  return null
 } 
