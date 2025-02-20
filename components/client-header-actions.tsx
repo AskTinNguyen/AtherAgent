@@ -1,12 +1,20 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { useResearch } from '@/lib/contexts/research-context'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { User } from '@supabase/supabase-js'
-import { BarChart2, Bookmark, Brain, LogIn, LogOut } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import {
+  BarChart2,
+  Bookmark,
+  Brain,
+  CheckSquare,
+  Database,
+  HelpCircle,
+  LogIn,
+  LogOut
+} from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
 import { Input } from './ui/input'
@@ -21,7 +29,8 @@ export function ClientHeaderActions() {
   const [password, setPassword] = useState('admin')
   const [error, setError] = useState('')
   const router = useRouter()
-  const { state, toggleSearch } = useResearch()
+  const pathname = usePathname()
+  const isSearchActive = pathname?.startsWith('/search')
   const supabase = createClient()
 
   useEffect(() => {
@@ -95,6 +104,15 @@ export function ClientHeaderActions() {
     <div className="flex items-center gap-2">
       {user ? (
         <>
+          <style jsx global>{`
+            @keyframes pulse {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.5; }
+            }
+            .icon-pulse {
+              animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            }
+          `}</style>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -102,19 +120,72 @@ export function ClientHeaderActions() {
                   variant="ghost"
                   className={cn(
                     "text-muted-foreground hover:text-primary",
-                    state.isActive && "text-primary"
+                    isSearchActive && "text-primary"
                   )}
-                  onClick={() => toggleSearch()}
+                  onClick={() => router.push('/search')}
                 >
-                  <Brain className={cn(
-                    "w-5 h-5",
-                    state.isActive && "animate-pulse"
-                  )} />
-                  <span className="sr-only">Toggle Research Panel</span>
+                  <Brain 
+                    className={cn(
+                      "w-5 h-5",
+                      isSearchActive && "text-primary icon-pulse"
+                    )} 
+                  />
+                  <span className="sr-only">Chat Search</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                Toggle Research Panel
+                Chat Search
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-primary"
+                >
+                  <CheckSquare className="w-5 h-5" />
+                  <span className="sr-only">Tasks</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Tasks (Coming Soon)
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-primary"
+                >
+                  <Database className="w-5 h-5" />
+                  <span className="sr-only">Knowledge Base</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Knowledge Base (Coming Soon)
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-primary"
+                >
+                  <HelpCircle className="w-5 h-5" />
+                  <span className="sr-only">Tips & Tutorials</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Tips & Tutorials (Coming Soon)
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
