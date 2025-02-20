@@ -1,7 +1,7 @@
 'use client'
 
 import { Model, models } from '@/lib/types/models'
-import { getCookie, setCookie } from '@/lib/utils/cookies'
+import { cookies } from '@/lib/utils/cookies'
 import { isReasoningModel } from '@/lib/utils/registry'
 import { Check, ChevronsUpDown, Lightbulb } from 'lucide-react'
 import Image from 'next/image'
@@ -55,7 +55,7 @@ export function ModelSelector({ open: controlledOpen, onOpenChange }: ModelSelec
   }, [])
 
   useEffect(() => {
-    const savedModel = getCookie('selected-model')
+    const savedModel = cookies.get('selected-model')
     if (savedModel) {
       setSelectedModelId(savedModel)
     }
@@ -63,7 +63,7 @@ export function ModelSelector({ open: controlledOpen, onOpenChange }: ModelSelec
 
   const handleModelSelect = (id: string) => {
     setSelectedModelId(id === selectedModelId ? '' : id)
-    setCookie('selected-model', id)
+    cookies.set('selected-model', id)
     setOpen(false)
   }
 

@@ -7,8 +7,9 @@ export interface TestUser {
 }
 
 export interface TestSession {
-  id: string
-  userId: string
+  user: TestUser
+  access_token: string
+  refresh_token: string
 }
 
 // Create a singleton instance for tests
@@ -49,6 +50,7 @@ export const testHelpers = {
     if (!session) throw new Error('Failed to create test session')
     
     return {
+      user: {
       id: session.id,
       userId
     }

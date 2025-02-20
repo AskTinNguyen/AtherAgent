@@ -2,7 +2,6 @@ import { AuthStatus } from '@/components/auth-status'
 import Footer from '@/components/footer'
 import Header from '@/components/header'
 import { ClientProviders } from '@/components/providers/client-providers'
-import { SessionProvider } from '@/components/providers/session-provider'
 import { Sidebar } from '@/components/sidebar'
 import { cn } from '@/lib/utils'
 import type { Metadata, Viewport } from 'next'
@@ -67,15 +66,13 @@ export default function RootLayout({
         poppins.variable,
         playfair.variable
       )}>
-        <SessionProvider>
-          <ClientProviders>
-            <Header />
-            {children}
-            {enableSaveChatHistory && <Sidebar />}
-            <AuthStatus />
-            <Footer />
-          </ClientProviders>
-        </SessionProvider>
+        <ClientProviders>
+          <Header />
+          {children}
+          {enableSaveChatHistory && <Sidebar />}
+          <AuthStatus />
+          <Footer />
+        </ClientProviders>
       </body>
     </html>
   )

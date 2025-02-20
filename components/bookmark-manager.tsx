@@ -1,5 +1,6 @@
 'use client'
 
+import { useSupabase } from '@/components/providers/supabase-provider'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -33,7 +34,6 @@ import {
   Tag,
   Trash2
 } from 'lucide-react'
-import { useSession } from 'next-auth/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -42,8 +42,8 @@ interface BookmarkManagerProps {
 }
 
 export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Element {
-  const { data: session } = useSession()
-  const userId = session?.user?.email || 'anonymous'
+  const supabase = useSupabase()
+  const [userId, setUserId] = useState<string | null>(null)
   const pollingInterval = useRef<NodeJS.Timeout>()
 
   const [bookmarks, setBookmarks] = useState<EnhancedBookmark[]>([])
@@ -53,10 +53,10 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
 
   // Filtering and sorting state
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
-  const [selectedTag, setSelectedTag] = useState<string>('all')
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>()
+  const [selectedTag, setSelectedTag] = useState<string | undefined>()
   const [sortBy, setSortBy] = useState<'created' | 'accessed' | 'effectiveness'>('created')
-  const [selectedType, setSelectedType] = useState<'all' | BookmarkType>('all')
+  const [selectedType, setSelectedType] = useState<BookmarkType | undefined>()
 
   // Pagination
   const [page, setPage] = useState(1)
@@ -67,80 +67,101 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
   const [categories, setCategories] = useState<Set<string>>(new Set())
   const [tags, setTags] = useState<Set<string>>(new Set())
 
-  // Load bookmarks on mount
   useEffect(() => {
-    const loadBookmarks = async () => {
-      if (!userId) return
-
-      try {
-        const response = await fetch(`/api/bookmarks?userId=${userId}`)
-        if (!response.ok) throw new Error('Failed to load bookmarks')
-        
-        const data = await response.json()
-        setBookmarks(data)
-      } catch (error) {
-        console.error('Error loading bookmarks:', error)
-        setError('Failed to load bookmarks')
-      } finally {
-        setIsLoading(false)
+    const getUser = async () => {
+      const { data: { user }, error } = await supabase.auth.getUser()
+      if (!error && user) {
+        setUserId(user.id)
       }
     }
 
-    loadBookmarks()
-  }, [userId])
+    getUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id || null)
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    if (!userId) return
+
+    const fetchBookmarks = async () => {
+      const { data, error } = await supabase
+        .from('bookmarks')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching bookmarks:', error)
+        return
+      }
+
+      setBookmarks(data || [])
+    }
+
+    fetchBookmarks()
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel('bookmarks_channel')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookmarks',
+          filter: `user_id=eq.${userId}`
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setBookmarks((prev) => [payload.new as any, ...prev])
+          } else if (payload.eventType === 'DELETE') {
+            setBookmarks((prev) => prev.filter((b) => b.id !== payload.old.id))
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      channel.unsubscribe()
+    }
+  }, [userId, supabase])
 
   const fetchBookmarks = useCallback(async (isPolling = false) => {
-    try {
-      if (!isPolling) setIsLoading(true)
-      const offset = (page - 1) * ITEMS_PER_PAGE
-      const queryParams = new URLSearchParams({
-        userId,
-        limit: ITEMS_PER_PAGE.toString(),
-        offset: offset.toString(),
-        sortBy,
-        ...(selectedCategory !== 'all' && { category: selectedCategory }),
-        ...(selectedTag !== 'all' && { tag: selectedTag }),
-        ...(selectedType !== 'all' && { type: selectedType }),
-        timestamp: lastUpdate.toString()
-      })
+    if (!userId) return
 
-      const response = await fetch(`/api/bookmarks?${queryParams}`, {
-        cache: 'no-store'
-      })
-      
+    const params = new URLSearchParams({
+      type: selectedType || '',
+      tag: selectedTag || '',
+      category: selectedCategory || '',
+      user_id: userId,
+      limit: '10',
+      offset: ((page - 1) * 10).toString(),
+      sortBy
+    })
+
+    try {
+      const response = await fetch(`/api/bookmarks?${params}`)
       if (!response.ok) throw new Error('Failed to fetch bookmarks')
       
       const data = await response.json()
-      
-      // Update bookmarks with pagination
-      setBookmarks(prev => {
-        // If it's the first page or filters changed, replace all bookmarks
-        if (page === 1) return data
-        // Otherwise append new bookmarks
-        return [...prev, ...data]
-      })
-      
-      setHasMore(data.length === ITEMS_PER_PAGE)
-
-      // Update categories and tags
-      const newCategories = new Set<string>(['uncategorized'])
-      const newTags = new Set<string>()
-      data.forEach((bookmark: EnhancedBookmark) => {
-        if (bookmark.organization.category) {
-          newCategories.add(bookmark.organization.category)
-        }
-        bookmark.organization.tags.forEach(tag => newTags.add(tag))
-      })
-      setCategories(newCategories)
-      setTags(newTags)
-
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch bookmarks')
-    } finally {
-      if (!isPolling) setIsLoading(false)
+      if (!isPolling) {
+        setBookmarks(data)
+        setIsLoading(false)
+      }
+    } catch (error) {
+      console.error('Error fetching bookmarks:', error)
+      if (!isPolling) {
+        setError('Failed to fetch bookmarks')
+        setIsLoading(false)
+      }
     }
-  }, [userId, page, selectedCategory, selectedTag, sortBy, selectedType, lastUpdate])
+  }, [userId, selectedType, selectedTag, selectedCategory, page, sortBy])
 
   // Set up polling for updates
   useEffect(() => {
@@ -166,22 +187,22 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
     fetchBookmarks()
   }, [fetchBookmarks])
 
-  const deleteBookmark = async (bookmarkId: string) => {
+  const handleDelete = async (id: string) => {
     if (!userId) return
 
-    try {
-      const response = await fetch(`/api/bookmarks?userId=${userId}&bookmarkId=${bookmarkId}`, {
-        method: 'DELETE'
-      })
+    const { error } = await supabase
+      .from('bookmarks')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId)
 
-      if (!response.ok) throw new Error('Failed to delete bookmark')
-
-      setBookmarks(prev => prev.filter(b => b.id !== bookmarkId))
-      toast.success('Bookmark deleted')
-    } catch (error) {
+    if (error) {
       console.error('Error deleting bookmark:', error)
-      toast.error('Failed to delete bookmark')
+      return
     }
+
+    setBookmarks(prev => prev.filter(b => b.id !== id))
+    toast.success('Bookmark deleted')
   }
 
   const filteredBookmarks = bookmarks.filter(bookmark => {
@@ -281,7 +302,7 @@ export function BookmarkManager({ className }: BookmarkManagerProps): JSX.Elemen
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => deleteBookmark(bookmark.id)}
+            onClick={() => handleDelete(bookmark.id)}
             className="text-destructive hover:text-destructive"
           >
             <Trash2 className="h-4 w-4" />
