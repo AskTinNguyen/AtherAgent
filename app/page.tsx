@@ -3,6 +3,7 @@
 import { BlurReveal } from '@/components/blur-reveal'
 import { Chat } from '@/components/chat'
 import { useSupabase } from '@/components/providers/supabase-provider'
+import { ResearchProvider } from '@/lib/contexts/research-context'
 import { motion as m } from "framer-motion"
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
@@ -68,7 +69,9 @@ export default function Page() {
         
         {/* Chat Interface */}
         <div className="flex-1">
-          <Chat id={id} />
+          <ResearchProvider>
+            <Chat id={id} />
+          </ResearchProvider>
         </div>
       </div>
     </div>

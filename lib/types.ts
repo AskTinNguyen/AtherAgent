@@ -133,3 +133,14 @@ export type SearXNGSearchResults = {
   number_of_results?: number
   query: string
 }
+
+export interface AttachmentFile {
+  id: string
+  file: File
+  type: 'image' | 'document' | 'other'
+  previewUrl?: string
+  status: 'uploading' | 'ready' | 'error'
+  progress: number
+  url?: string
+  error?: string
+}

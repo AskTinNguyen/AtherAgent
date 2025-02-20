@@ -6,7 +6,12 @@ import { Globe } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Toggle } from './ui/toggle'
 
-export function SearchModeToggle() {
+interface SearchModeToggleProps {
+  enabled?: boolean
+  onEnabledChange?: (enabled: boolean) => void
+}
+
+export function SearchModeToggle({ enabled, onEnabledChange }: SearchModeToggleProps) {
   const { state, toggleSearch } = useResearch()
   const [shortcutKey, setShortcutKey] = useState('Ctrl')
 
@@ -14,33 +19,40 @@ export function SearchModeToggle() {
     setShortcutKey(navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl')
   }, [])
 
+  // Memoize the toggleSearch callback
+  const memoizedToggleSearch = useCallback(() => {
+    toggleSearch()
+    onEnabledChange?.(!enabled)
+  }, [toggleSearch, enabled, onEnabledChange])
+
   // Handle keyboard shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === '.') {
         e.preventDefault()
-        toggleSearch()
+        memoizedToggleSearch()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [toggleSearch])
+  }, [memoizedToggleSearch])
 
   // Handle toggle
   const handleToggle = useCallback(() => {
     toggleSearch()
+    onEnabledChange?.(!enabled)
     
     // Update the cookie
     document.cookie = `search-mode=${!state.searchEnabled}; path=/; max-age=31536000`
     
     console.log('Search mode toggled:', !state.searchEnabled)
-  }, [toggleSearch, state.searchEnabled])
+  }, [toggleSearch, state.searchEnabled, enabled, onEnabledChange])
 
   return (
     <Toggle
       aria-label="Toggle search mode"
-      pressed={state.searchEnabled}
+      pressed={enabled ?? state.searchEnabled}
       onPressedChange={handleToggle}
       variant="outline"
       className={cn(

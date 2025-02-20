@@ -5,31 +5,47 @@ import { useState } from 'react'
 import { Button } from './ui/button'
 import { Label } from './ui/label'
 import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
 } from './ui/popover'
 
-export function SearchDepthToggle() {
+interface SearchDepthToggleProps {
+  enabled?: boolean
+  currentDepth?: number
+  maxDepth?: number
+  onDepthChange?: (depth: number) => void
+}
+
+export function SearchDepthToggle({ 
+  enabled, 
+  currentDepth: externalCurrentDepth,
+  maxDepth: externalMaxDepth,
+  onDepthChange 
+}: SearchDepthToggleProps) {
   const { state, setDepth } = useResearch()
   const [isOpen, setIsOpen] = useState(false)
 
+  const currentDepth = externalCurrentDepth ?? state.depth.current
+  const maxDepth = externalMaxDepth ?? state.depth.max
+
   // Handle depth changes
   const handleDepthChange = (newDepth: number) => {
-    const validDepth = Math.max(1, Math.min(newDepth, state.depth.max))
-    setDepth(validDepth, state.depth.max)
+    const validDepth = Math.max(1, Math.min(newDepth, maxDepth))
+    setDepth(validDepth, maxDepth)
+    onDepthChange?.(validDepth)
   }
 
   // Handle increment/decrement
   const handleIncrement = () => {
-    if (state.depth.current < state.depth.max) {
-      handleDepthChange(state.depth.current + 1)
+    if (currentDepth < maxDepth) {
+      handleDepthChange(currentDepth + 1)
     }
   }
 
   const handleDecrement = () => {
-    if (state.depth.current > 1) {
-      handleDepthChange(state.depth.current - 1)
+    if (currentDepth > 1) {
+      handleDepthChange(currentDepth - 1)
     }
   }
 
@@ -41,20 +57,20 @@ export function SearchDepthToggle() {
           className={cn(
             "relative h-8 w-[80px] justify-start rounded-full bg-background",
             "hover:bg-accent hover:text-accent-foreground",
-            state.searchEnabled && "bg-primary/10 text-primary hover:bg-primary/20",
-            !state.searchEnabled && "opacity-50 cursor-not-allowed"
+            enabled && "bg-primary/10 text-primary hover:bg-primary/20",
+            !enabled && "opacity-50 cursor-not-allowed"
           )}
-          disabled={!state.searchEnabled}
+          disabled={!enabled}
         >
           <div className="flex items-center gap-1.5 px-2">
             <Layers className="size-4 shrink-0" />
             <div className="flex items-center gap-0.5 text-xs font-medium">
               <span className={cn(
                 "text-foreground",
-                state.searchEnabled && "text-primary"
-              )}>{state.depth.current}</span>
+                enabled && "text-primary"
+              )}>{currentDepth}</span>
               <span className="text-muted-foreground">/</span>
-              <span className="text-muted-foreground">{state.depth.max}</span>
+              <span className="text-muted-foreground">{maxDepth}</span>
             </div>
           </div>
         </Button>
@@ -76,21 +92,21 @@ export function SearchDepthToggle() {
                   size="icon" 
                   className="size-8"
                   onClick={handleDecrement}
-                  disabled={!state.searchEnabled || state.depth.current <= 1}
+                  disabled={!enabled || currentDepth <= 1}
                 >
                   -
                 </Button>
                 <div className="flex items-center gap-1">
-                  <span className="text-sm font-medium text-primary">{state.depth.current}</span>
+                  <span className="text-sm font-medium text-primary">{currentDepth}</span>
                   <span className="text-sm text-muted-foreground">/</span>
-                  <span className="w-4 text-center font-medium">{state.depth.max}</span>
+                  <span className="w-4 text-center font-medium">{maxDepth}</span>
                 </div>
                 <Button 
                   variant="outline" 
                   size="icon" 
                   className="size-8"
                   onClick={handleIncrement}
-                  disabled={!state.searchEnabled || state.depth.current >= state.depth.max}
+                  disabled={!enabled || currentDepth >= maxDepth}
                 >
                   +
                 </Button>
@@ -100,7 +116,7 @@ export function SearchDepthToggle() {
               <div className="h-2 w-full rounded-full bg-secondary">
                 <div 
                   className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${(state.depth.current / state.depth.max) * 100}%` }}
+                  style={{ width: `${(currentDepth / maxDepth) * 100}%` }}
                 />
               </div>
               <p className="text-xs text-muted-foreground">

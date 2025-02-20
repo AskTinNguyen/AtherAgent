@@ -138,7 +138,7 @@ export function ChatContent({
     setData
   } = useChat({
     initialMessages: savedMessages,
-    id: CHAT_ID, //The CHAT_ID constant is serving a different purpose than our database IDs - it's more like a namespace for the chat component
+    id: CHAT_ID,
     body: {
       id,
       searchMode: researchState.searchEnabled
@@ -436,7 +436,7 @@ export function ChatContent({
     })
   }
 
-  // Wrap handleSubmit to ensure proper state order
+  // Fix handleSubmit to use the useChat hook's handleSubmit
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!userId) {
@@ -444,23 +444,10 @@ export function ChatContent({
       return
     }
 
-    if (!input.trim()) return
+    if (!chatInput.trim()) return
 
     try {
-      const { error } = await supabase
-        .from('messages')
-        .insert([
-          {
-            content: input,
-            user_id: userId
-          }
-        ])
-
-      if (error) throw error
-
-      setInput('')
-      // Scroll to bottom
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      await originalHandleSubmit(e)
     } catch (error) {
       console.error('Error sending message:', error)
       toast.error('Failed to send message')
@@ -502,7 +489,7 @@ export function ChatContent({
             setMessages={setMessages}
           />
           <ChatPanel
-            input={input}
+            input={chatInput}
             handleInputChange={handleInputChange}
             handleSubmit={handleSubmit}
             isLoading={isLoading}
