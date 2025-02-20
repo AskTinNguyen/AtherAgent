@@ -20,18 +20,18 @@ export function ChatContent({
   id,
   savedMessages = [],
   query,
-  /**
-   * Callback function that is executed when the first message is sent in the chat.
-   * It's optional, and allows the parent component to perform actions specifically
-   * when a new chat session is initiated. For example, it could be used to update
-   * the UI or trigger analytics events.
-   */
-  onFirstMessage
+  // /**
+  //  * Callback function that is executed when the first message is sent in the chat.
+  //  * It's optional, and allows the parent component to perform actions specifically
+  //  * when a new chat session is initiated. For example, it could be used to update
+  //  * the UI or trigger analytics events.
+  //  */
+  // onFirstMessage
 }: {
   id: string
   savedMessages?: Message[]
   query?: string
-  onFirstMessage?: () => void
+  // onFirstMessage?: () => void
 }) {
   const { state: researchState, setMessages: setResearchMessages } = useResearch()
   const pathname = usePathname()
@@ -241,7 +241,7 @@ export function ChatContent({
               research_session_id: researchSessionId,
               message_type: 'ai_response',
               role: 'assistant',
-              content: null // TIN: this must be null, not an empty string
+              content: '' //this must be an empty string, not null, because we're looking for a placeholder message '' to SAVE the completed AI STREAM ontop of.
             })
             .order('created_at', { ascending: false })
             .limit(1)
@@ -422,9 +422,9 @@ export function ChatContent({
 
     try {
       // If this is the first message, trigger the callback
-      if (messages.length === 0 && onFirstMessage) {
-        onFirstMessage()
-      }
+      // if (messages.length === 0 && onFirstMessage) {
+      //   onFirstMessage()
+      // }
       await originalHandleSubmit(e)
     } catch (error) {
       console.error('Error sending message:', error)
@@ -488,7 +488,7 @@ export function Chat(props: {
   id: string
   savedMessages?: Message[]
   query?: string
-  onFirstMessage?: () => void
+  // onFirstMessage?: () => void
 }) {
   return (
     <ResearchProvider>
