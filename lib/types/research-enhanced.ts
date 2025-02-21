@@ -64,10 +64,23 @@ export interface ResearchActivity {
   metadata?: Record<string, any>
 }
 
+export interface ResearchSessionConfig {
+  sessionId: string
+  timestamp: number
+  status: 'idle' | 'running' | 'completed'
+}
+
+export interface ResearchConfiguration {
+  targetDepth: number
+  maxAllowedDepth: number
+  timestamp: number
+}
+
 // Define our enhanced research state
 export interface ResearchState {
   isActive: boolean
   searchEnabled: boolean
+  // Current research progress
   depth: {
     current: number
     max: number
@@ -77,6 +90,11 @@ export interface ResearchState {
       depthScores: Record<number, number>
     }
   }
+  // Configuration for next research
+  configuration: ResearchConfiguration
+  // Session management
+  session: ResearchSessionConfig
+  // Existing fields
   activity: ResearchActivity[]
   sources: ResearchSource[]
   sourceMetrics: SourceMetrics[]

@@ -1,9 +1,15 @@
 'use client'
 
+import { ResearchManager } from '@/lib/services/research-manager'
 import { fetchStoredSuggestions, markSuggestionAsUsed } from '@/lib/services/suggestion-generator'
-import { type ResearchActivity, type ResearchSource, type ResearchState, type ResearchSuggestion, type SourceMetrics } from '@/lib/types/research-enhanced'
+import { type ResearchActivity, type ResearchConfiguration as ResearchConfigType, type ResearchSource, type ResearchState, type ResearchSuggestion, type SourceMetrics } from '@/lib/types/research-enhanced'
 import { optimizeDepthStrategy, shouldIncreaseDepth } from '@/lib/utils/research-depth'
-import { createContext, useCallback, useContext, useReducer, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useReducer, type ReactNode } from 'react'
+
+// Constants
+const STORAGE_KEY = 'research_depth_config'
+const DEFAULT_MAX_DEPTH = 7
+const DEFAULT_TARGET_DEPTH = 3
 
 // Types for depth configuration
 interface DepthConfig {
@@ -14,18 +20,37 @@ interface DepthConfig {
   depthScores: Record<number, number>
 }
 
+// Session types
+type SessionStatus = 'idle' | 'running' | 'completed' | 'interrupted'
+
+interface SessionState {
+  sessionId: string
+  timestamp: number
+  status: SessionStatus
+}
+
 // Initial state
 const initialState: ResearchState = {
   isActive: false,
   searchEnabled: false,
   depth: {
     current: 1,
-    max: 7,
+    max: DEFAULT_MAX_DEPTH,
     config: {
       minRelevanceScore: 0.6,
       adaptiveThreshold: 0.7,
       depthScores: { 1: 0 }
     }
+  },
+  configuration: {
+    targetDepth: DEFAULT_TARGET_DEPTH,
+    maxAllowedDepth: DEFAULT_MAX_DEPTH,
+    timestamp: Date.now()
+  },
+  session: {
+    sessionId: '',
+    timestamp: Date.now(),
+    status: 'idle'
   },
   activity: [],
   sources: [],
@@ -49,6 +74,11 @@ type ResearchAction =
   | { type: 'CLEAR_SOURCES' }
   | { type: 'SET_SUGGESTIONS'; payload: ResearchSuggestion[] }
   | { type: 'MARK_SUGGESTION_USED'; payload: string }
+  | { type: 'UPDATE_CONFIGURATION'; payload: ResearchConfigType }
+  | { type: 'START_SESSION'; payload: { sessionId: string } }
+  | { type: 'END_SESSION' }
+  | { type: 'INTERRUPT_SESSION' }
+  | { type: 'RESUME_SESSION'; payload: { sessionId: string } }
 
 // Reducer
 function researchReducer(state: ResearchState, action: ResearchAction): ResearchState {
@@ -163,6 +193,58 @@ function researchReducer(state: ResearchState, action: ResearchAction): Research
         suggestions: state.suggestions.filter(s => s.id !== action.payload)
       }
 
+    case 'UPDATE_CONFIGURATION':
+      return {
+        ...state,
+        configuration: {
+          ...action.payload,
+          timestamp: Date.now()
+        }
+      }
+
+    case 'START_SESSION':
+      return {
+        ...state,
+        session: {
+          sessionId: action.payload.sessionId,
+          timestamp: Date.now(),
+          status: 'running'
+        },
+        depth: {
+          ...state.depth,
+          current: 1,
+          max: state.configuration.targetDepth
+        }
+      }
+
+    case 'END_SESSION':
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          status: 'completed'
+        }
+      }
+
+    case 'INTERRUPT_SESSION':
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          status: 'idle' // Reset to idle when interrupted
+        }
+      }
+
+    case 'RESUME_SESSION':
+      return {
+        ...state,
+        session: {
+          sessionId: action.payload.sessionId,
+          timestamp: Date.now(),
+          status: 'running'
+        }
+      }
+
     default:
       return state
   }
@@ -188,6 +270,11 @@ interface ResearchContextType {
   setSuggestions: (suggestions: ResearchSuggestion[]) => void
   markSuggestionUsed: (suggestionId: string) => void
   loadSuggestions: (sessionId: string) => Promise<void>
+  updateConfiguration: (config: ResearchConfigType) => void
+  startSession: (sessionId: string) => void
+  endSession: () => void
+  interruptSession: () => void
+  resumeSession: (sessionId: string) => void
 }
 
 const ResearchContext = createContext<ResearchContextType | undefined>(undefined)
@@ -195,6 +282,23 @@ const ResearchContext = createContext<ResearchContextType | undefined>(undefined
 // Provider
 export function ResearchProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(researchReducer, initialState)
+
+  // Load stored configuration on mount
+  useEffect(() => {
+    const storedConfig = ResearchManager.getStoredConfiguration()
+    if (storedConfig) {
+      dispatch({ type: 'UPDATE_CONFIGURATION', payload: storedConfig })
+    }
+
+    // Try to restore last active session
+    const lastSession = ResearchManager.getLastActiveSession()
+    if (lastSession?.status === 'running') {
+      dispatch({ type: 'RESUME_SESSION', payload: { sessionId: lastSession.sessionId } })
+    }
+
+    // Clean up old sessions
+    ResearchManager.cleanupOldSessions()
+  }, [])
 
   const setMessages = useCallback((messages: ResearchState['messages']) => {
     if (!Array.isArray(messages)) {
@@ -218,7 +322,11 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
 
   const addSource = useCallback((source: ResearchSource) => {
     dispatch({ type: 'ADD_SOURCE', payload: source })
-  }, [])
+    // Track source in session
+    if (state.session.sessionId) {
+      ResearchManager.addSessionSource(state.session.sessionId, source.url)
+    }
+  }, [state.session.sessionId])
 
   const setDepth = useCallback((current: number, max: number) => {
     dispatch({ type: 'SET_DEPTH', payload: { current, max } })
@@ -239,24 +347,38 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
   const optimizeDepth = useCallback((sourceMetrics: SourceMetrics[]) => {
     const { depth } = state
     
-    const depthConfig: DepthConfig = {
+    if (!shouldIncreaseDepth({
       currentDepth: depth.current,
       maxDepth: depth.max,
-      ...depth.config
-    }
-    
-    if (!shouldIncreaseDepth(depthConfig, sourceMetrics)) {
+      minRelevanceScore: depth.config.minRelevanceScore,
+      adaptiveThreshold: depth.config.adaptiveThreshold,
+      depthScores: depth.config.depthScores
+    }, sourceMetrics)) {
       return
     }
     
     const newDepth = depth.current + 1
     const newConfig = optimizeDepthStrategy({
-      ...depthConfig,
-      currentDepth: newDepth
+      currentDepth: newDepth,
+      maxDepth: depth.max,
+      minRelevanceScore: depth.config.minRelevanceScore,
+      adaptiveThreshold: depth.config.adaptiveThreshold,
+      depthScores: depth.config.depthScores
     }, sourceMetrics)
 
     setDepth(newDepth, depth.max)
-  }, [state.depth, setDepth])
+
+    // Update session metrics
+    if (state.session.sessionId) {
+      const averageRelevance = sourceMetrics.reduce((acc, m) => acc + m.overallScore, 0) / sourceMetrics.length
+      const completionRate = (newDepth / depth.max) * 100
+      
+      ResearchManager.updateSessionMetrics(state.session.sessionId, {
+        averageRelevance,
+        completionRate
+      })
+    }
+  }, [state.depth, state.session.sessionId, setDepth])
 
   const getSources = useCallback(() => {
     return state.sources
@@ -270,17 +392,53 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'CLEAR_SOURCES' })
   }, [])
 
+  const updateConfiguration = useCallback((config: ResearchConfigType) => {
+    dispatch({ type: 'UPDATE_CONFIGURATION', payload: config })
+    // Persist configuration using ResearchManager
+    ResearchManager.storeConfiguration(config)
+  }, [])
+
+  const startSession = useCallback((sessionId: string) => {
+    const session = ResearchManager.createSession(state.configuration)
+    dispatch({ type: 'START_SESSION', payload: { sessionId: session.sessionId } })
+  }, [state.configuration])
+
+  const endSession = useCallback(() => {
+    if (state.session.sessionId) {
+      ResearchManager.updateSessionStatus(state.session.sessionId, 'completed')
+      dispatch({ type: 'END_SESSION' })
+    }
+  }, [state.session.sessionId])
+
+  const interruptSession = useCallback(() => {
+    if (state.session.sessionId) {
+      ResearchManager.updateSessionStatus(state.session.sessionId, 'idle')
+      dispatch({ type: 'INTERRUPT_SESSION' })
+    }
+  }, [state.session.sessionId])
+
+  const resumeSession = useCallback((sessionId: string) => {
+    const session = ResearchManager.getSession(sessionId)
+    if (session) {
+      ResearchManager.updateSessionStatus(sessionId, 'running')
+      dispatch({ type: 'RESUME_SESSION', payload: { sessionId } })
+    }
+  }, [])
+
   const startResearch = useCallback(() => {
     if (!state.isActive) {
+      const sessionId = `research_${Date.now()}`
+      startSession(sessionId)
       dispatch({ type: 'TOGGLE_SEARCH' })
     }
-  }, [state.isActive])
+  }, [state.isActive, startSession])
 
   const stopResearch = useCallback(() => {
     if (state.isActive) {
+      endSession()
       dispatch({ type: 'TOGGLE_SEARCH' })
     }
-  }, [state.isActive])
+  }, [state.isActive, endSession])
 
   const setSuggestions = useCallback((suggestions: ResearchSuggestion[]) => {
     dispatch({ type: 'SET_SUGGESTIONS', payload: suggestions })
@@ -304,29 +462,34 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
     }
   }, [setSuggestions])
 
+  const value = {
+    state,
+    setMessages,
+    addMessage,
+    addActivity,
+    addSource,
+    setDepth,
+    updateProgress,
+    clearState,
+    optimizeDepth,
+    toggleSearch,
+    getSources,
+    getSourceMetrics,
+    clearSources,
+    startResearch,
+    stopResearch,
+    setSuggestions,
+    markSuggestionUsed,
+    loadSuggestions,
+    updateConfiguration,
+    startSession,
+    endSession,
+    interruptSession,
+    resumeSession
+  }
+
   return (
-    <ResearchContext.Provider
-      value={{
-        state,
-        setMessages,
-        addMessage,
-        addActivity,
-        addSource,
-        setDepth,
-        updateProgress,
-        clearState,
-        optimizeDepth,
-        toggleSearch,
-        getSources,
-        getSourceMetrics,
-        clearSources,
-        startResearch,
-        stopResearch,
-        setSuggestions,
-        markSuggestionUsed,
-        loadSuggestions
-      }}
-    >
+    <ResearchContext.Provider value={value}>
       {children}
     </ResearchContext.Provider>
   )
