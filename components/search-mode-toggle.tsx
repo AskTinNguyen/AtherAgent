@@ -64,7 +64,7 @@ export function SearchModeToggle({ enabled, onEnabledChange }: SearchModeToggleP
       )}
     >
       <Globe className="size-4" />
-      <span className="text-xs">Search</span>
+      <span className="text-xs">Basic Search</span>
       <kbd className="ml-2 text-[10px] text-muted-foreground">
         {shortcutKey} + .
       </kbd>

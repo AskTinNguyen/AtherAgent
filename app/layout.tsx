@@ -1,4 +1,3 @@
-import { AuthStatus } from '@/components/auth-status'
 import Footer from '@/components/footer'
 import Header from '@/components/header'
 import { ClientProviders } from '@/components/providers/client-providers'
@@ -70,7 +69,6 @@ export default function RootLayout({
           <Header />
           {children}
           {enableSaveChatHistory && <Sidebar />}
-          <AuthStatus />
           <Footer />
         </ClientProviders>
       </body>
