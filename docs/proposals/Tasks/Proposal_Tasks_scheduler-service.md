@@ -3,107 +3,68 @@
 ## Overview
 The Task Scheduler Service manages the scheduling and timing of task execution through various scheduling methods.
 
-## Scheduling Types
+**Scheduling Types**
 
-### Cron-based Scheduling
-- Supports standard cron expression format
-- Validates cron expressions
-- Handles timezone configurations
-- Examples:
-  ```typescript
-  // Run daily at 3 AM
-  schedule: "0 3 * * *"
-  // Run every Monday at 9 AM
-  schedule: "0 9 * * 1"
-  ```
+*   **Enhancement:** Consider adding "human-friendly" scheduling options alongside cron and intervals.
+    *   **Feature:** Explore options like "Run every workday at 9 AM" or "Run every weekend" which are easier for developers to understand than complex cron expressions. These can be translated into cron expressions under the hood.
+    *   **Developer-Friendly:** Provide scheduling options that are more intuitive for developers who may not be cron experts.
 
-### Interval-based Scheduling
-- Supports time-based intervals
-- Configurable start times
-- Interval formats:
-  - Minutes
-  - Hours
-  - Days
-- Examples:
-  ```typescript
-  // Run every 30 minutes
-  interval: "30m"
-  // Run every 2 hours
-  interval: "2h"
-  ```
+**Validation & Safety**
 
-### One-off Scheduling
-- Single execution at specified time
-- Future date validation
-- Timezone handling
-- Example:
-  ```typescript
-  // Run once at specific time
-  executeAt: "2024-03-20T15:00:00Z"
-  ```
+*   **Developer-Friendly:** Provide clear and helpful error messages when schedule validation fails.
+*   **Developer-Friendly:** Offer tools to help developers test and validate their cron expressions or interval settings.
 
-### Event-driven Triggers
-- Real-time Supabase event handling
-- Supports multiple trigger types:
-  - Database changes
-  - Custom events
-  - External webhooks
-- Example:
-  ```typescript
-  // Trigger on database change
-  trigger: {
-    type: "database",
-    table: "tasks",
-    event: "INSERT"
-  }
-  ```
 
-## Validation & Safety
+**Scheduling Types**
 
-### Schedule Validation
-- Cron expression validation
-- Interval format checking
-- Future date validation
-- Conflict detection
+*   Cron-based scheduling
+    *   Standard cron expressions
+    *   Validation
+    *   Timezone handling
+*   Interval-based scheduling
+    *   Time-based intervals
+    *   Configurable start times
+    *   Minutes/hours/days intervals
+*   One-off scheduling
+    *   Single execution at a specified time
+    *   Future date validation
+    *   Timezone handling
+*   Event-driven triggers
+    *   Real-time Supabase event handling
+    *   Database changes
+    *   Custom events
+    *   External webhooks
 
-### Conflict Prevention
-- Prevents overlapping schedules
-- Handles concurrent executions
-- Resource allocation checks
+**Validation & Safety**
 
-## Implementation
+*   Schedule validation
+    *   Cron expression
+    *   Interval format
+    *   Future date
+*   Conflict prevention
+    *   Overlapping schedules
+    *   Concurrent executions
+    *   Resource allocation checks
 
-### Scheduler Engine
-```typescript
-interface SchedulerConfig {
-  type: "cron" | "interval" | "oneoff" | "event";
-  schedule?: string;
-  interval?: string;
-  executeAt?: string;
-  trigger?: TriggerConfig;
-}
+**Implementation Details**
 
-interface TriggerConfig {
-  type: string;
-  source: string;
-  event: string;
-}
-```
+*   SchedulerConfig interface
+    *   type
+    *   schedule
+    *   interval
+    *   executeAt
+    *   trigger
+*   TriggerConfig interface
+    *   type
+    *   source
+    *   event
+*   Supabase real-time integration
+*   Event queue management
+*   Error handling and retries for scheduling
 
-### Real-time Integration
-- Supabase real-time subscriptions
-- Event queue management
-- Error handling and retries
+**Monitoring & Logging**
 
-## Monitoring & Logging
-- Schedule execution tracking
-- Failed schedule logging
-- Performance metrics
-- Real-time status updates
-
-## Next Steps
-1. Add schedule templates
-2. Implement schedule groups
-3. Enhance conflict detection
-4. Add schedule analytics
-5. Implement schedule versioning 
+*   Schedule execution tracking
+*   Failed schedule logging
+*   Performance metrics for scheduling
+*   Real-time status updates for schedules

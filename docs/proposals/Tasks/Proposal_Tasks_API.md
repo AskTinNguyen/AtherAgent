@@ -2,92 +2,39 @@
 
 ## API Endpoints Overview
 
-### Task Creation
-- **POST /api/tasks**
-  - Creates new tasks with validation
-  - Supports task metadata (assignees, tags)
-  - Uses Zod for request validation
-  - Returns created task with ID
+## API Enhancement Plan: Natural Language Integration
 
-### Task Retrieval
-- **GET /api/tasks**
-  - Lists tasks with filtering capabilities
-  - Supports filtering by:
-    - Type
-    - Status
-    - Priority
-  - Includes related data (assignees, tags, dependencies)
-  - Supports pagination
+This document outlines enhancements to the task management API to support natural language interaction.
 
-- **GET /api/tasks/:id**
-  - Returns complete task information
-  - Includes execution history
-  - Returns related metadata
+### Task Creation (POST /api/tasks)
 
-### Task Updates
-- **PUT /api/tasks/:id**
-  - Supports partial updates
-  - Handles assignee and tag updates
-  - Validates update payload
-  - Returns updated task
+*   **Enhancement:** Prioritize natural language task descriptions. The API should be designed to accept and effectively process detailed natural language descriptions as the primary input for task definition.
+*   **Feature:** Add an optional field for "natural language instructions" (or similar), alongside structured fields. The AI can then parse this field to populate other structured fields or use it directly for AI-driven tasks.
+*   **Developer-Friendly:** Provide clear examples in API documentation of how to use natural language for task creation.
 
-### Task Deletion
-- **DELETE /api/tasks/:id**
-  - Implements cascading delete
-  - Removes related records
-  - Validates deletion permissions
+### Task Retrieval (GET /api/tasks, GET /api/tasks/:id)
 
-### Task Execution
-- **POST /api/tasks/:id/run**
-  - Triggers manual task execution
-  - Creates task run record
-  - Initiates background processing
+*   **Enhancement:** Enable natural language queries for task filtering and searching.
+*   **Feature:** Consider adding an optional query parameter like `q="find tasks related to database backups"` to `/api/tasks`. The backend can use vector embeddings or semantic search to interpret the natural language query and filter tasks accordingly.
+*   **Developer-Friendly:** Allow developers to use both structured filters (type, status, priority) and natural language queries for flexibility.
 
-### Execution History
-- **GET /api/tasks/:id/runs**
-  - Returns execution history
-  - Supports filtering and pagination
-  - Orders by start time
-  - Includes execution metadata
+### Task Updates (PUT /api/tasks/:id)
 
-## Implementation Details
+*   **Enhancement:** Support natural language updates to task descriptions and potentially other fields.
+*   **Feature:** Similar to task creation, allow updates to the "natural language instructions" field. The AI could be used to interpret these updates and modify structured fields accordingly.
+*   **Developer-Friendly:** Make it easy to update tasks via code or through natural language interaction, catering to different developer preferences.
 
-### Request Validation
-- Uses Zod schemas for request validation
-- Implements type-safe request handling
-- Provides detailed validation errors
+### Task Execution (POST /api/tasks/:id/run)
 
-### Response Format
-```typescript
-interface ApiResponse<T> {
-  data?: T;
-  error?: {
-    message: string;
-    code: string;
-  };
-  metadata?: {
-    page: number;
-    pageSize: number;
-    total: number;
-  };
-}
-```
+*   **No Change Needed:** This endpoint is already developer-friendly as it allows programmatic triggering of tasks.
 
-### Error Handling
-- Consistent error response format
-- HTTP status codes mapping
-- Detailed error messages
-- Request validation errors
+### Execution History (GET /api/tasks/:id/runs)
 
-## Security
-- Authentication required for all endpoints
-- Role-based access control
-- Rate limiting implementation
-- Request validation
+*   **Enhancement:** Allow natural language queries to search within task execution logs.
+*   **Feature:** Consider adding a query parameter like `log_q="show me errors related to API calls"` to `/api/tasks/:id/runs`. The backend can perform text search within the logs.
+*   **Developer-Friendly:** Make debugging and monitoring easier by allowing developers to quickly find relevant information in logs using natural language.
 
-## Next Steps
-1. Add bulk operations endpoints
-2. Implement task templates API
-3. Add advanced filtering options
-4. Enhance error handling
-5. Implement API versioning 
+### Overall API Design
+
+*   **Developer-Friendly:** Ensure the API is well-documented with OpenAPI/Swagger specifications. Provide code examples in common developer languages (JavaScript/TypeScript, Python, etc.).
+*   **Developer-Friendly:** Consider providing SDKs or client libraries to simplify API interaction in different languages.

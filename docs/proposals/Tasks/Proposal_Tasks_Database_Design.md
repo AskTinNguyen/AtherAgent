@@ -2,8 +2,25 @@
 
 **An efficient schema underpins the system, especially with Supabase/Postgres as the backbone. Below is a high-level schema design covering tasks, scheduling, dependencies, logs, and preferences:**
 
-### Tasks Table (tasks): This table holds the definition of each task.
+**Tasks Table (tasks)**
 
+*   Enhancement: Add a column to store the "natural language description" or "instructions" directly in the database.
+    *   Feature: Add a `natural_language_description TEXT` column to the `tasks` table. This will store the original natural language input provided by the user, which can be used for AI processing and retrieval.
+    *   Developer-Friendly: This makes it explicit that natural language is a first-class citizen in task definition.
+
+**Task Run History Table (task\_runs)**
+
+*   Enhancement: Consider storing structured logs (JSON) in addition to plain text logs to facilitate AI analysis and querying.
+    *   Feature: Change the `log` column to `JSONB` or add a `structured_log JSONB` column alongside the `log TEXT` column. This allows for more detailed and queryable log data, which can be useful for AI-powered reporting and analysis.
+    *   Developer-Friendly: Structured logs are easier to parse programmatically and analyze, which is beneficial for developers who want to automate monitoring or reporting.
+
+**Indexes and Optimizations**
+
+*   Enhancement: Consider indexing the `natural_language_description` column for faster natural language searches (if full-text search is implemented at the database level).
+    *   Feature: Explore using Postgres' full-text search capabilities or vector embeddings for the `natural_language_description` column to enable efficient semantic search.
+
+
+### Tasks Table (tasks): This table holds the definition of each task.
 
 # Database Schema Details
 
