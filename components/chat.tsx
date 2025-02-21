@@ -43,6 +43,9 @@ export function ChatContent({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
   
+  // Placeholder text for streaming responses
+  const PLACEHOLDER_TEXT = "I'm analyzing your request and preparing a response..."
+  
   // Get user ID from Supabase session
   useEffect(() => {
     const getUser = async () => {
@@ -156,6 +159,17 @@ export function ChatContent({
       if (!pathname.startsWith('/search/')) {
         window.history.replaceState({}, '', `/search/${id}`)
       }
+
+      // Create an optimistic message and update UI immediately
+      const optimisticMessage: Message = {
+        id: uuidv4(),
+        role: 'assistant' as const,
+        content: PLACEHOLDER_TEXT,  // Start with placeholder text
+        createdAt: new Date()
+      }
+
+      // Update UI immediately with the optimistic message
+      setMessages(prevMessages => [...prevMessages, optimisticMessage])
       
       if (userId && researchSessionId) {
         try {
@@ -185,7 +199,7 @@ export function ChatContent({
             id: messageUuid,
             user_id: userId,
             research_session_id: researchSessionId,
-            content: '', // TIN: IMPORTANT: Must be empty string, not null - database constraint
+            content: PLACEHOLDER_TEXT, // Use placeholder text instead of empty string
             role: 'assistant',
             metadata: {
               model: 'gpt-4',
@@ -197,7 +211,7 @@ export function ChatContent({
           }, {
             sequence_number: messages?.length ? messages.length + 1 : 1,
             message_type: 'ai_response',
-            parent_message_id: lastUserMessage?.id // Use DB message ID
+            parent_message_id: lastUserMessage?.id
           })
           
           const { error } = await supabase
@@ -241,7 +255,7 @@ export function ChatContent({
               research_session_id: researchSessionId,
               message_type: 'ai_response',
               role: 'assistant',
-              content: '' //this must be an empty string, not null, because we're looking for a placeholder message '' to SAVE the completed AI STREAM ontop of.
+              content: PLACEHOLDER_TEXT // Match the placeholder text we set in onResponse
             })
             .order('created_at', { ascending: false })
             .limit(1)

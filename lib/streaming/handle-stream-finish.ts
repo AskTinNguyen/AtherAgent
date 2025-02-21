@@ -16,6 +16,7 @@ interface HandleStreamFinishParams {
     promptTokens: number
     completionTokens: number
   }
+  toolCallId?: string  // Added to track specific tool call
 }
 
 const handleError = (error: unknown): string => {
@@ -31,189 +32,235 @@ export async function handleStreamFinish({
   dataStream,
   skipRelatedQuestions = false,
   annotations = [],
-  usage
+  usage,
+  toolCallId
 }: HandleStreamFinishParams) {
   const streamManager = new StreamProtocolManager(dataStream)
   let allAnnotations = [...annotations]
 
   try {
-    // Update usage if provided
+    // Handle usage tracking
     if (usage) {
       streamManager.updateUsage(usage.promptTokens, usage.completionTokens)
-      
-      // Track usage in our system
-      try {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-        console.log('Tracking usage:', {
-          model,
-          chatId,
-          usage: {
-            promptTokens: usage.promptTokens,
-            completionTokens: usage.completionTokens,
-            totalTokens: usage.promptTokens + usage.completionTokens
-          }
-        })
-        
-        const response = await fetch(`${baseUrl}/api/usage`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model,
-            chatId,
-            usage: {
-              promptTokens: usage.promptTokens,
-              completionTokens: usage.completionTokens,
-              totalTokens: usage.promptTokens + usage.completionTokens
-            }
-          })
-        })
-
-        if (!response.ok) {
-          const text = await response.text()
-          console.error('Failed to track usage:', {
-            status: response.status,
-            statusText: response.statusText,
-            body: text
-          })
-        }
-      } catch (error) {
-        console.error('Failed to track usage:', error)
-        // Don't throw, just log the error and continue
-      }
+      await trackUsage(model, chatId, usage)
     } else if (!model.includes('gemini')) {
-      // Only log missing usage for non-Gemini models
       console.log('No usage data provided for tracking')
     }
 
-    // Don't convert messages that are already in the correct format
+    // Process tool-specific response if toolCallId is provided
+    if (toolCallId) {
+      const toolState = streamManager.getPostToolExecutionState(toolCallId)
+      if (toolState && toolState.status === 'processing') {
+        const responseId = `response_${toolCallId}`
+        streamManager.streamPostToolStart(toolCallId, responseId)
+        
+        // Process each response message
+        for (const message of responseMessages) {
+          const content = Array.isArray(message.content) 
+            ? message.content.map(part => 
+                typeof part === 'string' ? part : JSON.stringify(part)
+              ).join('')
+            : String(message.content)
+          streamManager.streamPostToolContent(toolCallId, content)
+        }
+        
+        streamManager.streamPostToolEnd(toolCallId)
+      }
+    }
+
+    // Convert messages to extended format
     const extendedCoreMessages = originalMessages.map(msg => ({
       role: msg.role,
       content: msg.content,
       ...(msg.toolInvocations && { toolInvocations: msg.toolInvocations })
     })) as ExtendedCoreMessage[]
 
+    // Handle related questions if needed
     if (!skipRelatedQuestions) {
-      try {
-        // Notify related questions loading
-        const relatedQuestionsAnnotation: JSONValue = {
-          type: 'related-questions',
-          data: { items: [] }
-        }
-        streamManager.streamData([relatedQuestionsAnnotation])
-
-        // Generate related questions
-        const relatedQuestions = await generateRelatedQuestions(
-          responseMessages,
-          model
-        ).catch(error => {
-          console.error('Error generating related questions:', error)
-          streamManager.streamError(handleError(error))
-          return { object: { items: [] } }
-        })
-
-        // Create and add related questions annotation
-        const updatedRelatedQuestionsAnnotation: ExtendedCoreMessage = {
-          role: 'data',
-          content: {
-            type: 'related-questions',
-            data: relatedQuestions.object
-          } as JSONValue
-        }
-
-        streamManager.streamData([updatedRelatedQuestionsAnnotation.content] as JSONValue)
-        allAnnotations.push(updatedRelatedQuestionsAnnotation)
-      } catch (error) {
-        console.error('Error processing related questions:', error)
-        streamManager.streamError(handleError(error))
-        // Don't throw, just continue without related questions
-      }
+      await processRelatedQuestions(responseMessages, model, streamManager, allAnnotations)
     }
 
-    // Separate chart messages from other annotations
-    const chartMessages = allAnnotations.filter(a => 
-      'type' in a && a.type === 'chart'
-    ) as ExtendedCoreMessage[]
-    const otherAnnotations = allAnnotations.filter(a => 
-      a.role === 'data' && 
-      a.content !== null &&
-      typeof a.content === 'object' && 
-      'type' in a.content && 
-      a.content.type !== 'tool_call'
+    // Process annotations and prepare messages
+    const { chartMessages, otherAnnotations } = processAnnotations(allAnnotations)
+    
+    // Create final message array with proper ordering
+    const generatedMessages = createOrderedMessages(
+      extendedCoreMessages,
+      responseMessages,
+      otherAnnotations,
+      chartMessages
     )
 
-    // Create the message to save
-    const generatedMessages = [
-      ...extendedCoreMessages,
-      ...responseMessages.slice(0, -1),
-      ...otherAnnotations,
-      // For the last message, if we have a chart, use it instead of the text message
-      ...(chartMessages.length > 0 ? chartMessages : responseMessages.slice(-1))
-    ] as ExtendedCoreMessage[]
+    // Save to database with retry mechanism
+    await saveToDatabase(chatId, originalMessages, generatedMessages, streamManager)
 
-    try {
-      // Get the chat from the database if it exists, otherwise create a new one
-      const savedChat = (await getChat(chatId)) ?? {
-        messages: [],
-        createdAt: new Date(),
-        userId: 'anonymous',
-        path: `/search/${chatId}`,
-        title: originalMessages[0].content,
-        id: chatId
-      }
-
-      // Preserve existing search results and data messages
-      const existingDataMessages = savedChat.messages.filter(msg => 
-        msg.role === 'data' && 
-        msg.content && 
-        typeof msg.content === 'object' &&
-        msg.content !== null &&
-        'type' in msg.content && 
-        typeof msg.content.type === 'string' &&
-        ['search_results', 'tool_call'].includes(msg.content.type)
-      )
-
-      // Merge existing data messages with new generated messages
-      const mergedMessages = [
-        ...existingDataMessages,
-        ...generatedMessages
-      ]
-
-      // Save chat with complete response and related questions while preserving search results
-      let retryCount = 0;
-      const maxRetries = 3;
-      
-      while (retryCount < maxRetries) {
-        try {
-          await saveChat({
-            ...savedChat,
-            messages: mergedMessages
-          });
-          break; // If successful, break out of retry loop
-        } catch (error) {
-          retryCount++;
-          console.error(`Failed to save chat (attempt ${retryCount}/${maxRetries}):`, error);
-          
-          if (retryCount === maxRetries) {
-            streamManager.streamError('Failed to save chat history after multiple attempts');
-            throw error; // Re-throw after max retries
-          }
-          
-          // Wait before retrying (exponential backoff)
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
-        }
-      }
-    } catch (error) {
-      console.error('Error saving chat:', error);
-      streamManager.streamError('Failed to save chat');
-      throw error; // Re-throw to trigger error handling in the parent
+    // Only send finish if all tool executions are complete
+    if (!toolCallId || streamManager.areAllToolExecutionsComplete()) {
+      streamManager.streamFinish('stop')
     }
-
-    // Send finish message with usage information
-    streamManager.streamFinish('stop')
   } catch (error) {
     console.error('Error in handleStreamFinish:', error)
     streamManager.streamError('Error processing stream finish')
+  }
+}
+
+// Helper function to track usage
+async function trackUsage(model: string, chatId: string, usage: { promptTokens: number; completionTokens: number }) {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const response = await fetch(`${baseUrl}/api/usage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        chatId,
+        usage: {
+          promptTokens: usage.promptTokens,
+          completionTokens: usage.completionTokens,
+          totalTokens: usage.promptTokens + usage.completionTokens
+        }
+      })
+    })
+
+    if (!response.ok) {
+      const text = await response.text()
+      console.error('Failed to track usage:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: text
+      })
+    }
+  } catch (error) {
+    console.error('Failed to track usage:', error)
+  }
+}
+
+// Helper function to process related questions
+async function processRelatedQuestions(
+  responseMessages: CoreMessage[],
+  model: string,
+  streamManager: StreamProtocolManager,
+  allAnnotations: ExtendedCoreMessage[]
+) {
+  try {
+    const relatedQuestionsAnnotation: JSONValue = {
+      type: 'related-questions',
+      data: { items: [] }
+    }
+    streamManager.streamData([relatedQuestionsAnnotation])
+
+    const relatedQuestions = await generateRelatedQuestions(responseMessages, model)
+      .catch(error => {
+        console.error('Error generating related questions:', error)
+        streamManager.streamError(handleError(error))
+        return { object: { items: [] } }
+      })
+
+    const updatedRelatedQuestionsAnnotation: ExtendedCoreMessage = {
+      role: 'data',
+      content: {
+        type: 'related-questions',
+        data: relatedQuestions.object
+      } as JSONValue
+    }
+
+    streamManager.streamData([updatedRelatedQuestionsAnnotation.content] as JSONValue)
+    allAnnotations.push(updatedRelatedQuestionsAnnotation)
+  } catch (error) {
+    console.error('Error processing related questions:', error)
+    streamManager.streamError(handleError(error))
+  }
+}
+
+// Helper function to process annotations
+function processAnnotations(allAnnotations: ExtendedCoreMessage[]) {
+  const chartMessages = allAnnotations.filter(a => 
+    'type' in a && a.type === 'chart'
+  ) as ExtendedCoreMessage[]
+  
+  const otherAnnotations = allAnnotations.filter(a => 
+    a.role === 'data' && 
+    a.content !== null &&
+    typeof a.content === 'object' && 
+    'type' in a.content && 
+    a.content.type !== 'tool_call'
+  )
+
+  return { chartMessages, otherAnnotations }
+}
+
+// Helper function to create ordered messages
+function createOrderedMessages(
+  extendedCoreMessages: ExtendedCoreMessage[],
+  responseMessages: CoreMessage[],
+  otherAnnotations: ExtendedCoreMessage[],
+  chartMessages: ExtendedCoreMessage[]
+): ExtendedCoreMessage[] {
+  return [
+    ...extendedCoreMessages,
+    ...responseMessages.slice(0, -1),
+    ...otherAnnotations,
+    ...(chartMessages.length > 0 ? chartMessages : responseMessages.slice(-1))
+  ] as ExtendedCoreMessage[]
+}
+
+// Helper function to save to database with retry
+async function saveToDatabase(
+  chatId: string,
+  originalMessages: Message[],
+  generatedMessages: ExtendedCoreMessage[],
+  streamManager: StreamProtocolManager
+) {
+  try {
+    const savedChat = (await getChat(chatId)) ?? {
+      messages: [],
+      createdAt: new Date(),
+      userId: 'anonymous',
+      path: `/search/${chatId}`,
+      title: originalMessages[0].content,
+      id: chatId
+    }
+
+    const existingDataMessages = savedChat.messages.filter(msg => 
+      msg.role === 'data' && 
+      msg.content && 
+      typeof msg.content === 'object' &&
+      msg.content !== null &&
+      'type' in msg.content && 
+      typeof msg.content.type === 'string' &&
+      ['search_results', 'tool_call'].includes(msg.content.type)
+    )
+
+    const mergedMessages = [
+      ...existingDataMessages,
+      ...generatedMessages
+    ]
+
+    let retryCount = 0
+    const maxRetries = 3
+    
+    while (retryCount < maxRetries) {
+      try {
+        await saveChat({
+          ...savedChat,
+          messages: mergedMessages
+        })
+        break
+      } catch (error) {
+        retryCount++
+        console.error(`Failed to save chat (attempt ${retryCount}/${maxRetries}):`, error)
+        
+        if (retryCount === maxRetries) {
+          streamManager.streamError('Failed to save chat history after multiple attempts')
+          throw error
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000))
+      }
+    }
+  } catch (error) {
+    console.error('Error saving chat:', error)
+    streamManager.streamError('Failed to save chat')
+    throw error
   }
 }
