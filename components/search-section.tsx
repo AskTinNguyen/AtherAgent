@@ -95,6 +95,22 @@ export function SearchSection({
     React.useState<VisualizationData | null>(null)
   const sourcesProcessedRef = React.useRef<{ [key: string]: boolean }>({})
 
+  // Add cache lock ref
+  const cacheLockRef = React.useRef<{ [key: string]: boolean }>({})
+  const getCacheLockKey = React.useCallback((chatId: string, query: string) => 
+    `${chatId}:${query}`, [])
+
+  // Add lock/unlock helpers
+  const acquireLock = React.useCallback((key: string): boolean => {
+    if (cacheLockRef.current[key]) return false
+    cacheLockRef.current[key] = true
+    return true
+  }, [])
+
+  const releaseLock = React.useCallback((key: string): void => {
+    cacheLockRef.current[key] = false
+  }, [])
+
   const includeDomainsString = React.useMemo(
     () => (includeDomains ? ` [${includeDomains.join(', ')}]` : ''),
     [includeDomains]
@@ -209,186 +225,117 @@ export function SearchSection({
     return () => clearTimeout(timeoutId)
   }, [searchResults, currentDepth, optimizeDepth, addActivity])
 
-  // Store search results in Redis when they change
+  // Consolidate all search restoration logic into a single effect
   React.useEffect(() => {
-    if (searchResults?.results && query) {
-      const payload = {
-        query,
-        results: {
-          ...searchResults,
-          results: searchResults.results.map(result => ({
-            ...result,
-            content: result.content || '',
-            title: result.title || '',
-            url: result.url || '',
-            relevance: result.relevance || 0,
-            depth: result.depth || 1,
-            domain: result.domain || '',
-            favicon: result.favicon || '',
-            publishedDate: result.publishedDate || null
-          }))
-        }
-      }
+    if (!q || searchResults) return; // Skip if no query or already have results
 
-      fetch(`/api/search/${chatId}/results`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      }).catch(error => {
-        console.error('Error storing search results:', error)
-      })
+    const lockKey = getCacheLockKey(chatId, q);
+    if (!acquireLock(lockKey)) {
+      console.log('Search restoration already in progress for:', lockKey);
+      return;
     }
-  }, [searchResults, query, chatId])
 
-  // Restore search results from Redis on mount or when URL parameters change
-  React.useEffect(() => {
-    if (q && !searchResults) {
-      fetch(`/api/search/${chatId}/results?q=${encodeURIComponent(q)}`)
-        .then(async response => {
-          if (!response.ok) {
-            const errorText = await response.text()
-            throw new Error(`Failed to restore search results: ${errorText}`)
-          }
-          return response.json()
-        })
-        .then(data => {
-          if (data && data.results) {
-            // Create a synthetic tool invocation with the correct type
-            const syntheticTool = {
-              state: 'result' as const,
-              toolName: 'search' as const,
-              toolCallId: 'restored-search',
-              args: {
-                query: q,
-                includeDomains: searchParams
-                  .get('domains')
-                  ?.split(',')
-                  .filter(Boolean)
-              },
-              result: data
-            }
+    let isSubscribed = true; // For cleanup
 
-            // Update the tool state
-            if (setMessages && messages) {
-              const newMessage: ExtendedMessage = {
-                id: 'restored-search',
-                role: 'assistant',
-                content: `Restored search results for: ${q}`,
-                toolInvocations: [syntheticTool]
-              }
-              setMessages([...messages, newMessage])
-            }
-          }
-        })
-        .catch(error => {
-          console.error('Error restoring search results:', error)
-        })
-    }
-  }, [q, searchResults, chatId, setMessages, messages])
-
-  // Clear stored results when chat changes
-  React.useEffect(() => {
-    return () => {
-      fetch(`/api/search/${chatId}/results`, {
-        method: 'DELETE'
-      }).catch(error => {
-        console.error('Error clearing stored search results:', error)
-      })
-    }
-  }, [chatId])
-
-  // Persist search state in URL
-  React.useEffect(() => {
-    if (searchResults?.results && query) {
-      const params = new URLSearchParams(searchParams.toString())
-      params.set('q', query)
-      if (includeDomains?.length) {
-        params.set('domains', includeDomains.join(','))
-      }
-      router.push(`?${params.toString()}`, { scroll: false })
-    }
-  }, [searchResults, query, includeDomains, router])
-
-  // Recover search from URL parameters
-  const recoverSearch = React.useCallback(
-    async (query: string, domains?: string[]) => {
+    const restoreSearchResults = async () => {
       try {
-        const results = await searchTool.execute(
-          {
-            query,
-            search_depth: 'basic',
-            include_domains: domains || [],
-            exclude_domains: [],
-            topic: 'general',
-            time_range: 'year',
-            include_answer: false,
-            include_images: false,
-            include_image_descriptions: false,
-            include_raw_content: false,
-            max_results: 10,
-            days: 365
-          },
-          {
-            toolCallId: 'recover-search',
-            messages: []
+        // 1. Try Redis first (through API)
+        const redisResponse = await fetch(`/api/search/${chatId}/results?q=${encodeURIComponent(q)}`);
+        if (redisResponse.ok) {
+          const data = await redisResponse.json();
+          if (data && data.results && isSubscribed) {
+            handleRestoredResults(data);
+            return;
           }
-        )
+        }
 
-        if (results.results?.length) {
-          // Update the search results in the parent component's state
-          if (setMessages && messages) {
-            const newMessage = {
-              id: 'recover-search',
-              role: 'assistant' as const,
-              content: `Recovered search results for: ${query}`,
-              searchSources: extractSearchSources(results.results)
+        // 2. Try local storage
+        const storedResults = localStorage.getItem(STORAGE_KEY);
+        if (storedResults) {
+          const parsed = JSON.parse(storedResults);
+          if (parsed.chatId === chatId && parsed.results && isSubscribed) {
+            handleRestoredResults({ results: parsed.results });
+            return;
+          }
+        }
+
+        // 3. Try Supabase as last resort
+        const supabase = await createClient();
+        const { data: supabaseData, error } = await supabase
+          .from('search_results')
+          .select('*')
+          .eq('chat_id', chatId)
+          .eq('query', q)
+          .single();
+
+        if (supabaseData && !error && isSubscribed) {
+          handleRestoredResults(supabaseData);
+          return;
+        }
+
+        // 4. If all else fails, perform a new search
+        if (isSubscribed) {
+          const results = await searchTool.execute(
+            {
+              query: q,
+              search_depth: 'basic',
+              include_domains: searchParams.get('domains')?.split(',').filter(Boolean) || [],
+              exclude_domains: [],
+              topic: 'general',
+              time_range: 'year',
+              include_answer: 'none' as const,
+              include_images: false,
+              include_image_descriptions: false,
+              include_raw_content: false,
+              max_results: 10,
+              days: 365
+            },
+            {
+              toolCallId: 'recover-search',
+              messages: []
             }
-            setMessages([...messages, newMessage])
+          );
+
+          if (results.results && isSubscribed) {
+            handleRestoredResults(results);
           }
         }
       } catch (error) {
-        console.error('Failed to recover search:', error)
+        console.error('Error restoring search results:', error);
+      } finally {
+        releaseLock(lockKey);
       }
-    },
-    [setMessages, messages]
-  )
+    };
 
-  // Restore search state from URL on mount
-  React.useEffect(() => {
-    const urlDomains = searchParams.get('domains')?.split(',').filter(Boolean)
-
-    if (q && !searchResults) {
-      recoverSearch(q, urlDomains)
-    }
-  }, [q, searchResults, recoverSearch])
-
-  // Load results from local storage on mount
-  React.useEffect(() => {
-    const storedResults = localStorage.getItem(STORAGE_KEY)
-    if (storedResults && !searchResults) {
-      const parsed = JSON.parse(storedResults)
-      if (parsed.chatId === chatId) {
-        // Only restore if it's for the same chat session
-        setPreviousResults(parsed.results)
+    const handleRestoredResults = (data: any) => {
+      if (setMessages && messages) {
+        const newMessage: ExtendedMessage = {
+          id: 'restored-search',
+          role: 'assistant',
+          content: `Restored search results for: ${q}`,
+          searchSources: extractSearchSources(data.results),
+          toolInvocations: [{
+            state: 'result' as const,
+            toolName: 'search' as const,
+            toolCallId: 'restored-search',
+            args: {
+              query: q,
+              includeDomains: searchParams.get('domains')?.split(',').filter(Boolean)
+            },
+            result: data
+          }]
+        };
+        setMessages([...messages, newMessage]);
       }
-    }
-  }, [chatId, searchResults])
+    };
 
-  // Save results to local storage when they change
-  React.useEffect(() => {
-    if (searchResults?.results) {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          chatId,
-          results: searchResults.results,
-          timestamp: Date.now()
-        })
-      )
-    }
-  }, [searchResults, chatId])
+    restoreSearchResults();
+
+    return () => {
+      isSubscribed = false;
+      releaseLock(lockKey);
+    };
+  }, [q, searchResults, chatId, setMessages, messages, acquireLock, releaseLock, getCacheLockKey, searchParams]);
 
   // Memoized values
   const isToolLoading = React.useMemo(() => tool.state === 'call', [tool.state])
@@ -452,23 +399,36 @@ export function SearchSection({
       isOpen={isOpen}
       onOpenChange={onOpenChange}
     >
-      {/* StoredSearchResults is now always rendered */}
-      <div className="mb-6 border-b pb-4">
-        <StoredSearchResults 
-          chatId={chatId}
-          onResultsFound={(results) => {
-            if (!searchResults && setMessages && messages) {
-              const newMessage: ExtendedMessage = {
-                id: 'restored-search',
-                role: 'assistant',
-                content: `Restored search results for: ${q}`,
-                searchSources: extractSearchSources(results)
+      {/* Only show StoredSearchResults when we don't have results and aren't loading */}
+      {!searchResults && !isLoading && (
+        <div className="mb-6 border-b pb-4">
+          <StoredSearchResults 
+            chatId={chatId}
+            onResultsFound={(results) => {
+              // Only update if we still don't have results when this fires
+              if (!searchResults && setMessages && messages) {
+                const newMessage: ExtendedMessage = {
+                  id: 'restored-search',
+                  role: 'assistant',
+                  content: `Restored search results for: ${q}`,
+                  searchSources: extractSearchSources(results),
+                  toolInvocations: [{
+                    state: 'result' as const,
+                    toolName: 'search' as const,
+                    toolCallId: 'restored-search',
+                    args: {
+                      query: q,
+                      includeDomains: searchParams.get('domains')?.split(',').filter(Boolean)
+                    },
+                    result: { results }
+                  }]
+                }
+                setMessages([...messages, newMessage])
               }
-              setMessages([...messages, newMessage])
-            }
-          }}
-        />
-      </div>
+            }}
+          />
+        </div>
+      )}
 
       <div className="space-y-6">
         {/* View Mode Controls */}

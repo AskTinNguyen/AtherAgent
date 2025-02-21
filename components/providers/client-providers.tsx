@@ -2,6 +2,7 @@
 
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
+import { BookmarkProvider } from '@/lib/contexts/bookmark-context'
 import { ErrorBoundary } from 'react-error-boundary'
 import { SignInModal } from '../auth/sign-in-modal'
 import { StorageProvider } from './storage-provider'
@@ -34,9 +35,11 @@ export function ClientProviders({
               enableSystem
               disableTransitionOnChange
             >
-              {children}
-              <Toaster />
-              <SignInModalWrapper />
+              <BookmarkProvider>
+                {children}
+                <Toaster />
+                <SignInModalWrapper />
+              </BookmarkProvider>
             </ThemeProvider>
           </StorageProvider>
         </AuthStateHandler>
