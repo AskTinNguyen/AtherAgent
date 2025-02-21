@@ -6,7 +6,8 @@ const protectedRoutes = [
   '/dashboard',
   '/profile',
   '/settings',
-  '/bookmarks'
+  '/bookmarks',
+  '/api/tasks'
 ]
 
 // Define auth routes that should redirect if already authenticated

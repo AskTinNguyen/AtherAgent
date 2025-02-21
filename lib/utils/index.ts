@@ -1,16 +1,17 @@
 import { type Model } from '@/lib/types/models'
 import {
-    convertToCoreMessages,
-    CoreMessage,
-    CoreToolMessage,
-    generateId,
-    JSONValue,
-    Message,
-    ToolInvocation
+  convertToCoreMessages,
+  CoreMessage,
+  CoreToolMessage,
+  generateId,
+  JSONValue,
+  Message,
+  ToolInvocation
 } from 'ai'
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { ExtendedCoreMessage } from '../types'
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
