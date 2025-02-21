@@ -1,6 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import { useBookmarks } from '@/lib/contexts/bookmark-context'
 import { type SearchResultItem } from '@/types/search'
 import { motion } from 'framer-motion'
 import { Bookmark } from 'lucide-react'
@@ -13,28 +14,15 @@ interface SearchResultCardProps {
 }
 
 function SearchResultCardContent({ result, index }: SearchResultCardProps) {
-  const [isBookmarked, setIsBookmarked] = React.useState(false)
-  const [bookmarkId, setBookmarkId] = React.useState<string | null>(null)
+  const { bookmarkState, checkBookmarkStatus, invalidateBookmark } = useBookmarks()
+  const bookmarkData = bookmarkState[result.url]
+  const isBookmarked = bookmarkData?.isBookmarked || false
+  const bookmarkId = bookmarkData?.bookmarkId || null
 
-  // Check if the result is already bookmarked on mount
+  // Check bookmark status on mount
   React.useEffect(() => {
-    const checkBookmarkStatus = async () => {
-      try {
-        const response = await fetch(`/api/bookmarks/check?url=${encodeURIComponent(result.url)}`)
-        if (response.ok) {
-          const data = await response.json()
-          setIsBookmarked(data.isBookmarked)
-          if (data.isBookmarked) {
-            setBookmarkId(data.bookmarkId)
-          }
-        }
-      } catch (error) {
-        console.error('Failed to check bookmark status:', error)
-      }
-    }
-    
-    checkBookmarkStatus()
-  }, [result.url])
+    checkBookmarkStatus(result.url)
+  }, [result.url, checkBookmarkStatus])
 
   // Memoize the error handler
   const handleImageError = React.useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -50,33 +38,21 @@ function SearchResultCardContent({ result, index }: SearchResultCardProps) {
   }), [index])
 
   const handleBookmark = async (e: React.MouseEvent) => {
-    e.preventDefault() // Prevent the card click from triggering
+    e.preventDefault()
     e.stopPropagation()
     
     try {
       if (isBookmarked && bookmarkId) {
-        // Remove bookmark using the generated bookmarkId
+        // Remove bookmark
         const response = await fetch(`/api/bookmarks?bookmarkId=${bookmarkId}`, {
           method: 'DELETE'
         })
         
         if (!response.ok) {
-          const errorText = await response.text()
-          console.error('Delete bookmark error:', errorText)
           throw new Error('Failed to remove bookmark')
         }
         
-        // Verify bookmark removal
-        const verifyResponse = await fetch(`/api/bookmarks/verify?bookmarkId=${bookmarkId}`)
-        const verifyData = await verifyResponse.json()
-        
-        if (!verifyData.isFullyDeleted) {
-          console.error('Bookmark still exists in Redis after deletion')
-          throw new Error('Failed to remove bookmark completely')
-        }
-        
-        setBookmarkId(null)
-        setIsBookmarked(false)
+        invalidateBookmark(result.url)
         toast.success('Bookmark removed')
       } else {
         // Add bookmark with proper schema
@@ -108,26 +84,17 @@ function SearchResultCardContent({ result, index }: SearchResultCardProps) {
         })
         
         if (!response.ok) {
-          const errorText = await response.text()
-          console.error('Add bookmark error:', errorText)
           throw new Error('Failed to add bookmark')
         }
         
-        const data = await response.json()
-        setBookmarkId(data.id)
-        setIsBookmarked(true)
+        invalidateBookmark(result.url)
         toast.success('Bookmark added')
       }
     } catch (error) {
       console.error('Bookmark operation failed:', error)
       toast.error('Failed to update bookmark')
-      // Reset states on error by checking current status
-      const checkResponse = await fetch(`/api/bookmarks/check?url=${encodeURIComponent(result.url)}`)
-      if (checkResponse.ok) {
-        const data = await checkResponse.json()
-        setIsBookmarked(data.isBookmarked)
-        setBookmarkId(data.isBookmarked ? data.bookmarkId : null)
-      }
+      // Force a fresh check of the bookmark status
+      checkBookmarkStatus(result.url)
     }
   }
 

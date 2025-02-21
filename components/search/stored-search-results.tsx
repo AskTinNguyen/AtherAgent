@@ -19,23 +19,26 @@ export function StoredSearchResults({ chatId, onResultsFound }: StoredSearchResu
   const searchParams = useSearchParams()
   const query = searchParams.get('q')
   const [results, setResults] = React.useState<SearchResultItem[]>([])
-  const [isLoading, setIsLoading] = React.useState(true)
+  const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const toastIdRef = React.useRef<string | number>('')
+  const hasAttemptedRef = React.useRef(false)
 
   React.useEffect(() => {
+    if (!chatId || hasAttemptedRef.current) return;
+    hasAttemptedRef.current = true;
+
     async function fetchStoredResults() {
       if (!chatId) {
         setIsLoading(false)
         return
       }
 
+      setIsLoading(true)
       try {
         const supabase = await createClient()
         
-        console.log('Querying sources for research session:', chatId)
-        
-        // Query sources directly using chatId as research_session_id (since Chat component uses the same ID)
+        // Query sources directly using chatId as research_session_id
         const { data, error } = await supabase
           .from('sources')
           .select(`
@@ -50,6 +53,7 @@ export function StoredSearchResults({ chatId, onResultsFound }: StoredSearchResu
           `)
           .eq('session_id', chatId)
           .order('relevance', { ascending: false })
+          .limit(1) // Only check if we have any results
 
         if (error) {
           console.error('Error querying sources:', {
@@ -144,27 +148,27 @@ export function StoredSearchResults({ chatId, onResultsFound }: StoredSearchResu
     )
   }
 
-  // Always show the component, even with no results
+  if (results.length === 0) {
+    return null // Don't show anything if no results
+  }
+
+  // Show results if we have them
   return (
     <div className="space-y-4">
       <div className="text-sm text-muted-foreground text-center">
-        {results.length > 0 
-          ? query
-            ? `Showing stored results from previous search: "${query}"`
-            : "Showing previously stored search results"
-          : 'No stored results available'}
+        {query
+          ? `Showing stored results from previous search: "${query}"`
+          : "Showing previously stored search results"}
       </div>
-      {results.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {results.map((result, index) => (
-            <SearchResultCard
-              key={`${result.url}-${index}`}
-              result={result}
-              index={index}
-            />
-          ))}
-        </div>
-      )}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {results.map((result, index) => (
+          <SearchResultCard
+            key={`${result.url}-${index}`}
+            result={result}
+            index={index}
+          />
+        ))}
+      </div>
     </div>
   )
 } 

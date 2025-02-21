@@ -59,6 +59,7 @@ export default function SupabaseProvider({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const [isInitialized, setIsInitialized] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null)
   const [session, setSession] = useState<Session | null>(null)
@@ -66,54 +67,12 @@ export default function SupabaseProvider({
   const [isLoading, setIsLoading] = useState(true)
   const [showSignInModal, setShowSignInModal] = useState(false)
 
+  // Initialize Supabase client
   useEffect(() => {
     try {
       const client = getSupabaseClient()
       setSupabase(client)
-
-      // Check for existing cookies
-      const authToken = cookies.get(AUTH_COOKIE_NAME)
-      const refreshToken = cookies.get(REFRESH_COOKIE_NAME)
-
-      // Initialize session
-      const initSession = async () => {
-        try {
-          let currentSession = null
-
-          // If we have tokens in cookies, try to use them
-          if (authToken && refreshToken) {
-            const { data: { session: tokenSession }, error: tokenError } = 
-              await client.auth.setSession({
-                access_token: authToken,
-                refresh_token: refreshToken
-              })
-            
-            if (!tokenError) {
-              currentSession = tokenSession
-            }
-          }
-
-          // If no valid tokens in cookies, try to get session normally
-          if (!currentSession) {
-            const { data: { session: normalSession }, error: sessionError } = 
-              await client.auth.getSession()
-            
-            if (!sessionError) {
-              currentSession = normalSession
-            }
-          }
-
-          // Update state with session and user
-          setSession(currentSession)
-          setUser(currentSession?.user ?? null)
-        } catch (e) {
-          console.error('Error getting initial session:', e)
-        } finally {
-          setIsLoading(false)
-        }
-      }
-
-      initSession()
+      setIsInitialized(true)
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : 'Failed to initialize Supabase client'
       console.error('Supabase initialization error:', e)
@@ -122,8 +81,58 @@ export default function SupabaseProvider({
     }
   }, [])
 
+  // Handle session initialization and auth state
   useEffect(() => {
-    if (!supabase || process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') {
+    if (!supabase || !isInitialized) return
+
+    const initSession = async () => {
+      try {
+        // Check for existing cookies
+        const authToken = cookies.get(AUTH_COOKIE_NAME)
+        const refreshToken = cookies.get(REFRESH_COOKIE_NAME)
+
+        let currentSession = null
+
+        // If we have tokens in cookies, try to use them
+        if (authToken && refreshToken) {
+          const { data: { session: tokenSession }, error: tokenError } = 
+            await supabase.auth.setSession({
+              access_token: authToken,
+              refresh_token: refreshToken
+            })
+          
+          if (!tokenError) {
+            currentSession = tokenSession
+          }
+        }
+
+        // If no valid tokens in cookies, try to get session normally
+        if (!currentSession) {
+          const { data: { session: normalSession }, error: sessionError } = 
+            await supabase.auth.getSession()
+          
+          if (!sessionError) {
+            currentSession = normalSession
+          }
+        }
+
+        // Update state with session and user
+        setSession(currentSession)
+        setUser(currentSession?.user ?? null)
+      } catch (e) {
+        console.error('Error getting initial session:', e)
+        setError(new Error('Failed to initialize session'))
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    initSession()
+  }, [supabase, isInitialized])
+
+  // Handle auth state changes
+  useEffect(() => {
+    if (!supabase || !isInitialized || process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') {
       return
     }
 
@@ -134,12 +143,10 @@ export default function SupabaseProvider({
       setUser(currentSession?.user ?? null)
       
       if (event === 'SIGNED_OUT') {
-        // Clear cookies on sign out
         cookies.remove(AUTH_COOKIE_NAME)
         cookies.remove(REFRESH_COOKIE_NAME)
         router.push('/login')
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        // Update cookies with new tokens
         if (currentSession) {
           cookies.set(AUTH_COOKIE_NAME, currentSession.access_token)
           cookies.set(REFRESH_COOKIE_NAME, currentSession.refresh_token)
@@ -151,7 +158,7 @@ export default function SupabaseProvider({
     return () => {
       subscription.unsubscribe()
     }
-  }, [router, supabase])
+  }, [router, supabase, isInitialized])
 
   const signOut = async () => {
     if (!supabase) return
@@ -184,12 +191,20 @@ export default function SupabaseProvider({
     )
   }
 
+  if (!isInitialized || isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
+      </div>
+    )
+  }
+
   return (
     <Context.Provider value={{ 
       supabase, 
       session, 
       user,
-      isLoading,
+      isLoading: false,
       showSignInModal,
       setShowSignInModal,
       signOut

@@ -10,6 +10,11 @@ interface StreamState {
   currentMessageId: string | null
   streamedContent: string
   toolCallStatus: 'none' | 'executing' | 'completed'
+  postToolResponses: Map<string, {
+    responseId: string
+    content: string
+    status: 'started' | 'streaming' | 'completed'
+  }>
 }
 
 interface ChatMessagesProps {
@@ -34,7 +39,8 @@ export function ChatMessages({
     isStreaming: false,
     currentMessageId: null,
     streamedContent: '',
-    toolCallStatus: 'none'
+    toolCallStatus: 'none',
+    postToolResponses: new Map()
   })
   const manualToolCallId = 'manual-tool-call'
   const scrollTimeout = useRef<NodeJS.Timeout>()
@@ -47,9 +53,10 @@ export function ChatMessages({
       isStreaming: false,
       currentMessageId: null,
       streamedContent: '',
-      toolCallStatus: 'none'
+      toolCallStatus: 'none',
+      postToolResponses: new Map()
     })
-    setMessages([]) // Clear messages when chatId changes
+    setMessages([])
   }, [chatId, setMessages])
 
   // Scroll to bottom function with smooth behavior
@@ -81,21 +88,90 @@ export function ChatMessages({
           // Handle tool calls
           if ('type' in item && item.type === 'tool_call') {
             console.debug('🛠️ Tool Call Started:', { item })
-            setStreamState(prev => ({
-              ...prev,
-              isStreaming: true,
-              toolCallStatus: 'executing'
-            }))
+            if (mounted) {
+              setStreamState(prev => ({
+                ...prev,
+                isStreaming: true,
+                toolCallStatus: 'executing'
+              }))
+            }
           }
 
           // Handle tool results
           if ('type' in item && item.type === 'tool_result') {
             console.debug('✅ Tool Call Completed:', { item })
-            setStreamState(prev => ({
-              ...prev,
-              toolCallStatus: 'completed',
-              isStreaming: true  // Keep streaming for subsequent content
-            }))
+            if (mounted) {
+              setStreamState(prev => ({
+                ...prev,
+                toolCallStatus: 'completed',
+                isStreaming: true  // Keep streaming for subsequent content
+              }))
+            }
+          }
+
+          // Handle post-tool execution start (type e)
+          if ('type' in item && item.type === 'post_tool_start') {
+            const { toolCallId, responseId } = item.data as { toolCallId: string; responseId: string }
+            console.debug('📝 Post-Tool Response Started:', { toolCallId, responseId })
+            if (mounted) {
+              setStreamState(prev => {
+                const newPostToolResponses = new Map(prev.postToolResponses)
+                newPostToolResponses.set(toolCallId, {
+                  responseId,
+                  content: '',
+                  status: 'started'
+                })
+                return {
+                  ...prev,
+                  postToolResponses: newPostToolResponses
+                }
+              })
+            }
+          }
+
+          // Handle post-tool execution content (type f)
+          if ('type' in item && item.type === 'post_tool_content') {
+            const { toolCallId, content } = item.data as { toolCallId: string; content: string }
+            console.debug('📝 Post-Tool Content Received:', { toolCallId, contentPreview: content.slice(0, 50) })
+            if (mounted) {
+              setStreamState(prev => {
+                const newPostToolResponses = new Map(prev.postToolResponses)
+                const currentResponse = newPostToolResponses.get(toolCallId)
+                if (currentResponse) {
+                  newPostToolResponses.set(toolCallId, {
+                    ...currentResponse,
+                    content: currentResponse.content + content,
+                    status: 'streaming'
+                  })
+                }
+                return {
+                  ...prev,
+                  postToolResponses: newPostToolResponses
+                }
+              })
+            }
+          }
+
+          // Handle post-tool execution end (type g)
+          if ('type' in item && item.type === 'post_tool_end') {
+            const { toolCallId } = item.data as { toolCallId: string }
+            console.debug('📝 Post-Tool Response Completed:', { toolCallId })
+            if (mounted) {
+              setStreamState(prev => {
+                const newPostToolResponses = new Map(prev.postToolResponses)
+                const currentResponse = newPostToolResponses.get(toolCallId)
+                if (currentResponse) {
+                  newPostToolResponses.set(toolCallId, {
+                    ...currentResponse,
+                    status: 'completed'
+                  })
+                }
+                return {
+                  ...prev,
+                  postToolResponses: newPostToolResponses
+                }
+              })
+            }
           }
 
           // Handle text streaming
@@ -104,19 +180,21 @@ export function ChatMessages({
               content: (item.value as string).slice(0, 50) + '...',
               toolCallStatus: streamState.toolCallStatus 
             })
-            setStreamState(prev => ({
-              ...prev,
-              isStreaming: true,
-              streamedContent: item.value as string,
-              toolCallStatus: prev.toolCallStatus === 'completed' ? 'none' : prev.toolCallStatus
-            }))
+            if (mounted) {
+              setStreamState(prev => ({
+                ...prev,
+                isStreaming: true,
+                streamedContent: item.value as string,
+                toolCallStatus: prev.toolCallStatus === 'completed' ? 'none' : prev.toolCallStatus
+              }))
+            }
           }
 
-          // Always process message updates
+          // Handle message updates
           if ('type' in item && item.type === 'message-update' && 'data' in item) {
             console.debug('📨 Message Update:', { item })
             const messageData = item.data as unknown as { messages: Message[] }
-            if (Array.isArray(messageData.messages)) {
+            if (Array.isArray(messageData.messages) && mounted) {
               const lastMessage = messageData.messages[messageData.messages.length - 1]
               setStreamState(prev => ({
                 ...prev,
@@ -130,12 +208,14 @@ export function ChatMessages({
           // Handle stream completion
           if ('type' in item && item.type === 'done') {
             console.debug('🏁 Stream Completed')
-            setStreamState(prev => ({
-              ...prev,
-              isStreaming: false,
-              currentMessageId: null,
-              toolCallStatus: 'none'
-            }))
+            if (mounted) {
+              setStreamState(prev => ({
+                ...prev,
+                isStreaming: false,
+                currentMessageId: null,
+                toolCallStatus: 'none'
+              }))
+            }
           }
         }
       }
@@ -146,7 +226,7 @@ export function ChatMessages({
     return () => {
       mounted = false
     }
-  }, [data, setMessages, streamState.toolCallStatus])
+  }, [data, setMessages])
 
   // Update messages with streamed content
   useEffect(() => {
@@ -249,9 +329,9 @@ export function ChatMessages({
   }
 
   return (
-    <div className="relative mx-auto px-4 w-full">
+    <div className="relative mx-auto px-4 w-full bg-transparent">
       {messages.map(message => (
-        <div key={message.id} className="mb-4 flex flex-col gap-4">
+        <div key={message.id} className="mb-4 flex flex-col gap-4 bg-transparent">
           <RenderMessage
             message={message}
             messageId={message.id}
@@ -276,7 +356,7 @@ export function ChatMessages({
             chatId={chatId ?? 'default'}
           />
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 bg-transparent">
             <Spinner />
             {streamState.isStreaming && (
               <span className="text-sm text-muted-foreground">

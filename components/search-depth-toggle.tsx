@@ -10,42 +10,45 @@ import {
   PopoverTrigger,
 } from './ui/popover'
 
+// Constants
+const STORAGE_KEY = 'research_depth_config'
+const DEFAULT_MAX_DEPTH = 7
+const DEFAULT_TARGET_DEPTH = 3
+
 interface SearchDepthToggleProps {
   enabled?: boolean
-  currentDepth?: number
-  maxDepth?: number
-  onDepthChange?: (depth: number) => void
 }
 
 export function SearchDepthToggle({ 
-  enabled, 
-  currentDepth: externalCurrentDepth,
-  maxDepth: externalMaxDepth,
-  onDepthChange 
+  enabled = true
 }: SearchDepthToggleProps) {
-  const { state, setDepth } = useResearch()
+  const { state, updateConfiguration } = useResearch()
   const [isOpen, setIsOpen] = useState(false)
+  const [targetDepth, setTargetDepth] = useState(state.configuration.targetDepth)
+  const maxAllowedDepth = state.configuration.maxAllowedDepth
 
-  const currentDepth = externalCurrentDepth ?? state.depth.current
-  const maxDepth = externalMaxDepth ?? state.depth.max
-
-  // Handle depth changes
+  // Handle user input changes
   const handleDepthChange = (newDepth: number) => {
-    const validDepth = Math.max(1, Math.min(newDepth, maxDepth))
-    setDepth(validDepth, maxDepth)
-    onDepthChange?.(validDepth)
+    const validDepth = Math.max(1, Math.min(newDepth, maxAllowedDepth))
+    setTargetDepth(validDepth)
+    
+    // Update research configuration
+    updateConfiguration({
+      targetDepth: validDepth,
+      maxAllowedDepth,
+      timestamp: Date.now()
+    })
   }
 
-  // Handle increment/decrement
   const handleIncrement = () => {
-    if (currentDepth < maxDepth) {
-      handleDepthChange(currentDepth + 1)
+    if (targetDepth < maxAllowedDepth) {
+      handleDepthChange(targetDepth + 1)
     }
   }
 
   const handleDecrement = () => {
-    if (currentDepth > 1) {
-      handleDepthChange(currentDepth - 1)
+    if (targetDepth > 1) {
+      handleDepthChange(targetDepth - 1)
     }
   }
 
@@ -68,9 +71,9 @@ export function SearchDepthToggle({
               <span className={cn(
                 "text-foreground",
                 enabled && "text-primary"
-              )}>{currentDepth}</span>
+              )}>{targetDepth}</span>
               <span className="text-muted-foreground">/</span>
-              <span className="text-muted-foreground">{maxDepth}</span>
+              <span className="text-muted-foreground">{maxAllowedDepth}</span>
             </div>
           </div>
         </Button>
@@ -78,35 +81,35 @@ export function SearchDepthToggle({
       <PopoverContent className="w-72" align="start">
         <div className="grid gap-4">
           <div className="space-y-2">
-            <h4 className="font-medium leading-none">Search Depth</h4>
+            <h4 className="font-medium leading-none">Configure Research Depth</h4>
             <p className="text-sm text-muted-foreground">
-              Configure the maximum depth for search results. The research will automatically progress through depths based on result quality.
+              Set how deep you want your next research to go
             </p>
           </div>
           <div className="grid gap-4">
             <div className="grid grid-cols-3 items-center gap-4">
-              <Label htmlFor="maxDepth">Max Depth</Label>
+              <Label htmlFor="maxDepth">Target Depth</Label>
               <div className="col-span-2 flex items-center justify-between gap-2">
                 <Button 
                   variant="outline" 
                   size="icon" 
                   className="size-8"
                   onClick={handleDecrement}
-                  disabled={!enabled || currentDepth <= 1}
+                  disabled={!enabled || targetDepth <= 1}
                 >
                   -
                 </Button>
                 <div className="flex items-center gap-1">
-                  <span className="text-sm font-medium text-primary">{currentDepth}</span>
+                  <span className="text-sm font-medium text-primary">{targetDepth}</span>
                   <span className="text-sm text-muted-foreground">/</span>
-                  <span className="w-4 text-center font-medium">{maxDepth}</span>
+                  <span className="w-4 text-center font-medium">{maxAllowedDepth}</span>
                 </div>
                 <Button 
                   variant="outline" 
                   size="icon" 
                   className="size-8"
                   onClick={handleIncrement}
-                  disabled={!enabled || currentDepth >= maxDepth}
+                  disabled={!enabled || targetDepth >= maxAllowedDepth}
                 >
                   +
                 </Button>
@@ -116,11 +119,11 @@ export function SearchDepthToggle({
               <div className="h-2 w-full rounded-full bg-secondary">
                 <div 
                   className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${(currentDepth / maxDepth) * 100}%` }}
+                  style={{ width: `${(targetDepth / maxAllowedDepth) * 100}%` }}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Research will progress through depths automatically based on result quality and relevance.
+                This setting will apply to your next research iteration
               </p>
             </div>
           </div>

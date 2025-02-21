@@ -27,7 +27,16 @@ export function ResearchInitializer() {
         progress: `${state.completedSteps}/${state.totalExpectedSteps}`
       })
     }
-  }, [state])
+  }, [
+    state.isActive,
+    state.searchEnabled,
+    state.depth.current,
+    state.depth.max,
+    state.activity.length,
+    state.sources.length,
+    state.completedSteps,
+    state.totalExpectedSteps
+  ])
 
   return null // This is a logic-only component
 } 
