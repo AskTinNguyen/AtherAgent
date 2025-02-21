@@ -5,7 +5,7 @@ import { useResearch } from '@/lib/contexts/research-context'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { Brain, Layers, Lightbulb, RefreshCw } from 'lucide-react'
-import { useMemo } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '../ui/badge'
 import { Card } from '../ui/card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
@@ -31,9 +31,16 @@ interface ResearchPathNode {
 export function ResearchPathVisualization() {
   const { state } = useResearch()
   const { activity, sourceMetrics } = state
+  const [cachedTree, setCachedTree] = useState<ResearchPathNode[]>([])
 
-  // Build research tree with metrics and memory - improved synchronization
-  const researchTree = useMemo(() => {
+  // Function to get cache key
+  const getCacheKey = useCallback(() => {
+    const sessionId = window.location.pathname.split('/').pop()
+    return `research_path:${sessionId}`
+  }, [])
+
+  // Build research tree with metrics and memory
+  const buildResearchTree = useCallback(() => {
     const tree: ResearchPathNode[] = []
     const nodesByDepth = new Map<number, ResearchPathNode>()
 
@@ -74,6 +81,42 @@ export function ResearchPathVisualization() {
 
     return tree
   }, [activity, sourceMetrics])
+
+  // Load from cache or build tree
+  useEffect(() => {
+    const loadTree = async () => {
+      try {
+        // Try to get from cache first
+        const response = await fetch(`/api/cache/get?key=${getCacheKey()}`)
+        const data = await response.json()
+        
+        if (data) {
+          setCachedTree(data)
+        } else {
+          // If no cache, build tree and cache it
+          const newTree = buildResearchTree()
+          setCachedTree(newTree)
+          
+          // Cache the new tree
+          await fetch('/api/cache/set', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              key: getCacheKey(),
+              value: newTree
+            })
+          })
+        }
+      } catch (error) {
+        console.error('Error loading research path:', error)
+        // Fallback to building tree directly
+        const newTree = buildResearchTree()
+        setCachedTree(newTree)
+      }
+    }
+
+    loadTree()
+  }, [getCacheKey, buildResearchTree])
 
   const renderNode = (node: ResearchPathNode, index: number) => {
     return (
@@ -188,7 +231,7 @@ export function ResearchPathVisualization() {
 
         {/* Research Path Tree */}
         <div className="mt-4 space-y-2">
-          {researchTree.map((node, index) => renderNode(node, index))}
+          {cachedTree.map((node, index) => renderNode(node, index))}
         </div>
       </div>
     </ErrorBoundary>

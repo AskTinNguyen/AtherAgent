@@ -1,24 +1,66 @@
 import { useResearch } from '@/lib/contexts/research-context'
+import { type ResearchSource } from '@/lib/types/research-enhanced'
 import { cn } from '@/lib/utils'
 import * as Tabs from '@radix-ui/react-tabs'
 import { Layers } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { ResearchHistoryTimeline } from '../research-history-timeline'
 import { ResearchSuggestions } from '../research-suggestions'
 import { ResearchPathVisualization } from './research-path-visualization'
 
 interface ResearchTabsProps {
   chatId: string
+  userId: string
   onSuggestionSelect?: (content: string) => void
   isFullScreen?: boolean
 }
 
 export function ResearchTabs({ 
   chatId, 
+  userId, 
   onSuggestionSelect,
   isFullScreen = false
 }: ResearchTabsProps) {
   const { state } = useResearch()
-  const { activity, sources } = state
+  const { activity } = state
+  const [cachedSources, setCachedSources] = useState<ResearchSource[]>([])
+
+  // Function to get cache key
+  const getCacheKey = useCallback(() => `research_sources:${chatId}`, [chatId])
+
+  // Load sources from cache or state
+  useEffect(() => {
+    const loadSources = async () => {
+      try {
+        // Try to get from cache first
+        const response = await fetch(`/api/cache/get?key=${getCacheKey()}`)
+        const data = await response.json()
+        
+        if (data) {
+          setCachedSources(data)
+        } else {
+          // If no cache, use state data and cache it
+          setCachedSources(state.sources)
+          
+          // Cache the sources
+          await fetch('/api/cache/set', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              key: getCacheKey(),
+              value: state.sources
+            })
+          })
+        }
+      } catch (error) {
+        console.error('Error loading sources:', error)
+        // Fallback to state data
+        setCachedSources(state.sources)
+      }
+    }
+
+    loadSources()
+  }, [getCacheKey, state.sources])
 
   const tabContentClass = cn(
     "flex-1 overflow-y-auto transition-all duration-300",
@@ -126,7 +168,7 @@ export function ResearchTabs({
           "space-y-4",
           isFullScreen && "grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4 space-y-0"
         )}>
-          {sources.map((source, index) => (
+          {cachedSources.map((source, index) => (
             <div
               key={index}
               className="flex flex-col gap-2 p-4 rounded-lg hover:bg-muted/50 transition-colors border"
@@ -157,7 +199,8 @@ export function ResearchTabs({
         className={tabContentClass}
       >
         <ResearchSuggestions 
-          chatId={chatId} 
+          chatId={chatId}
+          userId={userId}
           onSuggestionSelect={onSuggestionSelect}
           isFullScreen={isFullScreen}
         />

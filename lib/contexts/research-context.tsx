@@ -1,6 +1,7 @@
 'use client'
 
-import { type ResearchActivity, type ResearchSource, type ResearchState, type SourceMetrics } from '@/lib/types/research-enhanced'
+import { fetchStoredSuggestions, markSuggestionAsUsed } from '@/lib/services/suggestion-generator'
+import { type ResearchActivity, type ResearchSource, type ResearchState, type ResearchSuggestion, type SourceMetrics } from '@/lib/types/research-enhanced'
 import { optimizeDepthStrategy, shouldIncreaseDepth } from '@/lib/utils/research-depth'
 import { createContext, useCallback, useContext, useReducer, type ReactNode } from 'react'
 
@@ -46,6 +47,8 @@ type ResearchAction =
   | { type: 'TOGGLE_SEARCH' }
   | { type: 'CLEAR_STATE' }
   | { type: 'CLEAR_SOURCES' }
+  | { type: 'SET_SUGGESTIONS'; payload: ResearchSuggestion[] }
+  | { type: 'MARK_SUGGESTION_USED'; payload: string }
 
 // Reducer
 function researchReducer(state: ResearchState, action: ResearchAction): ResearchState {
@@ -136,13 +139,28 @@ function researchReducer(state: ResearchState, action: ResearchAction): Research
       }
 
     case 'CLEAR_STATE':
-      return initialState
+      return {
+        ...initialState,
+        searchEnabled: state.searchEnabled
+      }
 
     case 'CLEAR_SOURCES':
       return {
         ...state,
         sources: [],
         sourceMetrics: []
+      }
+
+    case 'SET_SUGGESTIONS':
+      return {
+        ...state,
+        suggestions: action.payload
+      }
+
+    case 'MARK_SUGGESTION_USED':
+      return {
+        ...state,
+        suggestions: state.suggestions.filter(s => s.id !== action.payload)
       }
 
     default:
@@ -167,6 +185,9 @@ interface ResearchContextType {
   clearSources: () => void
   startResearch: () => void
   stopResearch: () => void
+  setSuggestions: (suggestions: ResearchSuggestion[]) => void
+  markSuggestionUsed: (suggestionId: string) => void
+  loadSuggestions: (sessionId: string) => Promise<void>
 }
 
 const ResearchContext = createContext<ResearchContextType | undefined>(undefined)
@@ -261,6 +282,28 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
     }
   }, [state.isActive])
 
+  const setSuggestions = useCallback((suggestions: ResearchSuggestion[]) => {
+    dispatch({ type: 'SET_SUGGESTIONS', payload: suggestions })
+  }, [])
+
+  const markSuggestionUsed = useCallback(async (suggestionId: string) => {
+    try {
+      await markSuggestionAsUsed(suggestionId)
+      dispatch({ type: 'MARK_SUGGESTION_USED', payload: suggestionId })
+    } catch (error) {
+      console.error('Error marking suggestion as used:', error)
+    }
+  }, [])
+
+  const loadSuggestions = useCallback(async (sessionId: string) => {
+    try {
+      const suggestions = await fetchStoredSuggestions(sessionId)
+      setSuggestions(suggestions)
+    } catch (error) {
+      console.error('Error loading suggestions:', error)
+    }
+  }, [setSuggestions])
+
   return (
     <ResearchContext.Provider
       value={{
@@ -278,7 +321,10 @@ export function ResearchProvider({ children }: { children: ReactNode }) {
         getSourceMetrics,
         clearSources,
         startResearch,
-        stopResearch
+        stopResearch,
+        setSuggestions,
+        markSuggestionUsed,
+        loadSuggestions
       }}
     >
       {children}
